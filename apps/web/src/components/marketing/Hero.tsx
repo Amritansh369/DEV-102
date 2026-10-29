@@ -1,11 +1,13 @@
 'use client';
 
 import Link from 'next/link';
+import dynamic from 'next/dynamic';
 import { useEffect, useState } from 'react';
 import { homeFor, useSession } from '@/lib/session';
 import { AnimatePresence, motion, useReducedMotion } from 'framer-motion';
 import { Activity, ArrowRight, Building2, Download, Eye, Fingerprint, Globe, Link2, Menu, MonitorCheck, ScanFace, ShieldCheck, Sparkles, Timer, UserCheck, X } from 'lucide-react';
 import { OrgBackdrop } from '@/components/layout/OrgBackdrop';
+import { OPTIONS, riskTone, useExamStory } from './examStory';
 
 const ROLE_HOME_LABEL = { ADMIN: 'Admin panel', MENTOR: 'Live monitor', CANDIDATE: 'My exam' } as const;
 
@@ -125,31 +127,10 @@ function NetworkPattern() {
 
 /* ---------------------------------------------------------------- live exam showcase */
 
-/** The story the card plays on a loop: a calm exam, an AI query, the flag, then the human decision. */
-const STAGES = [
-  { risk: 8, tab: false, alert: false, verdict: false },
-  { risk: 14, tab: true, alert: false, verdict: false },
-  { risk: 64, tab: true, alert: true, verdict: false },
-  { risk: 64, tab: true, alert: true, verdict: true },
-] as const;
-const OPTIONS = ['O(n)', 'O(n log n)', 'O(n²)', 'O(log n)'];
-const riskTone = (r: number) => (r >= 50 ? 'bg-danger' : r >= 25 ? 'bg-warning' : 'bg-success');
-
+/** Flat version of the hero visual, used when WebGL is unavailable. */
 function ExamShowcase() {
   const reduce = useReducedMotion();
-  const [stage, setStage] = useState(0);
-  const [left, setLeft] = useState(42 * 60 + 18);
-
-  useEffect(() => {
-    if (reduce) return;
-    const story = setInterval(() => setStage((s) => (s + 1) % STAGES.length), 2600);
-    const clock = setInterval(() => setLeft((t) => (t > 0 ? t - 1 : 42 * 60 + 18)), 1000);
-    return () => { clearInterval(story); clearInterval(clock); };
-  }, [reduce]);
-
-  const s = STAGES[stage] ?? STAGES[0];
-  const mm = String(Math.floor(left / 60)).padStart(2, '0');
-  const ss = String(left % 60).padStart(2, '0');
+  const { s, clock } = useExamStory(reduce);
 
   return (
     <motion.div
@@ -175,7 +156,7 @@ function ExamShowcase() {
             )}
           </AnimatePresence>
           <span className="ml-auto inline-flex items-center gap-1 rounded-lg bg-primary-50 px-2 py-1 font-mono text-[11px] font-semibold text-primary">
-            <Timer className="h-3 w-3" aria-hidden /> {mm}:{ss}
+            <Timer className="h-3 w-3" aria-hidden /> {clock}
           </span>
         </div>
 
@@ -263,6 +244,49 @@ function ExamShowcase() {
   );
 }
 
+/* ---------------------------------------------------------------- hero visual */
+
+// three.js is only downloaded on the client, and only for visitors whose browser has WebGL.
+const Hero3D = dynamic(() => import('./Hero3D'), { ssr: false, loading: () => <div className="h-[440px] w-full max-w-[640px] sm:h-[500px]" aria-hidden /> });
+
+function HeroVisual() {
+  const reduce = useReducedMotion();
+  const [webgl, setWebgl] = useState<boolean | null>(null);
+  useEffect(() => {
+    try {
+      const c = document.createElement('canvas');
+      setWebgl(Boolean(c.getContext('webgl2') ?? c.getContext('webgl')));
+    } catch {
+      setWebgl(false);
+    }
+  }, []);
+
+  if (webgl === null) return <div className="h-[440px] w-full max-w-[640px] sm:h-[500px]" aria-hidden />;
+  if (!webgl) return <ExamShowcase />;
+  return (
+    // Wider than its column so the orbiting shield is never clipped by the canvas edge.
+    <div className="relative w-full max-w-[680px] lg:-mr-10 lg:w-[calc(100%+5rem)]">
+      <Hero3D reduce={Boolean(reduce)} />
+      <motion.div
+        animate={reduce ? undefined : { y: [0, -6, 0] }}
+        transition={{ repeat: Infinity, duration: 4, ease: 'easeInOut' }}
+        className="absolute left-0 top-6 hidden items-center gap-2 rounded-2xl bg-white/95 px-3 py-2 shadow-xl ring-1 ring-black/5 backdrop-blur lg:flex"
+      >
+        <span className="grid h-8 w-8 place-items-center rounded-full bg-success/15 text-success"><Fingerprint className="h-4 w-4" aria-hidden /></span>
+        <span className="text-xs"><b className="block text-text">Face + OTP passed</b><span className="text-muted">Before the first question</span></span>
+      </motion.div>
+      <motion.div
+        animate={reduce ? undefined : { y: [0, 6, 0] }}
+        transition={{ repeat: Infinity, duration: 5, ease: 'easeInOut' }}
+        className="absolute bottom-8 right-0 hidden items-center gap-2 rounded-2xl bg-white/95 px-3 py-2 shadow-xl ring-1 ring-black/5 backdrop-blur lg:flex"
+      >
+        <span className="grid h-8 w-8 place-items-center rounded-full bg-cta/20 text-amber-700"><Eye className="h-4 w-4" aria-hidden /></span>
+        <span className="text-xs"><b className="block text-text">Proctor sees it live</b><span className="text-muted">With the typed query</span></span>
+      </motion.div>
+    </div>
+  );
+}
+
 /* ---------------------------------------------------------------- hero */
 
 const TRUST = [
@@ -322,7 +346,7 @@ export default function Hero() {
             </Link>
           </motion.div>
         </div>
-        <div className="flex justify-center lg:justify-end"><ExamShowcase /></div>
+        <div className="flex justify-center lg:justify-end"><HeroVisual /></div>
       </div>
 
       <div className="relative z-10 mx-auto -mb-1 max-w-7xl px-5 pb-16 lg:px-8">

@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { AnimatePresence, motion } from 'framer-motion'
-import { Activity, Bug, Database, Inbox, LogIn, RefreshCw, Server, ShieldAlert, Sparkles, Wifi, X, Zap } from 'lucide-react'
+import { Activity, Database, Inbox, LogIn, RefreshCw, Server, Sparkles, Wifi, X, Zap } from 'lucide-react'
 import { API_ORIGIN, get, post, setToken } from '@/lib/http'
 import { homeFor, useSession, type SessionUser } from '@/lib/session'
 
@@ -247,11 +247,6 @@ export default function DevToolbar() {
         )}
       </AnimatePresence>
 
-      <button type="button" onClick={() => setOpen((o) => !o)} aria-expanded={open} aria-label="Toggle dev toolbar (Ctrl+Shift+D)" title="Dev toolbar (Ctrl+Shift+D)" className="group flex items-center gap-2 rounded-full bg-[#071634] py-2 pl-2 pr-3 text-white shadow-[0_10px_30px_-8px_rgba(29,78,216,.7)] ring-1 ring-white/15 transition hover:ring-sky-400">
-        <span className="flex h-7 w-7 items-center justify-center rounded-full bg-gradient-to-br from-[#1d4ed8] to-[#38bdf8]"><Bug className="h-4 w-4" aria-hidden /></span>
-        <span className="text-xs font-semibold">DEV</span>
-        {(statusError ? <ShieldAlert className="h-3.5 w-3.5 text-rose-400" aria-hidden /> : status ? <Dot ok={status.db.ok && status.agent.ok} /> : null)}
-      </button>
 
       {preview?.html && (
         <div className="fixed inset-0 z-[160] flex items-center justify-center bg-black/60 p-4" onMouseDown={(e) => e.target === e.currentTarget && setPreview(null)}>
