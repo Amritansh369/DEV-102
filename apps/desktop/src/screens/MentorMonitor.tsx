@@ -246,7 +246,7 @@ export default function MentorMonitor({ notify, onExit }: MentorMonitorProps) {
           <label className="relative min-w-[200px] flex-1">
             <span className="sr-only">Search candidates</span>
             <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted" aria-hidden="true" />
-            <input ref={searchRef} value={q} onChange={(e) => setQ(e.target.value)} placeholder="Search name or user ID  ( / )" className="w-full rounded-xl border border-border py-2 pl-9 pr-8 text-sm focus:border-accent focus:outline-none focus:ring-4 focus:ring-accent/20" />
+            <input ref={searchRef} value={q} onChange={(e) => setQ(e.target.value)} placeholder="Search name or candidate ID  ( / )" className="w-full rounded-xl border border-border py-2 pl-9 pr-8 text-sm focus:border-accent focus:outline-none focus:ring-4 focus:ring-accent/20" />
             {q && <button onClick={() => setQ('')} aria-label="Clear search" className="absolute right-2 top-1/2 -translate-y-1/2 rounded p-1 text-muted hover:text-text focus:outline-none focus-visible:ring-2 focus-visible:ring-accent"><X className="h-3.5 w-3.5" /></button>}
           </label>
           <div role="radiogroup" aria-label="Filter by risk level" className="flex gap-1 rounded-xl bg-soft p-1">

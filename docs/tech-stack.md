@@ -96,15 +96,20 @@ No Docker is needed for local development. `npm start` runs everything.
 | `react-hook-form`, `@hookform/resolvers` | ^7.55.0, ^4.1.0 | Exam wizard and other forms |
 | `zod` | ^3.24.2 | Form and response validation |
 | `recharts` | ^2.15.1 | Dashboard and report charts |
+| `three` | ^0.186.1 | 3D engine for the home page hero |
+| `@react-three/fiber` | ^9.8.2 | React renderer for three.js |
+| `@react-three/drei` | ^10.7.9 | Helpers for the hero: rounded boxes, instanced keys, light panels, sparkles, contact shadows |
 | `framer-motion` | ^12.6.3 | Motion |
 | `lucide-react` | ^0.511.0 | Icons |
 | `socket.io-client` | ^4.8.1 | Live mentor views |
 | `papaparse` | ^5.5.3 | CSV parsing in the question and candidate importers |
 | `xlsx` | ^0.18.5 | Reads Excel files in the importers |
 
-**Dev dependencies:** `tailwindcss` ^4.0.12, `@tailwindcss/postcss` ^4.0.12, `postcss` ^8.5.3, `typescript` ^5.8.2, `eslint` ^9.22.0, `eslint-config-next` ^15.2.3, `@eslint/eslintrc`, `@types/node`, `@types/react`, `@types/react-dom`, `@types/papaparse`.
+**Dev dependencies:** `@types/three` ^0.186.0, `tailwindcss` ^4.0.12, `@tailwindcss/postcss` ^4.0.12, `postcss` ^8.5.3, `typescript` ^5.8.2, `eslint` ^9.22.0, `eslint-config-next` ^15.2.3, `@eslint/eslintrc`, `@types/node`, `@types/react`, `@types/react-dom`, `@types/papaparse`.
 
 Fonts: Poppins (headings) and the brand colours `#0A4DA6`, `#1E6FF0` and amber `#FFB020`.
+
+The home page hero is a 3D scene built entirely in code: an aluminium laptop whose screen is the live exam UI, drawn on a canvas texture, plus an orbiting glass shield with an eye, scan rings and particles. three.js loads only in the browser, only on the home page, and only when WebGL is available; otherwise the flat animated card is shown. Reflections come from in-code light panels, so no environment map is downloaded.
 
 ## Browser extension (`apps/extension`)
 

@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { AlertCircle, CheckCircle2, Download, HardDrive, Loader2, MonitorCheck, ShieldCheck, TriangleAlert } from "lucide-react";
 import { Faq, type FaqItem } from "@/components/marketing/Faq";
 import { CtaBanner } from "@/components/marketing/CtaBanner";
+import { OrgBackdrop } from "@/components/layout/OrgBackdrop";
 
 type OS = "Windows" | "macOS" | "Linux" | "Other";
 type CheckStatus = "ok" | "warn" | "fail";
@@ -34,7 +35,7 @@ function detectOS(ua: string): OS {
 const STEPS = [
   { t: "Download the installer", d: `Save DEV102-Proctor-Setup-${VERSION}.exe. It is signed, so Windows will show the publisher name.` },
   { t: "Run the setup", d: "Double-click the file and choose Install. Administrator rights are not required." },
-  { t: "Sign in with your exam credentials", d: "Use the Exam ID, User ID and password from your invitation email." },
+  { t: "Sign in with your exam credentials", d: "Use the Exam ID, Candidate ID and password from your invitation email." },
   { t: "Complete the system check", d: "Allow camera and microphone, close listed apps and test your network. Do this the day before." },
 ];
 
@@ -43,7 +44,7 @@ const FAQS: FaqItem[] = [
   { id: "av", q: "My antivirus warns about the installer. Is it safe?", a: "The installer is code-signed. Some antivirus tools flag any app that closes other programs. If this happens, contact your exam coordinator before turning protection off." },
   { id: "cam", q: "Why does the app need my camera and microphone?", a: "The camera verifies your identity and detects multiple people. The microphone only measures sound level. The consent screen lists everything before the exam begins." },
   { id: "apps", q: "Which apps will be closed automatically?", a: "Screen recorders, remote desktop tools, messaging apps, VPNs and virtual machines. You will see the exact list during the system check and can close them yourself first." },
-  { id: "net", q: "What if my internet drops during the exam?", a: "Your timer keeps running and answers are saved on your device. They sync when you reconnect. Long outages are reported to the mentor." },
+  { id: "net", q: "What if my internet drops during the exam?", a: "Your timer keeps running and answers are saved on your device. They sync when you reconnect. Long outages are reported to the proctor." },
   { id: "second", q: "Can I use an external monitor?", a: "No. Only one display is allowed and mirroring is blocked. Disconnect extra monitors and projectors before you start." },
   { id: "uninstall", q: "How do I remove the app after the exam?", a: "Open Settings, then Apps, and uninstall DEV102 Proctor. No background service is left behind." },
 ];
@@ -100,8 +101,9 @@ export default function DownloadPage() {
 
   return (
     <main>
-      <section className="bg-gradient-to-b from-soft to-white px-4 pb-16 pt-20 sm:px-6">
-        <div className="mx-auto max-w-3xl text-center">
+      <section className="relative overflow-hidden px-4 pb-16 pt-20 sm:px-6">
+        <OrgBackdrop look="student" tone="light" />
+        <div className="relative mx-auto max-w-3xl text-center">
           <span className="inline-flex items-center gap-2 rounded-full bg-white px-4 py-1.5 text-sm font-medium text-primary shadow-sm ring-1 ring-border">
             <ShieldCheck className="h-4 w-4" aria-hidden /> Required for every exam
           </span>

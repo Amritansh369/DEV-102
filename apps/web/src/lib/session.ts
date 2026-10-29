@@ -36,7 +36,7 @@ export const useSession = create<SessionState>()(
 );
 
 /** Where each role lands after signing in. */
-export const homeFor = (role: Role): string => (role === 'ADMIN' ? '/admin' : role === 'MENTOR' ? '/mentor' : '/lobby')
+export const homeFor = (role: Role): string => (role === 'ADMIN' ? '/organization' : role === 'MENTOR' ? '/proctor' : '/lobby')
 
 /** Client-side route guard. The API enforces roles on every request; this only avoids showing a page the user cannot use. */
 export function useRequireRole(roles: Role[]): void {

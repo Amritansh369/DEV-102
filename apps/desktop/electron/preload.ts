@@ -14,6 +14,7 @@ let kioskActive = false;
 
 const bridge: NativeBridge = {
   native: true,
+  relaxed: process.argv.includes('--proctor-relaxed'),
   deviceId: () => invoke<string>(CH.deviceId),
   window: {
     minimize: () => invoke(CH.winMinimize),

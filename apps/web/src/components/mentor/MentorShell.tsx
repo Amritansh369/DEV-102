@@ -59,7 +59,7 @@ export function MentorShell({ children }: { children: ReactNode }) {
   useRequireRole(["MENTOR", "ADMIN"]);
   const pathname = usePathname();
   const me = useSession((st) => st.user);
-  const name = me?.name ?? "Mentor";
+  const name = me?.name ?? "Proctor";
   return (
     <div className="min-h-screen bg-soft text-slate-900">
       <a href="#main" className="sr-only focus:not-sr-only focus:fixed focus:left-4 focus:top-4 focus:z-[70] focus:rounded-lg focus:bg-primary focus:px-4 focus:py-2 focus:text-white">
@@ -67,19 +67,19 @@ export function MentorShell({ children }: { children: ReactNode }) {
       </a>
       <header className="sticky top-0 z-30 border-b border-border bg-white/90 backdrop-blur">
         <div className="mx-auto flex h-16 max-w-7xl items-center gap-4 px-4 sm:px-6">
-          <Link href="/mentor" aria-label="Mentor console home" className="flex items-center gap-2.5 rounded-lg focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-accent/30">
+          <Link href="/proctor" aria-label="Proctor console home" className="flex items-center gap-2.5 rounded-lg focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-accent/30">
             <Logo />
-            <span className="hidden font-heading text-sm font-semibold text-primary sm:inline">Mentor console</span>
+            <span className="hidden font-heading text-sm font-semibold text-primary sm:inline">Proctor console</span>
           </Link>
-          <nav aria-label="Mentor" className="ml-4 flex gap-1">
-            <Link href="/mentor" aria-current={pathname === "/mentor" ? "page" : undefined} className={`rounded-lg px-3 py-2 text-sm font-medium focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-accent/30 ${pathname === "/mentor" ? "bg-primary/10 text-primary" : "text-slate-600 hover:bg-soft"}`}>
+          <nav aria-label="Proctor" className="ml-4 flex gap-1">
+            <Link href="/proctor" aria-current={pathname === "/proctor" ? "page" : undefined} className={`rounded-lg px-3 py-2 text-sm font-medium focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-accent/30 ${pathname === "/proctor" ? "bg-primary/10 text-primary" : "text-slate-600 hover:bg-soft"}`}>
               Review queue
             </Link>
           </nav>
           <div className="ml-auto flex items-center gap-3">
             <span className="hidden text-right leading-tight sm:block">
               <span className="block text-sm font-semibold">{name}</span>
-              <span className="block text-xs text-slate-500">Mentor</span>
+              <span className="block text-xs text-slate-500">Proctor</span>
             </span>
             <Avatar name={name.replace(/^(Dr|Prof)\.?\s+/, "")} />
             <Link href="/login" aria-label="Sign out" className="rounded-lg p-2 text-slate-500 hover:bg-soft focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-accent/30">

@@ -1,6 +1,6 @@
 import { Suspense, lazy, useEffect, useRef, useState, type ComponentType, type LazyExoticComponent } from 'react';
 import { AnimatePresence, motion, type Variants } from 'framer-motion';
-import { Bug, Eye, Link2, RotateCcw, Zap } from 'lucide-react';
+import { Bug, Check, Copy, Eye, Link2, RotateCcw, Zap } from 'lucide-react';
 import { DesktopLayout } from './components/DesktopLayout';
 import { ALL_VIOLATION_CODES, APP_STEPS, VIOLATION_META } from './lib/types';
 import type { AppStep, ViolationCode } from './lib/types';
@@ -10,6 +10,7 @@ import { onAuthLost, setToken } from './lib/http';
 import { getProctor } from './lib/proctorMock';
 import { Badge, Button, ErrorBoundary, ScreenSkeleton } from './lib/ui';
 import type { SubmitSummary } from './screens/Exam';
+import { backgroundFor, getTimeTheme } from './lib/theme';
 
 // Each screen is a default export with no props; navigation goes through useApp().
 const Login = lazy(() => import('./screens/Login'));
@@ -57,6 +58,17 @@ function useProctorBridge(active: boolean): void {
   }, [active]);
 }
 
+/** Soft, blurred role background behind the pre-exam check screens. */
+function ScreenBackdrop({ proctor }: { proctor: boolean }) {
+  const src = backgroundFor(proctor ? 'proctor' : 'student', getTimeTheme(new Date()));
+  return (
+    <div className="pointer-events-none absolute inset-0 overflow-hidden" aria-hidden>
+      <img src={src} alt="" className="absolute inset-0 h-full w-full scale-110 object-cover blur-2xl" onError={(e) => (e.currentTarget.style.display = 'none')} />
+      <div className="absolute inset-0 bg-white/80" />
+    </div>
+  );
+}
+
 /** Hands a violation to the exam screen, which reports it to the API like any real detection. */
 const reportViolation = (code: ViolationCode): void => {
   window.dispatchEvent(new CustomEvent('proctor:report', { detail: { code } }));
@@ -81,7 +93,7 @@ const QUICK_CODES: ViolationCode[] = ['MULTIPLE_FACES', 'GAZE_AWAY', 'AI_SITE_OP
 
 /**
  * Developer panel (dev builds only): open any screen directly with real server state behind it,
- * switch to the mentor monitor, and inject violations into the running exam.
+ * switch to the proctor monitor, and inject violations into the running exam.
  */
 function DevPanel() {
   const open = useApp((s) => s.devPanelOpen);
@@ -92,6 +104,8 @@ function DevPanel() {
   const pushToast = useApp((s) => s.pushToast);
   const [code, setCode] = useState<ViolationCode>('MULTIPLE_FACES');
   const [busy, setBusy] = useState<string | null>(null);
+  const [lastLink, setLastLink] = useState<{ role: 'CANDIDATE' | 'MENTOR'; link: string; password: string } | null>(null);
+  const [copied, setCopied] = useState<string | null>(null);
 
   if (!DEV_TOOLS) return null;
 
@@ -127,7 +141,7 @@ function DevPanel() {
     });
 
   const openMentorView = () =>
-    run('Mentor view', async () => {
+    run('Proctor view', async () => {
       useApp.getState().openMentor(await signInStaff(DEMO_MENTOR));
     });
 
@@ -137,8 +151,15 @@ function DevPanel() {
       const { link, password } = await devApi.inviteLink(role);
       await navigator.clipboard.writeText(link);
       useApp.getState().reset();
-      pushToast({ tone: 'success', title: `${role === 'MENTOR' ? 'Proctor' : 'Candidate'} link copied`, description: `Paste it, then use password ${password}.`, durationMs: 9000 });
+      setLastLink({ role, link, password });
+      pushToast({ tone: 'success', title: `${role === 'MENTOR' ? 'Proctor' : 'Candidate'} link copied`, description: 'Paste it, then copy the password here or on the password step.' });
     });
+
+  const copyText = async (key: string, text: string) => {
+    await navigator.clipboard.writeText(text);
+    setCopied(key);
+    window.setTimeout(() => setCopied((c) => (c === key ? null : c)), 1500);
+  };
 
   const inject = (target: ViolationCode) => {
     if (step === 'exam' && route === 'candidate') reportViolation(target);
@@ -170,7 +191,7 @@ function DevPanel() {
                 </Button>
               ))}
               <Button size="sm" disabled={busy !== null} variant={route === 'mentor' ? 'primary' : 'secondary'} icon={<Eye className="h-3.5 w-3.5" aria-hidden />} onClick={() => void openMentorView()}>
-                Mentor monitor
+                Proctor monitor
               </Button>
             </div>
             <p className="mt-1.5 text-[11px] text-muted">Signs in the demo candidate and marks face and OTP as verified when a screen needs it.</p>
@@ -180,6 +201,23 @@ function DevPanel() {
               <Button size="sm" variant="secondary" disabled={busy !== null} icon={<Link2 className="h-3.5 w-3.5" aria-hidden />} onClick={() => void copyInviteLink('CANDIDATE')}>Candidate link</Button>
               <Button size="sm" variant="secondary" disabled={busy !== null} icon={<Link2 className="h-3.5 w-3.5" aria-hidden />} onClick={() => void copyInviteLink('MENTOR')}>Proctor link</Button>
             </div>
+            {lastLink && (
+              <div className="mt-2 space-y-1.5 rounded-xl border border-border bg-soft p-2.5 text-[11px]">
+                <p className="font-semibold text-text">{lastLink.role === 'MENTOR' ? 'Proctor' : 'Candidate'} test sign-in</p>
+                {([
+                  ['link', 'Link', lastLink.link],
+                  ['password', 'Password', lastLink.password],
+                ] as const).map(([key, label, value]) => (
+                  <div key={key} className="flex items-center gap-2">
+                    <span className="w-14 shrink-0 text-muted">{label}</span>
+                    <code className="min-w-0 flex-1 truncate rounded bg-surface px-1.5 py-0.5">{value}</code>
+                    <button type="button" onClick={() => void copyText(key, value)} aria-label={`Copy ${label.toLowerCase()}`} className="rounded-md p-1 text-muted hover:bg-surface hover:text-primary">
+                      {copied === key ? <Check className="h-3.5 w-3.5 text-success" aria-hidden /> : <Copy className="h-3.5 w-3.5" aria-hidden />}
+                    </button>
+                  </div>
+                ))}
+              </div>
+            )}
 
             <h3 className="mt-4 text-[11px] font-semibold uppercase tracking-wide text-muted">Inject a violation</h3>
             <div className="mt-2 grid grid-cols-[1fr_auto] gap-1.5">
@@ -310,6 +348,7 @@ export default function App() {
   return (
     <>
       <DesktopLayout>
+        {!mentor && (step === 'systemCheck' || step === 'faceVerify' || step === 'consent') && <ScreenBackdrop proctor={auth?.role === 'MENTOR'} />}
         <AnimatePresence mode="wait" custom={direction} initial={false}>
           <motion.div key={viewKey} custom={direction} variants={transition} initial="enter" animate="center" exit="exit" className="scroll-thin absolute inset-0 overflow-y-auto overflow-x-hidden">
             <ErrorBoundary resetKey={viewKey}>

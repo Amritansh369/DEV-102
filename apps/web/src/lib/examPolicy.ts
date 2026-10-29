@@ -60,8 +60,8 @@ export function describePolicy(p: ViolationPolicy): string[] {
       : `Warns on ${p.warnFrom.toLowerCase()} severity and above, up to ${p.maxWarnings} time${p.maxWarnings > 1 ? 's' : ''}.`,
     p.autoSubmit
       ? `Auto-submits on ${p.autoSubmitFrom.toLowerCase()} events once warnings are used up${p.autoSubmitOnCritical ? ', and immediately on any critical event' : ''}.`
-      : 'Auto-submit is off. Mentors terminate sessions manually.',
-    `Sessions are flagged for mentor review at a risk score of ${p.riskFlagAt}.`,
+      : 'Auto-submit is off. Proctors terminate sessions manually.',
+    `Sessions are flagged for proctor review at a risk score of ${p.riskFlagAt}.`,
   ]
   if (p.cooldownSec > 0) lines.push(`Identical events within ${p.cooldownSec} seconds count once.`)
   return lines

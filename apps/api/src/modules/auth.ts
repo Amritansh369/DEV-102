@@ -85,7 +85,7 @@ type CandidateRow = Prisma.CandidateGetPayload<{ include: { device: true } }>;
 async function signInCandidate(exam: ExamRow, cand: CandidateRow, body: { password: string; deviceId?: string | undefined; channel: 'desktop' | 'web' }) {
   if (cand.lockedUntil && cand.lockedUntil > new Date()) lockedError(cand.lockedUntil);
   if (!(await verifyPassword(body.password, cand.passwordHash))) return registerFailure('candidate', cand.id, cand.failedLogins);
-  if (cand.status === 'DISQUALIFIED') fail('FORBIDDEN', 'This candidate has been disqualified from the exam. Contact the exam administrator.');
+  if (cand.status === 'DISQUALIFIED') fail('FORBIDDEN', 'This candidate has been disqualified from the exam. Contact your organization.');
 
   const live = await prisma.examSession.findFirst({ where: { candidateId: cand.id, status: { in: ['LIVE', 'WAITING'] } } });
   if (body.channel === 'desktop') {
@@ -95,7 +95,7 @@ async function signInCandidate(exam: ExamRow, cand: CandidateRow, body: { passwo
       fail('CONFLICT', 'This exam is already in progress on another device. The attempt was reported to the proctor.');
     }
     if (cand.device && cand.device.deviceId !== deviceId && !live) {
-      fail('FORBIDDEN', 'This account is bound to a different computer. Ask the exam administrator to reset your device.');
+      fail('FORBIDDEN', 'This account is bound to a different computer. Ask your organization to reset your device.');
     }
     await prisma.deviceBinding.upsert({
       where: { candidateId: cand.id },
@@ -130,7 +130,7 @@ async function openInvite(token: string, deviceId?: string) {
   const status = inviteStatus(inv);
   if (status === 'REVOKED') fail('FORBIDDEN', 'This exam link was withdrawn. Use the newest email from your organisation.');
   if (status === 'EXPIRED') fail('FORBIDDEN', 'This exam link has expired because the exam has ended.');
-  if (deviceId && inv.deviceId && inv.deviceId !== deviceId) fail('FORBIDDEN', 'This exam link is already in use on another computer. Ask the exam administrator for a new link.');
+  if (deviceId && inv.deviceId && inv.deviceId !== deviceId) fail('FORBIDDEN', 'This exam link is already in use on another computer. Ask your organization for a new link.');
   return inv;
 }
 
@@ -159,7 +159,7 @@ authRouter.post('/invites/login', limits.auth, handle(async (req) => {
     const user = inv.user && !inv.user.deletedAt ? inv.user : fail('NOT_FOUND', 'The account for this exam link no longer exists.');
     if (user.lockedUntil && user.lockedUntil > new Date()) lockedError(user.lockedUntil);
     if (!(await verifyPassword(body.password, user.passwordHash))) return registerFailure('user', user.id, user.failedLogins);
-    const updated = await prisma.user.update({ where: { id: user.id }, data: { failedLogins: 0, lockedUntil: null, lastLoginAt: new Date() } });
+    const updated = await prisma.user.update({ where: { id: user.id }, data: { failedLogins: 0, lockedUntil: null, lastLoginAt: new Date(), credentialCipher: null } });
     await prisma.auditLog.create({ data: { actorId: user.id, actorRole: user.role, action: 'auth.invite_login', target: inv.examId, ip: req.ip ?? null } });
     // examId scopes the token to this exam, and staff routes then require fresh face and OTP checks (proctorVerified in lib/auth).
     const token = signToken({ sub: user.id, role: user.role, tv: updated.tokenVersion, examId: inv.examId, deviceId: body.deviceId });
@@ -183,7 +183,7 @@ authRouter.post('/staff/login', limits.auth, handle(async (req) => {
   }
   if (user.lockedUntil && user.lockedUntil > new Date()) lockedError(user.lockedUntil);
   if (!(await verifyPassword(body.password, user.passwordHash))) return registerFailure('user', user.id, user.failedLogins);
-  const updated = await prisma.user.update({ where: { id: user.id }, data: { failedLogins: 0, lockedUntil: null, lastLoginAt: new Date() } });
+  const updated = await prisma.user.update({ where: { id: user.id }, data: { failedLogins: 0, lockedUntil: null, lastLoginAt: new Date(), credentialCipher: null } });
   await prisma.auditLog.create({ data: { actorId: user.id, actorRole: user.role, action: 'auth.login', ip: req.ip ?? null } });
   return {
     token: signToken({ sub: user.id, role: user.role, tv: updated.tokenVersion }),

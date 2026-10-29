@@ -1,24 +1,16 @@
 import { useCallback, useEffect, useState, type FormEvent } from 'react'
 import { AnimatePresence, motion } from 'framer-motion'
 import {
-  AlertCircle, ArrowLeft, ArrowRight, CalendarClock, ClipboardPaste, Clock3, Eye, EyeOff, Fingerprint, GraduationCap, Link2, Loader2,
+  AlertCircle, ArrowLeft, ArrowRight, CalendarClock, Check, ClipboardPaste, Clock3, Copy, Eye, EyeOff, Fingerprint, FlaskConical, GraduationCap, Link2, Loader2,
   Lock, MailCheck, MonitorCheck, ShieldCheck, Video, Wifi, WifiOff, type LucideIcon,
 } from 'lucide-react'
-import { api, parseInviteToken, type InvitePreview } from '../lib/api'
+import { api, devApi, parseInviteToken, type InvitePreview } from '../lib/api'
 import { HttpError } from '../lib/http'
+import { useApp } from '../lib/store'
+import { backgroundFor, getTimeTheme, type Look, type TimeTheme } from '../lib/theme'
 
 interface LoginProps {
   onLoggedIn: () => void
-}
-
-type TimeTheme = 'morning' | 'day' | 'night'
-type Look = 'student' | 'proctor'
-
-function getTimeTheme(date: Date): TimeTheme {
-  const hour = date.getHours()
-  if (hour >= 5 && hour < 12) return 'morning'
-  if (hour >= 12 && hour < 18) return 'day'
-  return 'night'
 }
 
 const GREETING: Record<TimeTheme, string> = { morning: 'Good morning', day: 'Good afternoon', night: 'Good evening' }
@@ -31,6 +23,11 @@ const OVERLAY: Record<TimeTheme, string> = {
 }
 
 const FEATURES: Record<Look, [LucideIcon, string][]> = {
+  org: [
+    [Link2, 'A personal link for every invited candidate and proctor'],
+    [Fingerprint, 'Face and email verification before any exam opens'],
+    [ShieldCheck, 'Each link works on one computer and expires with the exam'],
+  ],
   student: [
     [ShieldCheck, 'Encrypted, tamper-aware exam browser'],
     [Video, 'Webcam and screen monitoring during the test'],
@@ -45,6 +42,8 @@ const FEATURES: Record<Look, [LucideIcon, string][]> = {
 
 const formatTime = (date: Date) => date.toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' })
 const formatWhen = (iso: string) => new Date(iso).toLocaleString('en-IN', { weekday: 'short', day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })
+/** First name for the greeting, skipping titles such as "Dr." */
+const firstName = (name: string) => name.split(/\s+/).find((p) => !/^(dr|mr|mrs|ms|miss|prof)\.?$/i.test(p)) ?? name
 const errorText = (e: unknown, fallback: string) => (e instanceof Error ? e.message : fallback)
 
 export default function Login({ onLoggedIn }: LoginProps) {
@@ -58,6 +57,7 @@ export default function Login({ onLoggedIn }: LoginProps) {
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [bgFailed, setBgFailed] = useState(false)
+  const [testCopied, setTestCopied] = useState(false)
 
   const pingServer = useCallback(async () => setServer(await api.serverStatus()), [])
 
@@ -81,8 +81,10 @@ export default function Login({ onLoggedIn }: LoginProps) {
     setBusy(true)
     setError(null)
     try {
-      setInvite(await api.previewInvite(t))
+      const preview = await api.previewInvite(t)
+      setInvite(preview)
       setToken(t)
+      useApp.getState().setJoinRole(preview.role)
     } catch (e) {
       setError(errorText(e, 'Could not check this link.'))
     } finally {
@@ -128,7 +130,24 @@ export default function Login({ onLoggedIn }: LoginProps) {
     }
   }
 
+  /** Development only: fetch the link's password to copy or fill it, so testing needs no email. */
+  const testPassword = async (mode: 'copy' | 'fill') => {
+    if (!token) return
+    try {
+      const p = await devApi.invitePassword(token)
+      if (mode === 'fill') setPassword(p)
+      else {
+        await navigator.clipboard.writeText(p)
+        setTestCopied(true)
+        window.setTimeout(() => setTestCopied(false), 1500)
+      }
+    } catch (e) {
+      setError(errorText(e, 'Could not fetch the test password.'))
+    }
+  }
+
   const startOver = () => {
+    useApp.getState().setJoinRole(null)
     setInvite(null)
     setToken(null)
     setPassword('')
@@ -136,8 +155,8 @@ export default function Login({ onLoggedIn }: LoginProps) {
   }
 
   const time = getTimeTheme(now)
-  const look: Look = invite?.role === 'MENTOR' ? 'proctor' : 'student'
-  const background = `/images/bg/${look}-${time}.webp`
+  const look: Look = !invite ? 'org' : invite.role === 'MENTOR' ? 'proctor' : 'student'
+  const background = backgroundFor(look, time)
   const offline = server?.online === false
   const isProctor = invite?.role === 'MENTOR'
 
@@ -177,7 +196,7 @@ export default function Login({ onLoggedIn }: LoginProps) {
             <AnimatePresence mode="wait">
               <motion.div key={look + (invite?.name ?? '')} initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -6 }} transition={{ duration: 0.3 }}>
                 <h1 className="font-heading text-4xl font-semibold leading-tight">
-                  {!invite ? 'Your secure exam, one link away.' : isProctor ? `Ready to proctor, ${invite.name.split(' ')[0]}?` : `Welcome, ${invite.name.split(' ')[0]}.`}
+                  {!invite ? 'Your secure exam, one link away.' : isProctor ? `Ready to proctor, ${firstName(invite.name)}?` : `Welcome, ${firstName(invite.name)}.`}
                 </h1>
                 <p className="mt-4 text-white/80">
                   {!invite
@@ -272,7 +291,7 @@ export default function Login({ onLoggedIn }: LoginProps) {
                   </div>
                   <dl className="mt-4 grid grid-cols-[auto_1fr] gap-x-4 gap-y-1.5 text-sm">
                     <dt className="text-muted">Name</dt><dd className="truncate font-medium text-ink">{invite.name}</dd>
-                    {invite.userId && <><dt className="text-muted">User ID</dt><dd className="font-mono font-medium text-ink">{invite.userId}</dd></>}
+                    {invite.userId && <><dt className="text-muted">Candidate ID</dt><dd className="font-mono font-medium text-ink">{invite.userId}</dd></>}
                     <dt className="text-muted">Email</dt><dd className="truncate text-ink">{invite.email}</dd>
                     <dt className="text-muted">Role</dt>
                     <dd><span className={`rounded-full px-2 py-0.5 text-xs font-semibold ${isProctor ? 'bg-amber-100 text-amber-800' : 'bg-blue-50 text-primary'}`}>{isProctor ? 'Proctor' : 'Candidate'}</span></dd>
@@ -300,6 +319,16 @@ export default function Login({ onLoggedIn }: LoginProps) {
                       {showPw ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
                     </button>
                   </div>
+                  {import.meta.env.DEV && (
+                    <div className="mt-2 flex items-center gap-2 rounded-lg bg-amber-50 px-2.5 py-1.5 text-[11px] text-amber-800 ring-1 ring-amber-200">
+                      <FlaskConical className="h-3.5 w-3.5 shrink-0" aria-hidden />
+                      <span className="flex-1">Test password (developer mode)</span>
+                      <button type="button" onClick={() => void testPassword('copy')} className="inline-flex items-center gap-1 rounded-md bg-white px-2 py-0.5 font-medium ring-1 ring-amber-200 hover:bg-amber-100">
+                        {testCopied ? <Check className="h-3 w-3" aria-hidden /> : <Copy className="h-3 w-3" aria-hidden />} {testCopied ? 'Copied' : 'Copy'}
+                      </button>
+                      <button type="button" onClick={() => void testPassword('fill')} className="rounded-md bg-white px-2 py-0.5 font-medium ring-1 ring-amber-200 hover:bg-amber-100">Fill</button>
+                    </div>
+                  )}
                   {error && <ErrorNote text={error} />}
                   <button type="submit" disabled={busy || offline || !password} className={submitCls}>
                     {busy && <Loader2 className="h-4 w-4 animate-spin" aria-hidden />}

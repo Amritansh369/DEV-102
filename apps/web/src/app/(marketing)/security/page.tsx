@@ -13,7 +13,7 @@ const LAYERS: { icon: LucideIcon; name: string; what: string }[] = [
   { icon: Lock, name: "Kiosk", what: "Full-screen locked window, blocked shortcuts and clipboard, sandboxed browser tabs." },
   { icon: Camera, name: "Behaviour", what: "Faces, gaze and screen-share continuity analysed during the exam." },
   { icon: Globe, name: "Browsing", what: "Allow-listed sites only; every URL and query logged; AI sites flagged." },
-  { icon: UserCheck, name: "Human review", what: "Mentors watch live and confirm or overrule every penalty." },
+  { icon: UserCheck, name: "Human review", what: "Proctors watch live and confirm or overrule every penalty." },
 ];
 
 const MONITORED = [
@@ -41,7 +41,7 @@ const LIMITS = [
 const REVIEW_STEPS = [
   { t: "Event detected", d: "A violation is logged with severity, time and a snapshot." },
   { t: "Policy applied", d: "Warning or auto-submit follows the exam's configured policy." },
-  { t: "Mentor review", d: "The mentor sees evidence and the browsing log in session detail." },
+  { t: "Proctor review", d: "The proctor sees evidence and the browsing log in session detail." },
   { t: "Confirmed or overruled", d: "Overruled penalties are reversed and recorded in the audit trail." },
 ];
 
@@ -91,7 +91,7 @@ export default function SecurityPage() {
                   <li key={m} className="flex gap-2 text-sm text-slate-900"><span className="mt-1.5 h-1.5 w-1.5 shrink-0 rounded-full bg-success" />{m}</li>
                 ))}
               </ul>
-              <p className="mt-5 rounded-xl bg-soft p-3 text-xs text-slate-500">Evidence is retained for the period set by your institute and then deleted. Only administrators and assigned mentors can view it.</p>
+              <p className="mt-5 rounded-xl bg-soft p-3 text-xs text-slate-500">Evidence is retained for the period set by your institute and then deleted. Only organizations and assigned proctors can view it.</p>
             </div>
           </div>
         </div>

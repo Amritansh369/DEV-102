@@ -8,7 +8,7 @@ import FeatureGrid, { StatsStrip } from '@/components/marketing/FeatureGrid';
 export const metadata: Metadata = {
   title: 'Smart Proctoring Browser for Online Assessments | Where U Elevate',
   description:
-    'Run secure MCQ exams with a kiosk-mode exam browser, AI face and gaze checks, full browsing logs, live mentor monitoring and policy-based auto-submit.',
+    'Run secure MCQ exams with a kiosk-mode exam browser, AI face and gaze checks, full browsing logs, live proctor monitoring and policy-based auto-submit.',
 };
 
 interface Audience { icon: LucideIcon; title: string; body: string; points: string[]; href: string; cta: string }
@@ -20,12 +20,12 @@ const AUDIENCES: Audience[] = [
     points: ['Step-by-step system check', 'Exact list of what is monitored', 'Autosave if the network drops'],
   },
   {
-    icon: Video, title: 'Mentors', href: '/login?role=mentor', cta: 'Open live monitor',
+    icon: Video, title: 'Proctors', href: '/login?role=proctor', cta: 'Open live monitor',
     body: 'Watch many candidates at once and act within seconds.',
     points: ['Live screens and webcam grid', 'Risk scores and violation feed', 'Warn or terminate in one click'],
   },
   {
-    icon: LayoutDashboard, title: 'Administrators', href: '/login?role=admin', cta: 'Go to admin panel',
+    icon: LayoutDashboard, title: 'Organizations', href: '/login?role=organization', cta: 'Go to organization panel',
     body: 'Set up, run and report on exams without spreadsheets.',
     points: ['Exam wizard with violation policy', 'CSV and Excel import with preview', 'Results and violation reports'],
   },
@@ -69,7 +69,7 @@ function CtaBand() {
         <h2 id="cta-title" className="relative font-heading text-3xl font-bold sm:text-4xl">Ready to run your next assessment securely?</h2>
         <p className="relative mx-auto mt-4 max-w-xl text-white/85">Set up an exam in minutes, invite candidates in bulk, and watch the session live from any browser.</p>
         <div className="relative mt-8 flex flex-wrap items-center justify-center gap-4">
-          <Link href="/login?role=admin" className="inline-flex items-center gap-2 rounded-xl bg-cta px-6 py-3.5 text-sm font-bold text-slate-900 shadow-xl shadow-black/15 transition hover:brightness-105 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-white">
+          <Link href="/login?role=organization" className="inline-flex items-center gap-2 rounded-xl bg-cta px-6 py-3.5 text-sm font-bold text-slate-900 shadow-xl shadow-black/15 transition hover:brightness-105 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-white">
             <Building2 className="h-4 w-4" aria-hidden /> For Organization
           </Link>
           <Link href="/download" className="inline-flex items-center gap-2 rounded-xl bg-white px-6 py-3.5 text-sm font-bold text-primary transition hover:bg-soft focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-white">

@@ -12,15 +12,17 @@ type LoginRole = 'candidate' | 'mentor' | 'admin'
 
 const ROLE_LABELS: Record<LoginRole, string> = {
   candidate: 'Candidate',
-  mentor: 'Mentor',
-  admin: 'Administrator',
+  mentor: 'Proctor',
+  admin: 'Organization',
 }
 
 export default function LoginPage() {
   const router = useRouter()
   const params = useSearchParams()
   const setUser = useSession((state) => state.setUser)
-  const initialRole = params.get('role') === 'mentor' ? 'mentor' : params.get('role') === 'admin' ? 'admin' : 'candidate'
+  // ?role=proctor / ?role=organization (the old mentor / admin values still work).
+  const roleParam = params.get('role')
+  const initialRole = roleParam === 'proctor' || roleParam === 'mentor' ? 'mentor' : roleParam === 'organization' || roleParam === 'admin' ? 'admin' : 'candidate'
   const [role, setRole] = useState<LoginRole>(initialRole)
   const [identifier, setIdentifier] = useState('')
   const [examId, setExamId] = useState('')
@@ -95,8 +97,8 @@ export default function LoginPage() {
               </label>
             )}
             <label className="block text-sm font-medium text-ink">
-              {role === 'candidate' ? 'User ID' : 'Email'}
-              <input value={identifier} onChange={(event) => setIdentifier(event.target.value)} required className="mt-1 w-full rounded-xl border border-border bg-white px-3.5 py-3 text-sm outline-none focus:border-accent focus:ring-4 focus:ring-accent/10" placeholder={role === 'candidate' ? 'Your user ID' : 'name@example.com'} />
+              {role === 'candidate' ? 'Candidate ID' : 'Email'}
+              <input value={identifier} onChange={(event) => setIdentifier(event.target.value)} required className="mt-1 w-full rounded-xl border border-border bg-white px-3.5 py-3 text-sm outline-none focus:border-accent focus:ring-4 focus:ring-accent/10" placeholder={role === 'candidate' ? 'Your candidate ID' : 'name@example.com'} />
             </label>
             <label className="block text-sm font-medium text-ink">
               Password

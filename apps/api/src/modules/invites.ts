@@ -5,7 +5,7 @@ import { config } from '../config.js';
 import { fail, handle, must, parse } from '../lib/core.js';
 import { prisma } from '../lib/db.js';
 import { adminOnly, audit } from '../lib/auth.js';
-import { hashPassword, randomPassword, randomToken, sha256 } from '../lib/crypto.js';
+import { decrypt, encrypt, hashPassword, randomPassword, randomToken, sha256 } from '../lib/crypto.js';
 import { inviteStatus } from '../lib/domain.js';
 import { sendMail, templates } from '../lib/mailer.js';
 
@@ -41,6 +41,9 @@ async function sendProctorInvite(inviteExamId: string, user: { id: string; name:
   return { inviteId: id, ...(sent.outbox && !config.isProd ? { devLink: link } : {}) };
 }
 
+/** Hash for sign-in plus an encrypted copy the admin can reveal until the first sign-in (same as candidates). */
+const credentials = async (password: string) => ({ passwordHash: await hashPassword(password), credentialCipher: encrypt(password, config.JWT_SECRET) });
+
 export const invitesRouter = Router();
 
 invitesRouter.get('/exams/:id/proctors', ...adminOnly, handle(async (req) => {
@@ -64,11 +67,11 @@ invitesRouter.post('/exams/:id/proctors', ...adminOnly, handle(async (req) => {
   let password: string | null = null;
   if (!user) {
     password = randomPassword();
-    user = await prisma.user.create({ data: { email: body.email, name: body.name, role: 'MENTOR', passwordHash: await hashPassword(password) } });
+    user = await prisma.user.create({ data: { email: body.email, name: body.name, role: 'MENTOR', ...(await credentials(password)) } });
   }
   const r = await sendProctorInvite(examId, user, password);
   audit(req, 'proctor.invite', examId, { userId: user.id, created: password !== null });
-  return { ...r, userId: user.id, created: password !== null };
+  return { ...r, userId: user.id, created: password !== null, ...(password ? { password } : {}) };
 }));
 
 invitesRouter.post('/invites/:id/resend', ...adminOnly, handle(async (req) => {
@@ -79,11 +82,36 @@ invitesRouter.post('/invites/:id/resend', ...adminOnly, handle(async (req) => {
   let password: string | null = null;
   if (!user.lastLoginAt) {
     password = randomPassword();
-    await prisma.user.update({ where: { id: user.id }, data: { passwordHash: await hashPassword(password), tokenVersion: { increment: 1 } } });
+    await prisma.user.update({ where: { id: user.id }, data: { ...(await credentials(password)), tokenVersion: { increment: 1 } } });
   }
   const r = await sendProctorInvite(inv.examId, user, password);
   audit(req, 'invite.resend', inv.id);
-  return r;
+  return { ...r, ...(password ? { password } : {}) };
+}));
+
+/** Proctor behind a join link, for the password actions below. */
+async function proctorOf(inviteId: string) {
+  const inv = must(await prisma.invite.findUnique({ where: { id: inviteId }, include: { user: true } }), 'Invite');
+  if (inv.role !== 'MENTOR' || !inv.user) return fail('VALIDATION', 'Candidate passwords are managed from the candidate row.');
+  return inv.user;
+}
+
+/** The temporary password, while the proctor has not signed in yet. */
+invitesRouter.post('/invites/:id/reveal-password', ...adminOnly, handle(async (req) => {
+  const user = await proctorOf(String(req.params.id));
+  const password = user.credentialCipher ? decrypt(user.credentialCipher, config.JWT_SECRET) : null;
+  if (!password) return fail('CONFLICT', 'This proctor has already signed in, so the temporary password is gone. Use Reset & copy to issue a new one.');
+  audit(req, 'proctor.reveal_password', user.id);
+  return { password };
+}));
+
+/** Issues a new temporary password and signs the proctor out everywhere. */
+invitesRouter.post('/invites/:id/reset-password', ...adminOnly, handle(async (req) => {
+  const user = await proctorOf(String(req.params.id));
+  const password = randomPassword();
+  await prisma.user.update({ where: { id: user.id }, data: { ...(await credentials(password)), failedLogins: 0, lockedUntil: null, tokenVersion: { increment: 1 } } });
+  audit(req, 'proctor.reset_password', user.id);
+  return { password };
 }));
 
 invitesRouter.post('/invites/:id/revoke', ...adminOnly, handle(async (req) => {

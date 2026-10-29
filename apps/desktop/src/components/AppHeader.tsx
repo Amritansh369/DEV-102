@@ -31,11 +31,20 @@ export function useWindowControls() {
   };
 }
 
-function StepProgress({ current }: { current: AppStep }) {
-  const index = STEP_INDEX[current];
+const PROCTOR_STEPS: readonly { id: string; label: string }[] = [
+  { id: 'login', label: 'Sign in' },
+  { id: 'faceVerify', label: 'Verify identity' },
+  { id: 'monitor', label: 'Live monitor' },
+];
+
+/** Steps for the role the join link is for; nothing until a link is pasted. */
+function StepProgress({ current, role }: { current: AppStep; role: 'CANDIDATE' | 'MENTOR' | null }) {
+  if (!role) return null;
+  const steps = role === 'MENTOR' ? PROCTOR_STEPS : APP_STEPS;
+  const index = role === 'MENTOR' ? Math.max(0, PROCTOR_STEPS.findIndex((s) => s.id === current)) : STEP_INDEX[current];
   return (
-    <ol aria-label="Exam setup progress" className="flex items-center gap-1">
-      {APP_STEPS.map((step, i) => {
+    <ol aria-label={role === 'MENTOR' ? 'Proctor sign-in progress' : 'Exam setup progress'} className="flex items-center gap-1">
+      {steps.map((step, i) => {
         const done = i < index;
         const active = i === index;
         return (
@@ -51,7 +60,7 @@ function StepProgress({ current }: { current: AppStep }) {
               {done ? <Check className="h-3 w-3" aria-hidden /> : i + 1}
             </span>
             <span className={cn('hidden text-xs xl:inline', active ? 'font-semibold text-text' : 'text-muted')}>{step.label}</span>
-            {i < APP_STEPS.length - 1 && <span aria-hidden className={cn('mx-1 h-px w-4', done ? 'bg-success' : 'bg-border')} />}
+            {i < steps.length - 1 && <span aria-hidden className={cn('mx-1 h-px w-4', done ? 'bg-success' : 'bg-border')} />}
           </li>
         );
       })}
@@ -102,6 +111,8 @@ export function AppHeader() {
   const route = useApp((s) => s.route);
   const auth = useApp((s) => s.auth);
   const exam = useApp((s) => s.exam);
+  const joinRole = useApp((s) => s.joinRole);
+  const stepRole = auth ? (auth.role === 'MENTOR' ? 'MENTOR' : 'CANDIDATE') : joinRole;
   const controls = useWindowControls();
   const [closeOpen, setCloseOpen] = useState(false);
   const inExam = route === 'candidate' && step === 'exam';
@@ -124,7 +135,7 @@ export function AppHeader() {
               <Eye className="h-3 w-3" aria-hidden /> Live monitoring
             </Badge>
           ) : (
-            <StepProgress current={step} />
+            <StepProgress current={step} role={stepRole} />
           )}
         </div>
 
@@ -164,7 +175,7 @@ export function AppHeader() {
         description={
           inExam
             ? 'The app is locked while your exam is running. Submit your exam from the question screen to finish.'
-            : 'You will need to sign in again with your Exam ID and User ID.'
+            : 'You will need to sign in again with your Exam ID and Candidate ID.'
         }
         footer={
           inExam ? (

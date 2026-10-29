@@ -87,6 +87,8 @@ type DisplaySettings = MediaTrackSettings & { displaySurface?: string };
 
 const mockProctor: ProctorApi = {
   native: false,
+  // The browser preview has no native guards at all.
+  relaxed: true,
   window: {
     async minimize() {
       /* no-op in a browser tab */

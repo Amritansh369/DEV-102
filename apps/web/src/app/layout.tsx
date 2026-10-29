@@ -25,7 +25,7 @@ export const metadata: Metadata = {
     template: '%s | Smart Proctor',
   },
   description:
-    'A secure exam browser with AI-assisted proctoring, live mentor monitoring and instant reports. Run fair, cheat-resistant online MCQ assessments at scale.',
+    'A secure exam browser with AI-assisted proctoring, live proctor monitoring and instant reports. Run fair, cheat-resistant online MCQ assessments at scale.',
   applicationName: 'Smart Proctor',
   keywords: [
     'online proctoring',

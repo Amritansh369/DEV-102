@@ -112,6 +112,8 @@ model User {
   /// Proctor reference photo, registered on the first face verification after an invite sign-in.
   photoPath      String?
   faceVerifiedAt DateTime?
+  /// AES-GCM encrypted temporary password of an invited proctor, kept only until their first sign-in.
+  credentialCipher String?
   createdAt    DateTime  @default(now())
   deletedAt    DateTime?
 

@@ -170,7 +170,7 @@ candidatesRouter.post('/exams/:id/candidates/send-credentials', ...adminOnly, ha
   const sent = results.filter((r) => r.emailStatus === 'SENT').length;
   if (sent) {
     const exam = await prisma.exam.findUnique({ where: { id: String(req.params.id) }, select: { code: true } });
-    await prisma.notification.create({ data: { tone: sent === results.length ? 'success' : 'warning', title: 'Credentials sent', body: `Login details emailed to ${sent} of ${results.length} candidates of ${exam?.code ?? 'the exam'}.`, href: `/admin/exams/${req.params.id}/credentials` } });
+    await prisma.notification.create({ data: { tone: sent === results.length ? 'success' : 'warning', title: 'Credentials sent', body: `Login details emailed to ${sent} of ${results.length} candidates of ${exam?.code ?? 'the exam'}.`, href: `/organization/exams/${req.params.id}/credentials` } });
   }
   audit(req, 'candidate.send_credentials_batch', String(req.params.id), { sent, total: results.length });
   return results;
@@ -182,6 +182,15 @@ candidatesRouter.post('/candidates/:id/reset-password', ...adminOnly, handle(asy
   await prisma.deviceBinding.deleteMany({ where: { candidateId: c.id } });
   audit(req, 'candidate.reset_password', c.id);
   return credentialRow(c, c.exam.code, password);
+}));
+
+/** The emailed password, while the candidate has not signed in yet (it is deleted at first sign-in). */
+candidatesRouter.post('/candidates/:id/reveal-password', ...adminOnly, handle(async (req) => {
+  const c = must(await prisma.candidate.findUnique({ where: { id: String(req.params.id) } }), 'Candidate');
+  const password = c.credentialCipher ? decrypt(c.credentialCipher, config.JWT_SECRET) : null;
+  if (!password) return fail('CONFLICT', 'This candidate has already signed in, so the original password is gone. Use Reset & copy to issue a new one.');
+  audit(req, 'candidate.reveal_password', c.id);
+  return { password };
 }));
 
 candidatesRouter.post('/candidates/:id/reset-device', ...adminOnly, handle(async (req) => {

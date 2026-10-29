@@ -19,13 +19,11 @@ export function BrandMark({ className, light = false }: { className?: string; li
           <ShieldCheck className="h-5 w-5" aria-hidden />
         </span>
       ) : (
-        // eslint-disable-next-line @next/next/no-img-element
-        <img
-          src="/images/logo.png"
-          alt=""
-          className="h-10 w-auto"
-          onError={() => setFailed(true)}
-        />
+        // The logo is blue on transparent, so it sits on a white badge to stay visible on blue backgrounds.
+        <span className="grid h-11 w-11 shrink-0 place-items-center rounded-xl bg-white shadow-sm ring-1 ring-black/5">
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img src="/images/logo.png" alt="" className="h-9 w-9 object-contain" onError={() => setFailed(true)} />
+        </span>
       )}
       <span className="flex flex-col leading-tight">
         <span className={cn('font-heading text-base font-semibold', light ? 'text-white' : 'text-primary')}>

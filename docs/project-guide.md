@@ -63,6 +63,7 @@ An organization creates an exam on the website and selects its candidates and pr
 3. `/admin/exams/[id]/credentials`:
    - **Candidates:** import name + email. User IDs (`WUE26xxxx`) and passwords are generated. **Send credentials** emails each person their own join link plus password. The table shows email status and link status (not used, in use + device locked, revoked, expired), with Resend, Reset password and **Revoke**.
    - **Proctors:** invite by name + email. A mentor account is created if needed, and its temporary password goes in the same email. Resend or revoke at any time.
+   - **Passwords:** every candidate and proctor row has **Reveal** and **Copy**. The stored password is encrypted and kept only until that person's first sign-in, and every reveal is audited. After the first sign-in the row offers **Reset & copy**, which issues a new password and signs a proctor out.
 4. `/admin/exams/[id]/reports`: results, score distribution, violation heatmap, Excel and PDF downloads.
 
 ## Flow 2: join link (both roles)
@@ -76,7 +77,7 @@ An organization creates an exam on the website and selects its candidates and pr
   - Sending a new one **withdraws the old one**.
   - **Revoke** kills it immediately (and signs a proctor out).
   - No link means no way in.
-- The login background changes with role (student or proctor) and time of day (morning 5–12, day 12–18, night 18–5).
+- The login background changes with role and time of day (morning 5–12, day 12–18, night 18–5): the organization image until a link is pasted, then the student or proctor image. The header shows no steps until the link says the role, then shows that role's steps (candidate: six steps; proctor: Sign in → Verify identity → Live monitor).
 
 Code: `apps/api/src/modules/invites.ts`, `modules/auth.ts` (`openInvite`, `/invites/*`), `apps/desktop/src/screens/Login.tsx`, `apps/web/src/app/(marketing)/join/[token]/page.tsx`.
 
@@ -183,4 +184,12 @@ npm start
 | AI agent | http://127.0.0.1:8000/health | |
 | Desktop app | opens as a window | Dev panel (Ctrl+Shift+D) → **Candidate link** or **Proctor link** copies a fresh join link and shows its password (`Demo@2026` / `Mentor@123`) |
 
-The OTP shows in a dev toast when SMTP is not configured. Without SMTP, every email (with its join link) is in the website dev toolbar's outbox.
+The OTP shows in a dev toast when SMTP is not configured. **Developer mode** (`npm start`, without `PROCTOR_STRICT=1`) has no native restrictions, so the full flow runs on a dev machine:
+- no kiosk lock, blocked shortcuts, focus-loss lock or content protection
+- no process, display, USB or clipboard guards
+- system-check failures are shown but never block Continue
+- coding assistants (`claude`, `codex`, `cursor`, `copilot`, `windsurf`) are left out of the app list
+
+The AI webcam checks, browsing logs and dev-panel violation injection still work for demos. The installed app and `PROCTOR_STRICT=1` keep every restriction.
+
+The desktop app opens full screen. In developer mode the password step has **Copy** and **Fill** buttons for the pasted link's test password, and the dev panel keeps the last generated link and password with copy buttons. The website's dev toolbar has no on-screen button; open it with Ctrl+Shift+D. Without SMTP, every email (with its join link) is in the website dev toolbar's outbox.

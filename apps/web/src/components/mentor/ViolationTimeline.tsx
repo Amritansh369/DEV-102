@@ -143,7 +143,7 @@ export function ViolationTimeline({ violations, startedAt, verdictOf, reviews, h
                   {record && (
                     <p className="mt-3 flex gap-2 rounded-xl bg-soft p-3 text-xs text-slate-700">
                       <MessageSquareQuote className="mt-0.5 h-4 w-4 shrink-0 text-primary" aria-hidden />
-                      <span><span className="font-semibold">Mentor note:</span> {record.reason}</span>
+                      <span><span className="font-semibold">Proctor note:</span> {record.reason}</span>
                     </p>
                   )}
                   <div className="mt-3 flex flex-wrap items-center gap-2">

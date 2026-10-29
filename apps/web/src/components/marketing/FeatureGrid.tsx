@@ -13,11 +13,11 @@ const FEATURES: Feature[] = [
   { icon: Lock, title: 'Kiosk-mode exam browser', body: 'Full-screen lock-down blocks shortcuts, task switching, screenshots and clipboard access during the test.' },
   { icon: ScanFace, title: 'Face verification', body: 'Candidates are matched to their registered photo before the exam and re-checked continuously.' },
   { icon: Camera, title: 'Webcam and gaze tracking', body: 'Detects missing faces, extra people and sustained looking-away, with a snapshot as evidence.' },
-  { icon: MonitorSmartphone, title: 'Entire-screen capture', body: 'Mentors see live screens. Stopping the share, mirroring or adding a monitor raises an alert at once.' },
+  { icon: MonitorSmartphone, title: 'Entire-screen capture', body: 'Proctors see live screens. Stopping the share, mirroring or adding a monitor raises an alert at once.' },
   { icon: Globe2, title: 'Sandboxed research tabs', body: 'Every URL, search and chat query inside the exam browser is logged for later review.' },
   { icon: Bot, title: 'AI-site detection', body: 'ChatGPT, Gemini, Claude and other assistants are flagged the moment they are opened or queried.' },
   { icon: TriangleAlert, title: 'Policy-based warnings', body: 'Two warnings, then auto-submit on a serious breach. Thresholds are configurable for every exam.' },
-  { icon: LayoutGrid, title: 'Live mentor dashboard', body: 'A grid of candidates with risk scores, a violation feed, instant warnings and one-click termination.' },
+  { icon: LayoutGrid, title: 'Live proctor dashboard', body: 'A grid of candidates with risk scores, a violation feed, instant warnings and one-click termination.' },
   { icon: ClipboardCheck, title: 'Review and overrule', body: 'Confirm or overrule each penalty with evidence in view, so honest candidates are never punished by a glitch.' },
   { icon: Users, title: 'Bulk onboarding', body: 'Import candidates and MCQs from CSV or Excel, generate credentials and email them with per-row status.' },
 ];
@@ -123,7 +123,7 @@ export default function FeatureGrid() {
         <div className="mx-auto max-w-2xl text-center">
           <p className="inline-flex items-center gap-2 text-sm font-semibold uppercase tracking-widest text-primary-600"><Gauge className="h-4 w-4" aria-hidden /> Built for integrity</p>
           <h2 id="features-title" className="mt-3 font-heading text-3xl font-bold text-text sm:text-4xl">Ten layers that keep every exam honest</h2>
-          <p className="mt-4 text-muted">Proctoring that mentors can trust and candidates can understand, from the first system check to the final penalty review.</p>
+          <p className="mt-4 text-muted">Proctoring that proctors can trust and candidates can understand, from the first system check to the final penalty review.</p>
         </div>
         <ul className="mt-14 grid gap-5 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5">
           {FEATURES.map((f, i) => <FeatureCard key={f.title} f={f} index={i} />)}

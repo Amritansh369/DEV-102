@@ -138,7 +138,7 @@ function Simulator({ policy }: { policy: ViolationPolicy }) {
           <dl className="mt-3 space-y-2 text-sm">
             <div className="flex justify-between"><dt className="text-muted">Warnings shown</dt><dd className="font-semibold tabular-nums text-text">{result.warnings} / {policy.maxWarnings}</dd></div>
             <div className="flex justify-between"><dt className="text-muted">Final risk score</dt><dd className="font-semibold tabular-nums text-text">{result.risk} / 100</dd></div>
-            <div className="flex justify-between"><dt className="text-muted">Mentor review</dt><dd className={cx('font-semibold', result.flagged ? 'text-danger' : 'text-text')}>{result.flagged ? 'Flagged' : 'Not flagged'}</dd></div>
+            <div className="flex justify-between"><dt className="text-muted">Proctor review</dt><dd className={cx('font-semibold', result.flagged ? 'text-danger' : 'text-text')}>{result.flagged ? 'Flagged' : 'Not flagged'}</dd></div>
           </dl>
           <div className="mt-3 h-2 overflow-hidden rounded-full bg-slate-200" role="img" aria-label={`Risk ${result.risk} of 100, flag at ${policy.riskFlagAt}`}>
             <div className={cx('h-full rounded-full transition-all', result.flagged ? 'bg-danger' : 'bg-accent')} style={{ width: `${result.risk}%` }} />
@@ -243,14 +243,14 @@ export function PolicyEditor({ value, onChange, readOnly = false, showSimulator 
               <p className="mb-1.5 text-sm font-medium text-slate-700">Warn from severity</p>
               <Segmented label="Warn from severity" value={value.warnFrom} onChange={(v) => patch({ warnFrom: v })} options={warnOptions} disabled={readOnly} />
             </div>
-            <Slider label="Flag for mentor review at risk" value={value.riskFlagAt} min={10} max={100} step={5} disabled={readOnly} onChange={(v) => patch({ riskFlagAt: v })} error={errs.riskFlagAt} />
+            <Slider label="Flag for proctor review at risk" value={value.riskFlagAt} min={10} max={100} step={5} disabled={readOnly} onChange={(v) => patch({ riskFlagAt: v })} error={errs.riskFlagAt} />
             <Slider label="Ignore repeats of the same event within" value={value.cooldownSec} min={0} max={120} step={5} unit=" s" disabled={readOnly} onChange={(v) => patch({ cooldownSec: v })} error={errs.cooldownSec} />
           </div>
         </Panel>
 
-        <Panel title="Auto-submit rules" subtitle="Ends the exam and submits saved answers without waiting for a mentor.">
+        <Panel title="Auto-submit rules" subtitle="Ends the exam and submits saved answers without waiting for a proctor.">
           <div className="space-y-5">
-            <Toggle checked={value.autoSubmit} onChange={(v) => patch({ autoSubmit: v })} label="Auto-submit on repeated violations" description="When off, only mentors can terminate a session." disabled={readOnly} />
+            <Toggle checked={value.autoSubmit} onChange={(v) => patch({ autoSubmit: v })} label="Auto-submit on repeated violations" description="When off, only proctors can terminate a session." disabled={readOnly} />
             <div className={cx(!value.autoSubmit && 'pointer-events-none opacity-50')}>
               <p className="mb-1.5 text-sm font-medium text-slate-700">Auto-submit once warnings are used up, from severity</p>
               <Segmented label="Auto-submit severity" value={value.autoSubmitFrom} onChange={(v) => patch({ autoSubmitFrom: v })} options={autoOptions} disabled={readOnly || !value.autoSubmit} />

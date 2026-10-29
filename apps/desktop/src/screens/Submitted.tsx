@@ -46,7 +46,7 @@ const VARIANTS: Record<SubmitVariant, VariantConfig> = {
     badge: 'bg-warning/15 text-amber-700',
     Icon: AlertTriangle,
     mark: 'M50 28 L50 56 M50 70 L50 70.5',
-    steps: ['Answers saved up to this moment were submitted.', 'Your mentor will review the recorded events before your result is final.', 'If you think this was a mistake, quote your reference number to your exam organiser.'],
+    steps: ['Answers saved up to this moment were submitted.', 'Your proctor will review the recorded events before your result is final.', 'If you think this was a mistake, quote your reference number to your exam organiser.'],
   },
   DISQUALIFIED: {
     title: 'Session ended',

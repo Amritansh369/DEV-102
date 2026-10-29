@@ -35,15 +35,17 @@ export function registerIpc(getWin: () => BrowserWindow | null, getKiosk: () => 
   handle(CH.winToggleMax, () => {
     const w = getWin();
     if (!w) return false;
-    if (w.isMaximized()) w.unmaximize();
-    else w.maximize();
-    return w.isMaximized();
+    if (w.isFullScreen() || w.isMaximized()) {
+      w.setFullScreen(false);
+      w.unmaximize();
+    } else w.setFullScreen(true);
+    return w.isFullScreen() || w.isMaximized();
   });
   handle(CH.winClose, () => {
     if (getKiosk()?.active) return; // the exam window cannot be closed mid-exam
     getWin()?.close();
   });
-  handle(CH.winIsMax, () => getWin()?.isMaximized() ?? false);
+  handle(CH.winIsMax, () => Boolean(getWin()?.isFullScreen() || getWin()?.isMaximized()));
   handle(CH.deviceId, () => deviceFingerprint());
   handle(CH.scanProcesses, () => scanProcesses());
   handle(CH.closeProcess, (pid: unknown) => (Number.isInteger(pid) && (pid as number) > 4 ? closeProcess(pid as number) : false));

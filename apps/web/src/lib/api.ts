@@ -154,12 +154,14 @@ export const importCandidates = (examId: string, rows: { name: string; email: st
 export const sendCredentialEmail = (candidateId: string, template?: { subject: string; body: string }) =>
   call(post<EmailResult>(`/candidates/${candidateId}/send-credentials`, template ?? {}))
 export const resetCandidatePassword = (candidateId: string) => call(post<CredentialRow>(`/candidates/${candidateId}/reset-password`))
+/** Fails with CONFLICT once the candidate has signed in (the stored copy is deleted then). */
+export const revealCandidatePassword = (candidateId: string) => call(post<{ password: string }>(`/candidates/${candidateId}/reveal-password`))
 
 /* ------------------------------------------------------------------ join links */
 
 export interface ProctorInvite { inviteId: string; userId: string | null; name: string; email: string; status: InviteStatus; usedAt: string | null; deviceBound: boolean; createdAt: string }
 /** devLink is returned only in development when no SMTP server is configured. */
-export interface InviteSent { inviteId: string; devLink?: string }
+export interface InviteSent { inviteId: string; devLink?: string; password?: string }
 export const listProctors = (examId: string) => call(get<ProctorInvite[]>(`/exams/${examId}/proctors`))
 export const inviteProctor = (examId: string, input: { name: string; email: string }) =>
   call(post<InviteSent & { userId: string; created: boolean }>(`/exams/${examId}/proctors`, input))
@@ -167,6 +169,8 @@ export const inviteProctor = (examId: string, input: { name: string; email: stri
 export interface InvitePreview { role: 'CANDIDATE' | 'MENTOR'; name: string; email: string; userId?: string; exam: { code: string; title: string; startsAt: string; endsAt: string; durationMin: number }; deviceBound: boolean }
 export const previewInvite = (token: string) => call(get<InvitePreview>(`/auth/invites/${encodeURIComponent(token)}`))
 export const resendInvite = (inviteId: string) => call(post<InviteSent>(`/invites/${inviteId}/resend`))
+export const revealProctorPassword = (inviteId: string) => call(post<{ password: string }>(`/invites/${inviteId}/reveal-password`))
+export const resetProctorPassword = (inviteId: string) => call(post<{ password: string }>(`/invites/${inviteId}/reset-password`))
 export const revokeInvite = (inviteId: string) => call(post<{ inviteId: string; status: InviteStatus }>(`/invites/${inviteId}/revoke`))
 
 /* ------------------------------------------------------------------ reports */
