@@ -5,7 +5,7 @@
 import { spawn, spawnSync } from 'node:child_process';
 import { copyFileSync, existsSync, readFileSync, readdirSync, writeFileSync } from 'node:fs';
 import { randomBytes } from 'node:crypto';
-import { createConnection } from 'node:net';
+import { createConnection, createServer } from 'node:net';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
@@ -146,6 +146,18 @@ const waitForPort = (port, timeoutMs = 60_000) =>
     attempt();
   });
 
+async function availablePort(start = 3000) {
+  for (let port = start; port < start + 20; port += 1) {
+    const available = await new Promise((resolve) => {
+      const server = createServer();
+      server.once('error', () => resolve(false));
+      server.listen(port, '127.0.0.1', () => server.close(() => resolve(true)));
+    });
+    if (available) return port;
+  }
+  throw new Error(`No available web port between ${start} and ${start + 19}`);
+}
+
 let stopping = false;
 function shutdown(code = 0) {
   if (stopping) return;
@@ -183,13 +195,14 @@ async function main() {
   }
   run('API', npm, ['run', 'dev', '-w', 'apps/api'], { critical: true });
   await waitForPort(4000);
-  run('WEB', npm, ['run', 'dev', '-w', 'apps/web']);
+  const webPort = await availablePort();
+  run('WEB', npm, ['run', 'dev', '-w', 'apps/web', '--', '--port', String(webPort)]);
   if (!args.has('--no-desktop')) run('DESKTOP', npm, ['run', 'dev', '-w', 'apps/desktop']);
 
   setTimeout(() => {
     console.log(`
 \x1b[1mWhere U Elevate · Smart Proctor is running\x1b[0m
-  Web (admin, mentor, candidate)  http://localhost:3000
+  Web (admin, mentor, candidate)  http://localhost:${webPort}
   API                             http://localhost:4000/api/v1
   AI agent                        http://127.0.0.1:8000/health
   Desktop app                     opens as a window
