@@ -109,6 +109,9 @@ model User {
   lockedUntil  DateTime?
   lastLoginAt  DateTime?
   tokenVersion Int       @default(0)
+  /// Proctor reference photo, registered on the first face verification after an invite sign-in.
+  photoPath      String?
+  faceVerifiedAt DateTime?
   createdAt    DateTime  @default(now())
   deletedAt    DateTime?
 
@@ -116,6 +119,7 @@ model User {
   reviews      Violation[]  @relation("Reviewer")
   audits       AuditLog[]
   warnings     WarningMessage[]
+  invites      Invite[]
 }
 
 model Exam {
@@ -142,6 +146,7 @@ model Exam {
   questions  Question[]
   candidates Candidate[]
   sessions   ExamSession[]
+  invites    Invite[]
 
   @@index([status, startsAt])
 }
@@ -193,9 +198,35 @@ model Candidate {
   sessions ExamSession[]
   device   DeviceBinding?
   emails   EmailLog[]
+  invites  Invite[]
 
   @@unique([examId, userId])
   @@unique([examId, email])
+  @@index([userId])
+}
+
+/// Emailed join link for one exam. The candidate or proctor pastes it into the desktop app;
+/// only the SHA-256 of the token is stored. Bound to the first device that signs in with it.
+model Invite {
+  id          String     @id @default(cuid())
+  tokenHash   String     @unique
+  examId      String
+  role        Role
+  candidateId String?
+  userId      String?
+  email       String
+  deviceId    String?
+  usedAt      DateTime?
+  revokedAt   DateTime?
+  expiresAt   DateTime
+  createdAt   DateTime   @default(now())
+
+  exam      Exam       @relation(fields: [examId], references: [id], onDelete: Cascade)
+  candidate Candidate? @relation(fields: [candidateId], references: [id], onDelete: Cascade)
+  user      User?      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([examId, role])
+  @@index([candidateId])
   @@index([userId])
 }
 

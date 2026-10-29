@@ -47,6 +47,26 @@ export const templates = {
 <div style="font-size:34px;font-weight:700;letter-spacing:.35em;color:#1d4ed8;background:#eff6ff;border-radius:12px;padding:16px;text-align:center;margin:18px 0">${esc(code)}</div>
 <p style="color:#475569">It expires in ${ttlMin} minutes. If you did not request it, ignore this email.</p>`),
   }),
+  proctorInvite: (name: string, examTitle: string, examCode: string, startTime: string, link: string, password: string | null, appLink: string) => {
+    const pw = password ? `Temporary password: ${password}` : 'Password: the one you already use for your proctor account';
+    return {
+      subject: `You are proctoring ${examTitle}`,
+      text: `Hello ${name},
+
+You have been assigned as a proctor for ${examTitle} (${examCode}), starting ${startTime}.
+
+Your proctor link: ${link}
+${pw}
+
+Install the Smart Proctor app from ${appLink}, paste the link, enter the password, then complete face and email verification. The link works on one computer only and expires when the exam ends.`,
+      html: layout('Your proctor invitation', `<p>Hello ${esc(name)},</p><p>You have been assigned as a proctor for <b>${esc(examTitle)}</b> (${esc(examCode)}), starting ${esc(startTime)}.</p>
+<p style="margin:18px 0 6px;color:#475569">Your proctor link</p>
+<div style="font-family:Consolas,monospace;font-size:13px;word-break:break-all;background:#eff6ff;border-radius:12px;padding:14px;color:#1d4ed8">${esc(link)}</div>
+<p style="margin-top:14px">${password ? `Temporary password: <b style="font-family:Consolas,monospace">${esc(password)}</b>` : 'Password: the one you already use for your proctor account.'}</p>
+<p>Install the <a href="${esc(appLink)}">Smart Proctor app</a>, paste the link, enter the password, then complete face and email verification.</p>
+<p style="color:#475569">The link works on one computer only and expires when the exam ends.</p>`),
+    };
+  },
   result: (name: string, examTitle: string, receiptId: string, release: 'IMMEDIATE' | 'AFTER_REVIEW' | 'MANUAL' = 'AFTER_REVIEW') => {
     const when = { IMMEDIATE: 'Your score is available in the candidate lobby.', AFTER_REVIEW: 'Results are released after review.', MANUAL: 'Results are released by your exam organiser.' }[release];
     return {

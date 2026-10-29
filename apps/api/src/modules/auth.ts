@@ -1,12 +1,13 @@
 import { Router } from 'express';
 import { readFile, writeFile, mkdir } from 'node:fs/promises';
 import { z } from 'zod';
+import type { Prisma } from '@prisma/client';
 import { config } from '../config.js';
 import { AppError, fail, handle, must, parse } from '../lib/core.js';
 import { prisma } from '../lib/db.js';
-import { auth, authenticate, candidateOnly, signToken } from '../lib/auth.js';
-import { hashOtp, hashPassword, randomOtp, safeEqual, verifyPassword } from '../lib/crypto.js';
-import { examInclude, toExam } from '../lib/domain.js';
+import { auth, authenticate, requireRole, signToken } from '../lib/auth.js';
+import { hashOtp, hashPassword, randomOtp, safeEqual, sha256, verifyPassword } from '../lib/crypto.js';
+import { INVITE_TOKEN, examInclude, inviteStatus, toExam } from '../lib/domain.js';
 import { decodeImage, evidencePath } from '../lib/evidence.js';
 import { agent } from '../lib/agent.js';
 import { maskEmail, sendMail, templates } from '../lib/mailer.js';
@@ -28,6 +29,8 @@ const candidateLogin = z.object({
   channel: z.enum(['desktop', 'web']).default('desktop'),
 });
 const staffLogin = z.object({ email: z.string().trim().toLowerCase().email().max(200), password: z.string().min(1).max(128) });
+const inviteToken = z.string().trim().toLowerCase().regex(INVITE_TOKEN, 'This exam link is not valid.');
+const inviteLogin = z.object({ token: inviteToken, password: z.string().min(1).max(128), deviceId: z.string().trim().min(8).max(128) });
 
 /** Compared against when the account does not exist, so response time does not reveal valid IDs. */
 const DUMMY_HASH = hashPassword('timing-equaliser');
@@ -72,6 +75,14 @@ authRouter.post('/login', limits.auth, handle(async (req) => {
     await verifyPassword(body.password, await DUMMY_HASH); // equalise timing
     return fail('AUTH', BAD_CANDIDATE);
   }
+  return signInCandidate(exam, cand, body);
+}));
+
+type ExamRow = Prisma.ExamGetPayload<{ include: typeof examInclude }>;
+type CandidateRow = Prisma.CandidateGetPayload<{ include: { device: true } }>;
+
+/** Password check, device binding and token issue shared by the Exam ID sign-in and the join-link sign-in. */
+async function signInCandidate(exam: ExamRow, cand: CandidateRow, body: { password: string; deviceId?: string | undefined; channel: 'desktop' | 'web' }) {
   if (cand.lockedUntil && cand.lockedUntil > new Date()) lockedError(cand.lockedUntil);
   if (!(await verifyPassword(body.password, cand.passwordHash))) return registerFailure('candidate', cand.id, cand.failedLogins);
   if (cand.status === 'DISQUALIFIED') fail('FORBIDDEN', 'This candidate has been disqualified from the exam. Contact the exam administrator.');
@@ -105,6 +116,62 @@ authRouter.post('/login', limits.auth, handle(async (req) => {
     exam: toExam(exam),
     ...(live ? { sessionId: live.id } : {}),
   };
+}
+
+/* ---------------------------------------------------------------- join links */
+
+/** Resolves a pasted join link. Revoked, expired and other-device links are refused with a reason the user can act on. */
+async function openInvite(token: string, deviceId?: string) {
+  const inv = await prisma.invite.findUnique({
+    where: { tokenHash: sha256(token) },
+    include: { exam: { include: examInclude }, candidate: { include: { device: true } }, user: true },
+  });
+  if (!inv || inv.exam.deletedAt) return fail('NOT_FOUND', 'This exam link is not valid. Check that you copied the whole link from your email.');
+  const status = inviteStatus(inv);
+  if (status === 'REVOKED') fail('FORBIDDEN', 'This exam link was withdrawn. Use the newest email from your organisation.');
+  if (status === 'EXPIRED') fail('FORBIDDEN', 'This exam link has expired because the exam has ended.');
+  if (deviceId && inv.deviceId && inv.deviceId !== deviceId) fail('FORBIDDEN', 'This exam link is already in use on another computer. Ask the exam administrator for a new link.');
+  return inv;
+}
+
+authRouter.get('/invites/:token', limits.auth, handle(async (req) => {
+  const inv = await openInvite(parse(inviteToken, req.params.token));
+  const who = inv.role === 'CANDIDATE' ? inv.candidate : inv.user;
+  if (!who) return fail('NOT_FOUND', 'The account for this exam link no longer exists.');
+  return {
+    role: inv.role === 'CANDIDATE' ? ('CANDIDATE' as const) : ('MENTOR' as const),
+    name: who.name,
+    email: maskEmail(who.email),
+    ...(inv.candidate ? { userId: inv.candidate.userId } : {}),
+    exam: { code: inv.exam.code, title: inv.exam.title, startsAt: inv.exam.startsAt.toISOString(), endsAt: inv.exam.endsAt.toISOString(), durationMin: inv.exam.durationMin },
+    deviceBound: Boolean(inv.deviceId),
+  };
+}));
+
+authRouter.post('/invites/login', limits.auth, handle(async (req) => {
+  const body = parse(inviteLogin, req.body);
+  const inv = await openInvite(body.token, body.deviceId);
+  let result;
+  if (inv.role === 'CANDIDATE') {
+    const cand = inv.candidate ?? fail('NOT_FOUND', 'The account for this exam link no longer exists.');
+    result = { ...(await signInCandidate(inv.exam, cand, { password: body.password, deviceId: body.deviceId, channel: 'desktop' })), role: 'CANDIDATE' as const };
+  } else {
+    const user = inv.user && !inv.user.deletedAt ? inv.user : fail('NOT_FOUND', 'The account for this exam link no longer exists.');
+    if (user.lockedUntil && user.lockedUntil > new Date()) lockedError(user.lockedUntil);
+    if (!(await verifyPassword(body.password, user.passwordHash))) return registerFailure('user', user.id, user.failedLogins);
+    const updated = await prisma.user.update({ where: { id: user.id }, data: { failedLogins: 0, lockedUntil: null, lastLoginAt: new Date() } });
+    await prisma.auditLog.create({ data: { actorId: user.id, actorRole: user.role, action: 'auth.invite_login', target: inv.examId, ip: req.ip ?? null } });
+    // examId scopes the token to this exam, and staff routes then require fresh face and OTP checks (proctorVerified in lib/auth).
+    const token = signToken({ sub: user.id, role: user.role, tv: updated.tokenVersion, examId: inv.examId, deviceId: body.deviceId });
+    result = {
+      token,
+      user: { id: user.id, name: user.name, email: user.email, role: user.role, examId: inv.examId },
+      exam: toExam(inv.exam),
+      role: 'MENTOR' as const,
+    };
+  }
+  if (!inv.deviceId) await prisma.invite.update({ where: { id: inv.id }, data: { deviceId: body.deviceId, usedAt: new Date() } });
+  return result;
 }));
 
 authRouter.post('/staff/login', limits.auth, handle(async (req) => {
@@ -191,26 +258,29 @@ authRouter.post('/otp/verify', authenticate, limits.otp, handle(async (req) => {
 
 /* ---------------------------------------------------------------- face */
 
-authRouter.post('/face/verify', ...candidateOnly, limits.frames, handle(async (req) => {
+authRouter.post('/face/verify', authenticate, requireRole('CANDIDATE', 'MENTOR'), limits.frames, handle(async (req) => {
   const a = auth(req);
   const body = parse(z.object({ image: z.string().min(100).max(4_000_000) }), req.body);
   const img = decodeImage(body.image) ?? fail('VALIDATION', 'The camera frame could not be read. Try again.');
-  const cand = must(await prisma.candidate.findUnique({ where: { id: a.sub } }), 'Candidate');
-  const registered = cand.photoPath ? (await readFile(evidencePath(cand.photoPath)).catch(() => null))?.toString('base64') ?? null : null;
+  const subject = a.role === 'CANDIDATE'
+    ? must(await prisma.candidate.findUnique({ where: { id: a.sub } }), 'Candidate')
+    : must(await prisma.user.findUnique({ where: { id: a.sub } }), 'User');
+  const registered = subject.photoPath ? (await readFile(evidencePath(subject.photoPath)).catch(() => null))?.toString('base64') ?? null : null;
   const r = await agent.faceMatch(img.buffer.toString('base64'), registered);
   if (!r.degraded && r.faces !== 1) {
     return { passed: false, matchScore: 0, livenessOk: r.liveness, faces: r.faces, reason: r.faces === 0 ? 'No face found. Centre your face in the frame.' : 'More than one face is visible. Only you should be in view.' };
   }
   const passed = r.degraded ? true : registered ? r.match : true;
   if (passed) {
-    let photoPath = cand.photoPath;
+    let photoPath = subject.photoPath;
     if (!photoPath) {
       // First verification registers the reference photo used for FACE_MISMATCH checks during the exam.
       await mkdir(config.evidenceDir, { recursive: true });
-      photoPath = `face_${cand.id}.jpg`;
+      photoPath = a.role === 'CANDIDATE' ? `face_${subject.id}.jpg` : `face_staff_${subject.id}.jpg`;
       await writeFile(evidencePath(photoPath), img.buffer, { mode: 0o600 });
     }
-    await prisma.candidate.update({ where: { id: cand.id }, data: { photoPath, faceVerifiedAt: new Date(), faceScore: r.similarity } });
+    if (a.role === 'CANDIDATE') await prisma.candidate.update({ where: { id: subject.id }, data: { photoPath, faceVerifiedAt: new Date(), faceScore: r.similarity } });
+    else await prisma.user.update({ where: { id: subject.id }, data: { photoPath, faceVerifiedAt: new Date() } });
   }
   // Map raw cosine similarity onto 0..1 so the agent threshold lands at 0.85 on the candidate's meter.
   const thr = 0.363;

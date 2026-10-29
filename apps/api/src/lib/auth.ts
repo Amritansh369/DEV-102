@@ -9,8 +9,11 @@ export interface AuthClaims {
   sub: string;
   role: Role;
   tv: number;
+  /** On staff tokens: set by a join-link sign-in, which scopes the proctor to this exam. */
   examId?: string;
   deviceId?: string;
+  /** Issued-at (seconds), added by jsonwebtoken. */
+  iat?: number;
 }
 
 export function signToken(claims: AuthClaims): string {
@@ -61,8 +64,27 @@ export const requireRole =
     next();
   };
 
-export const staff = [authenticate, requireRole('ADMIN', 'MENTOR')];
-export const adminOnly = [authenticate, requireRole('ADMIN')];
+/**
+ * A proctor who signed in with a join link reaches staff routes only after face and email (OTP)
+ * verification done since that sign-in. Ordinary staff sign-ins are not affected.
+ */
+export const proctorVerified: RequestHandler = (req, _res, next) => {
+  const a = req.auth;
+  if (!a || a.role === 'CANDIDATE' || !a.examId) return next();
+  const since = new Date((a.iat ?? 0) * 1000);
+  Promise.all([
+    prisma.user.findUnique({ where: { id: a.sub }, select: { faceVerifiedAt: true } }),
+    prisma.otpCode.findFirst({ where: { subjectId: a.sub, consumedAt: { gte: since } }, select: { id: true } }),
+  ])
+    .then(([user, otp]) => {
+      if (!user?.faceVerifiedAt || user.faceVerifiedAt < since || !otp) next(new AppError('FORBIDDEN', 'Finish face and email verification to open the proctor console.'));
+      else next();
+    })
+    .catch(next);
+};
+
+export const staff = [authenticate, requireRole('ADMIN', 'MENTOR'), proctorVerified];
+export const adminOnly = [authenticate, requireRole('ADMIN'), proctorVerified];
 export const candidateOnly = [authenticate, requireRole('CANDIDATE')];
 
 export function auth(req: Request): AuthClaims {

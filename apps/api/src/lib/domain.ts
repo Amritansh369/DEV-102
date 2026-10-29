@@ -1,5 +1,5 @@
 import type {
-  BrowsingLog, Candidate, Exam, ExamSession, Question, Severity, Violation, ViolationCode,
+  BrowsingLog, Candidate, Exam, ExamSession, Invite, Question, Severity, Violation, ViolationCode,
 } from '@prisma/client';
 import { signPhotoUrl } from './evidence.js';
 
@@ -153,6 +153,19 @@ export const toSession = (s: ExamSession) => ({
   id: s.id, candidateId: s.candidateId, examId: s.examId, status: s.status, progress: s.progress,
   riskScore: s.riskScore, warnings: s.warnings, startedAt: s.startedAt.toISOString(),
 });
+
+/* ---------------------------------------------------------------- join links */
+
+export type InviteStatus = 'PENDING' | 'USED' | 'REVOKED' | 'EXPIRED';
+
+/** 48 hex characters; the desktop app accepts the full link or the bare token. */
+export const INVITE_TOKEN = /^[a-f0-9]{48}$/;
+
+export function inviteStatus(inv: Pick<Invite, 'revokedAt' | 'expiresAt' | 'usedAt'>, now = new Date()): InviteStatus {
+  if (inv.revokedAt) return 'REVOKED';
+  if (inv.expiresAt <= now) return 'EXPIRED';
+  return inv.usedAt ? 'USED' : 'PENDING';
+}
 
 export type EvidenceSigner = (evidenceId: string) => string;
 export const toViolation = (v: Violation, sign: EvidenceSigner) => ({

@@ -15,6 +15,7 @@ import { mentorRouter } from './modules/mentor.js';
 import { adminRouter } from './modules/admin.js';
 import { reportsRouter } from './modules/reports.js';
 import { devRouter } from './modules/dev.js';
+import { invitesRouter } from './modules/invites.js';
 
 const app = express();
 applySecurity(app);
@@ -30,6 +31,7 @@ v1.use('/proctoring', proctoringRouter);
 v1.use('/exams', examsRouter);
 v1.use('/reports', reportsRouter);
 v1.use(candidatesRouter);
+v1.use(invitesRouter);
 v1.use(adminRouter);
 if (!config.isProd) v1.use('/dev', devRouter);
 v1.use(mentorRouter);

@@ -3,12 +3,18 @@ import express, { type RequestHandler } from 'express';
 import type { AddressInfo } from 'node:net';
 import type { Server } from 'node:http';
 import bcrypt from 'bcryptjs';
+import { createHash } from 'node:crypto';
 
 /** In-memory stand-in for the auth tables. Passwords use bcrypt cost 4 so the suite stays fast. */
 const db = vi.hoisted(() => ({
   users: [] as Array<Record<string, unknown>>,
   candidates: [] as Array<Record<string, unknown>>,
   otps: [] as Array<Record<string, unknown>>,
+  invites: [] as Array<Record<string, unknown>>,
+  exam: {
+    id: 'exam-1', title: 'Campus Placement Test', code: 'WUE-CS-2026', status: 'PUBLISHED', durationMin: 60, deletedAt: null,
+    startsAt: new Date('2026-10-28T09:00:00Z'), endsAt: new Date('2026-10-28T18:00:00Z'), settings: {}, questions: [], _count: { candidates: 1, questions: 0 },
+  } as Record<string, unknown>,
 }));
 
 vi.mock('../src/lib/db.js', () => {
@@ -34,13 +40,18 @@ vi.mock('../src/lib/db.js', () => {
         findUnique: vi.fn(async ({ where }: { where: { id: string } }) => copy(byId(db.candidates, where.id))),
         update: vi.fn(async ({ where, data }: { where: { id: string }; data: Record<string, unknown> }) => apply(byId(db.candidates, where.id)!, data)),
       },
-      exam: {
-        findFirst: vi.fn(async () => ({
-          id: 'exam-1', title: 'Campus Placement Test', code: 'WUE-CS-2026', status: 'PUBLISHED', durationMin: 60,
-          startsAt: new Date('2026-10-28T09:00:00Z'), endsAt: new Date('2026-10-28T18:00:00Z'), settings: {}, questions: [], _count: { candidates: 1, questions: 0 },
-        })),
-      },
+      exam: { findFirst: vi.fn(async () => ({ ...db.exam })) },
       examSession: { findFirst: vi.fn(async () => null) },
+      deviceBinding: { upsert: vi.fn(async () => ({})) },
+      invite: {
+        // Joins the exam, candidate and staff user the way the route's include does.
+        findUnique: vi.fn(async ({ where }: { where: { tokenHash: string } }) => {
+          const inv = db.invites.find((i) => i.tokenHash === where.tokenHash);
+          if (!inv) return null;
+          return { ...inv, exam: { ...db.exam }, candidate: copy(byId(db.candidates, inv.candidateId)), user: copy(byId(db.users, inv.userId)) };
+        }),
+        update: vi.fn(async ({ where, data }: { where: { id: string }; data: Record<string, unknown> }) => apply(byId(db.invites, where.id)!, data)),
+      },
       auditLog: { create: vi.fn(async () => ({})) },
       otpCode: {
         findFirst: vi.fn(async ({ where }: { where: { subjectId: string; consumedAt?: null; id?: string } }) => {
@@ -66,8 +77,9 @@ vi.mock('../src/lib/auth.js', () => ({
     next();
   }) satisfies RequestHandler,
   auth: (req: { auth: unknown }) => req.auth,
+  requireRole: (): RequestHandler => (_req, _res, next) => next(),
   candidateOnly: [],
-  signToken: () => 'signed-token',
+  signToken: vi.fn(() => 'signed-token'),
 }));
 vi.mock('../src/lib/security.js', () => {
   const pass: RequestHandler = (_req, _res, next) => next();
@@ -83,6 +95,7 @@ vi.mock('../src/lib/realtime.js', () => ({ realtime: { toExam: vi.fn(), toSessio
 vi.mock('../src/lib/policy.js', () => ({ recordViolation: vi.fn() }));
 
 const { authRouter } = await import('../src/modules/auth.js');
+const { signToken } = await import('../src/lib/auth.js');
 const { errorMiddleware } = await import('../src/lib/core.js');
 
 let server: Server;
@@ -100,6 +113,10 @@ beforeAll(async () => {
 afterAll(() => new Promise<void>((resolve) => server.close(() => resolve())));
 
 interface ApiBody { ok: boolean; data?: Record<string, unknown>; error?: { code: string; message: string; details?: Record<string, unknown> } }
+async function get(path: string): Promise<{ status: number; body: ApiBody }> {
+  const res = await fetch(base + path);
+  return { status: res.status, body: (await res.json()) as ApiBody };
+}
 async function post(path: string, body: unknown = {}): Promise<{ status: number; body: ApiBody }> {
   const res = await fetch(base + path, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
   return { status: res.status, body: (await res.json()) as ApiBody };
@@ -119,7 +136,19 @@ beforeEach(() => {
     failedLogins: 0, lockedUntil: null, tokenVersion: 0, status: 'INVITED', device: null,
   }];
   db.otps = [];
+  db.users.push({ id: 'user-2', email: 'proctor@wue.test', name: 'Priya Nair', role: 'MENTOR', passwordHash: hash, failedLogins: 0, lockedUntil: null, tokenVersion: 0, deletedAt: null, lastLoginAt: null });
+  const invite = (id: string, token: string, owner: Record<string, unknown>) => ({
+    id, tokenHash: sha(token), examId: 'exam-1', email: 'x@wue.test', deviceId: null, usedAt: null, revokedAt: null, expiresAt: new Date('2026-10-28T18:00:00Z'), ...owner,
+  });
+  db.invites = [
+    invite('inv-c', CANDIDATE_TOKEN, { role: 'CANDIDATE', candidateId: 'cand-1', userId: null }),
+    invite('inv-m', PROCTOR_TOKEN, { role: 'MENTOR', candidateId: null, userId: 'user-2' }),
+  ];
 });
+
+const sha = (v: string) => createHash('sha256').update(v).digest('hex');
+const CANDIDATE_TOKEN = 'c'.repeat(48);
+const PROCTOR_TOKEN = 'a1'.repeat(24);
 afterEach(() => vi.useRealTimers());
 
 /* ---------------------------------------------------------------- OTP */
@@ -237,5 +266,54 @@ describe('account lockout', () => {
     const ok = await candidateLogin('Correct#Pass1');
     expect(ok.status).toBe(200);
     expect(ok.body.data).toMatchObject({ token: 'signed-token' });
+  });
+});
+
+/* ---------------------------------------------------------------- join links */
+
+describe('join links', () => {
+  const join = (token: string, password: string, deviceId = 'device-aaaa1111') => post('/auth/invites/login', { token, password, deviceId });
+
+  it('previews who a candidate link is for without signing in', async () => {
+    const r = await get(`/auth/invites/${CANDIDATE_TOKEN}`);
+    expect(r.status).toBe(200);
+    expect(r.body.data).toMatchObject({ role: 'CANDIDATE', name: 'Asha Rao', userId: 'asha01', exam: { code: 'WUE-CS-2026' }, deviceBound: false });
+    expect(r.body.data!.email).not.toBe('asha@wue.test');
+  });
+
+  it('rejects malformed and unknown links', async () => {
+    expect((await get('/auth/invites/not-a-token')).status).toBe(400);
+    expect((await get(`/auth/invites/${'f'.repeat(48)}`)).status).toBe(404);
+  });
+
+  it('signs a candidate in and locks the link to that computer', async () => {
+    const r = await join(CANDIDATE_TOKEN, 'Correct#Pass1');
+    expect(r.status).toBe(200);
+    expect(r.body.data).toMatchObject({ token: 'signed-token', role: 'CANDIDATE', user: { role: 'CANDIDATE' } });
+    expect(db.invites[0]).toMatchObject({ deviceId: 'device-aaaa1111', usedAt: NOW });
+    const other = await join(CANDIDATE_TOKEN, 'Correct#Pass1', 'device-bbbb2222');
+    expect(other.status).toBe(403);
+    expect(other.body.error?.message).toMatch(/another computer/);
+  });
+
+  it('refuses revoked and expired links even with the right password', async () => {
+    db.invites[0]!.revokedAt = NOW;
+    expect((await join(CANDIDATE_TOKEN, 'Correct#Pass1')).body.error?.message).toMatch(/withdrawn/);
+    advance(9 * 3_600_000);
+    expect((await join(PROCTOR_TOKEN, 'Correct#Pass1')).body.error?.message).toMatch(/expired/);
+  });
+
+  it('signs a proctor in with a token scoped to the exam', async () => {
+    const r = await join(PROCTOR_TOKEN, 'Correct#Pass1');
+    expect(r.status).toBe(200);
+    expect(r.body.data).toMatchObject({ role: 'MENTOR', user: { role: 'MENTOR', examId: 'exam-1' }, exam: { code: 'WUE-CS-2026' } });
+    expect(signToken).toHaveBeenLastCalledWith(expect.objectContaining({ sub: 'user-2', role: 'MENTOR', examId: 'exam-1' }));
+  });
+
+  it('counts a wrong proctor password toward the lockout and does not bind the device', async () => {
+    const r = await join(PROCTOR_TOKEN, 'wrong-password');
+    expect(r.status).toBe(401);
+    expect(r.body.error?.details).toMatchObject({ attemptsLeft: 4 });
+    expect(db.invites[1]!.deviceId).toBeNull();
   });
 });
