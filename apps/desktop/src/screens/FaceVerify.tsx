@@ -54,6 +54,7 @@ export default function FaceVerify({ onVerified, onBack, notify }: FaceVerifyPro
   const [failure, setFailure] = useState<string | null>(null)
   const [snapshot, setSnapshot] = useState<string | null>(null)
   const [maskedEmail, setMaskedEmail] = useState('')
+  const [devCode, setDevCode] = useState<string | undefined>(undefined)
   const [otpError, setOtpError] = useState(0)
   const [otpBusy, setOtpBusy] = useState(false)
   const [otpLocked, setOtpLocked] = useState(false)
@@ -176,8 +177,9 @@ export default function FaceVerify({ onVerified, onBack, notify }: FaceVerifyPro
     try {
       const r = await api.requestOtp()
       setMaskedEmail(r.sentTo)
-      const hint = import.meta.env.DEV ? devOtpHint() : undefined
-      say('info', hint ? `A 6-digit code was sent to ${r.sentTo} (dev outbox code: ${hint})` : `A 6-digit code was sent to ${r.sentTo}`)
+      // Only a non-production API returns the code.
+      setDevCode(devOtpHint())
+      say('info', `A 6-digit code was sent to ${r.sentTo}`)
     } catch {
       say('error', 'Could not send the code. Please tap Resend.')
     }
@@ -347,6 +349,12 @@ export default function FaceVerify({ onVerified, onBack, notify }: FaceVerifyPro
                 <h2 className="font-heading text-2xl font-semibold text-text">Enter the one-time code</h2>
                 <p className="mt-1 text-sm text-muted">{maskedEmail ? <>We sent a 6-digit code to <span className="font-semibold text-text">{maskedEmail}</span>.</> : 'Sending your code…'}</p>
               </div>
+              {devCode && (
+                <div role="status" className="flex items-center justify-between gap-3 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3">
+                  <span className="text-xs font-medium text-amber-800">Test server code</span>
+                  <span className="font-heading text-xl font-semibold tracking-[0.3em] text-amber-900 tabular-nums">{devCode}</span>
+                </div>
+              )}
               <OtpInput disabled={otpBusy || otpLocked} errorSignal={otpError} onComplete={(c) => void submitOtp(c)} onResend={sendOtp} />
               {otpBusy && <p className="flex items-center justify-center gap-2 text-sm text-muted" role="status"><Loader2 className="h-4 w-4 animate-spin" />Verifying…</p>}
               {otpLocked && <p role="alert" className="text-center text-sm text-danger">Too many incorrect attempts. Contact your invigilator.</p>}

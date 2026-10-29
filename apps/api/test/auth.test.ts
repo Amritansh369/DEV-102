@@ -168,6 +168,14 @@ describe('OTP codes', () => {
     expect(db.otps[0]!.codeHash).not.toContain(r.body.data!.devCode as string);
   });
 
+  it('returns the code outside production even when it was emailed over SMTP', async () => {
+    const { sendMail } = await import('../src/lib/mailer.js');
+    vi.mocked(sendMail).mockResolvedValueOnce({ ok: true });
+    const r = await post('/auth/otp/send');
+    expect(r.status).toBe(200);
+    expect(r.body.data!.devCode).toMatch(/^\d{6}$/);
+  });
+
   it('accepts the correct code just before it expires', async () => {
     const { challengeId, code } = await sendCode();
     advance(5 * 60_000 - 1_000);
