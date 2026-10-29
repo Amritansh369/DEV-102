@@ -107,9 +107,11 @@ async function generatePrismaClient() {
   }
 
   const cmdArgs = ['prisma', 'generate', '--schema', 'database/prisma/schema.prisma'];
+  const lockedHint = 'The Prisma query engine is loaded by a running process, usually the API from another "npm start" or an editor\'s TypeScript server.';
   const until = Date.now() + 30_000;
+  let warned = false;
   while (true) {
-    log('SETUP', `$ ${npx} ${cmdArgs.join(' ')}`);
+    if (!warned) log('SETUP', `$ ${npx} ${cmdArgs.join(' ')}`);
     const r = spawnSync(quote(npx), cmdArgs, { cwd: root, encoding: 'utf8', shell: isWin });
     if (r.status === 0) {
       process.stdout.write(r.stdout ?? '');
@@ -119,12 +121,14 @@ async function generatePrismaClient() {
 
     const output = `${r.stdout ?? ''}\n${r.stderr ?? ''}\n${r.error?.message ?? ''}`;
     const lockedEngineRename = isWin && /EPERM.*rename|rename.*EPERM/i.test(output);
-    if (!lockedEngineRename || Date.now() >= until) {
+    if (!lockedEngineRename) {
       process.stdout.write(r.stdout ?? '');
       process.stderr.write(r.stderr ?? '');
       throw new Error(`${npx} ${cmdArgs.join(' ')} failed`);
     }
-    log('SETUP', 'Prisma engine file is locked; retrying generation in 1 second.');
+    if (Date.now() >= until) throw new Error(`${lockedHint} Stop that process and run "npm start" again.`);
+    if (!warned) log('SETUP', `${lockedHint} Retrying for up to 30 seconds…`);
+    warned = true;
     await new Promise((resolve) => setTimeout(resolve, 1000));
   }
 }
