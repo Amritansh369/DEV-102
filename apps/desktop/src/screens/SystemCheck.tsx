@@ -154,8 +154,8 @@ export default function SystemCheck({ onContinue, onBack }: SystemCheckProps) {
   const ico = (n: ReactNode) => n
 
   return (
-    <div className="flex h-full flex-col bg-soft">
-      <header className="border-b border-border bg-white px-8 py-5">
+    <div className="flex h-full flex-col">
+      <header className="border-b border-border bg-white/85 px-8 py-5 backdrop-blur">
         <div className="mx-auto flex max-w-5xl items-center justify-between gap-6">
           <div>
             <h1 className="font-heading text-xl font-semibold text-ink">System check</h1>

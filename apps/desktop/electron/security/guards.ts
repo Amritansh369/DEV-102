@@ -23,11 +23,22 @@ const VM_MARKERS = /vmware|virtualbox|vbox|qemu|kvm|xen|hyper-v|virtual machine|
 const VM_MACS = ['00:05:69', '00:0c:29', '00:1c:14', '00:50:56', '08:00:27', '00:15:5d', '00:1c:42', '52:54:00', '00:16:3e'];
 const PHONE_OR_STORAGE = /phone|android|iphone|ipad|mtp|mass storage|card reader|flash|storage|kindle|camera|capture/i;
 
+/**
+ * Coding assistants a developer has open while running `npm start`. Development builds skip them
+ * so the exam can be tested on a dev machine; packaged builds and PROCTOR_STRICT=1 flag them.
+ */
+const DEV_TOOLS = new Set(['claude', 'codex', 'cursor', 'copilot', 'githubcopilot', 'windsurf']);
+let ignoreDevTools = false;
+export function setIgnoreDevTools(on: boolean): void {
+  ignoreDevTools = on;
+}
+
 export async function scanProcesses(): Promise<DetectedApp[]> {
   const { list } = await si.processes();
   const seen = new Map<string, DetectedApp>();
   for (const p of list) {
     const key = p.name.toLowerCase().replace(/\.exe$/, '');
+    if (ignoreDevTools && DEV_TOOLS.has(key)) continue;
     const hit = BLACKLIST[key];
     if (hit && !seen.has(key)) seen.set(key, { id: `app-${key}`, name: hit.name, category: hit.category, pid: p.pid });
   }

@@ -10,6 +10,7 @@ import { onAuthLost, setToken } from './lib/http';
 import { getProctor } from './lib/proctorMock';
 import { Badge, Button, ErrorBoundary, ScreenSkeleton } from './lib/ui';
 import type { SubmitSummary } from './screens/Exam';
+import { backgroundFor, getTimeTheme } from './lib/theme';
 
 // Each screen is a default export with no props; navigation goes through useApp().
 const Login = lazy(() => import('./screens/Login'));
@@ -55,6 +56,17 @@ function useProctorBridge(active: boolean): void {
       void proctor.screen.stop();
     };
   }, [active]);
+}
+
+/** Soft, blurred role background behind the pre-exam check screens. */
+function ScreenBackdrop({ proctor }: { proctor: boolean }) {
+  const src = backgroundFor(proctor ? 'proctor' : 'student', getTimeTheme(new Date()));
+  return (
+    <div className="pointer-events-none absolute inset-0 overflow-hidden" aria-hidden>
+      <img src={src} alt="" className="absolute inset-0 h-full w-full scale-110 object-cover blur-2xl" onError={(e) => (e.currentTarget.style.display = 'none')} />
+      <div className="absolute inset-0 bg-white/80" />
+    </div>
+  );
 }
 
 /** Hands a violation to the exam screen, which reports it to the API like any real detection. */
@@ -310,6 +322,7 @@ export default function App() {
   return (
     <>
       <DesktopLayout>
+        {!mentor && (step === 'systemCheck' || step === 'faceVerify' || step === 'consent') && <ScreenBackdrop proctor={auth?.role === 'MENTOR'} />}
         <AnimatePresence mode="wait" custom={direction} initial={false}>
           <motion.div key={viewKey} custom={direction} variants={transition} initial="enter" animate="center" exit="exit" className="scroll-thin absolute inset-0 overflow-y-auto overflow-x-hidden">
             <ErrorBoundary resetKey={viewKey}>

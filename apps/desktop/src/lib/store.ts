@@ -29,6 +29,8 @@ interface AppState {
   route: AppRoute;
   auth: AuthUser | null;
   exam: Exam | null;
+  /** Role read from a pasted join link before sign-in; picks the header steps and login look. */
+  joinRole: 'CANDIDATE' | 'MENTOR' | null;
   recording: Recording;
   online: boolean;
   latencyMs: number;
@@ -38,6 +40,7 @@ interface AppState {
 
   signIn: (auth: AuthUser, exam?: Exam) => void;
   signOut: () => void;
+  setJoinRole: (role: 'CANDIDATE' | 'MENTOR' | null) => void;
   /** Normal navigation: forward one step at a time, or back to sign-in. */
   go: (step: AppStep) => boolean;
   /** Dev panel: open any step directly (the caller makes sure the server state allows it). */
@@ -64,6 +67,7 @@ const initialState = () => ({
   route: 'candidate' as AppRoute,
   auth: null,
   exam: null,
+  joinRole: null,
   recording: NO_RECORDING,
   lock: { active: false, reason: null },
 });
@@ -79,6 +83,7 @@ export const useApp = create<AppState>()((set, get) => ({
 
   signIn: (auth, exam) => set((s) => ({ auth, exam: exam ?? s.exam, route: auth.role === 'MENTOR' ? 'mentor' : 'candidate' })),
   signOut: () => set(initialState()),
+  setJoinRole: (joinRole) => set({ joinRole }),
 
   go: (step) => {
     const s = get();

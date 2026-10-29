@@ -6,19 +6,11 @@ import {
 } from 'lucide-react'
 import { api, parseInviteToken, type InvitePreview } from '../lib/api'
 import { HttpError } from '../lib/http'
+import { useApp } from '../lib/store'
+import { backgroundFor, getTimeTheme, type Look, type TimeTheme } from '../lib/theme'
 
 interface LoginProps {
   onLoggedIn: () => void
-}
-
-type TimeTheme = 'morning' | 'day' | 'night'
-type Look = 'student' | 'proctor'
-
-function getTimeTheme(date: Date): TimeTheme {
-  const hour = date.getHours()
-  if (hour >= 5 && hour < 12) return 'morning'
-  if (hour >= 12 && hour < 18) return 'day'
-  return 'night'
 }
 
 const GREETING: Record<TimeTheme, string> = { morning: 'Good morning', day: 'Good afternoon', night: 'Good evening' }
@@ -31,6 +23,11 @@ const OVERLAY: Record<TimeTheme, string> = {
 }
 
 const FEATURES: Record<Look, [LucideIcon, string][]> = {
+  org: [
+    [Link2, 'A personal link for every invited candidate and proctor'],
+    [Fingerprint, 'Face and email verification before any exam opens'],
+    [ShieldCheck, 'Each link works on one computer and expires with the exam'],
+  ],
   student: [
     [ShieldCheck, 'Encrypted, tamper-aware exam browser'],
     [Video, 'Webcam and screen monitoring during the test'],
@@ -45,6 +42,8 @@ const FEATURES: Record<Look, [LucideIcon, string][]> = {
 
 const formatTime = (date: Date) => date.toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' })
 const formatWhen = (iso: string) => new Date(iso).toLocaleString('en-IN', { weekday: 'short', day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })
+/** First name for the greeting, skipping titles such as "Dr." */
+const firstName = (name: string) => name.split(/\s+/).find((p) => !/^(dr|mr|mrs|ms|miss|prof)\.?$/i.test(p)) ?? name
 const errorText = (e: unknown, fallback: string) => (e instanceof Error ? e.message : fallback)
 
 export default function Login({ onLoggedIn }: LoginProps) {
@@ -81,8 +80,10 @@ export default function Login({ onLoggedIn }: LoginProps) {
     setBusy(true)
     setError(null)
     try {
-      setInvite(await api.previewInvite(t))
+      const preview = await api.previewInvite(t)
+      setInvite(preview)
       setToken(t)
+      useApp.getState().setJoinRole(preview.role)
     } catch (e) {
       setError(errorText(e, 'Could not check this link.'))
     } finally {
@@ -129,6 +130,7 @@ export default function Login({ onLoggedIn }: LoginProps) {
   }
 
   const startOver = () => {
+    useApp.getState().setJoinRole(null)
     setInvite(null)
     setToken(null)
     setPassword('')
@@ -136,8 +138,8 @@ export default function Login({ onLoggedIn }: LoginProps) {
   }
 
   const time = getTimeTheme(now)
-  const look: Look = invite?.role === 'MENTOR' ? 'proctor' : 'student'
-  const background = `/images/bg/${look}-${time}.webp`
+  const look: Look = !invite ? 'org' : invite.role === 'MENTOR' ? 'proctor' : 'student'
+  const background = backgroundFor(look, time)
   const offline = server?.online === false
   const isProctor = invite?.role === 'MENTOR'
 
@@ -177,7 +179,7 @@ export default function Login({ onLoggedIn }: LoginProps) {
             <AnimatePresence mode="wait">
               <motion.div key={look + (invite?.name ?? '')} initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -6 }} transition={{ duration: 0.3 }}>
                 <h1 className="font-heading text-4xl font-semibold leading-tight">
-                  {!invite ? 'Your secure exam, one link away.' : isProctor ? `Ready to proctor, ${invite.name.split(' ')[0]}?` : `Welcome, ${invite.name.split(' ')[0]}.`}
+                  {!invite ? 'Your secure exam, one link away.' : isProctor ? `Ready to proctor, ${firstName(invite.name)}?` : `Welcome, ${firstName(invite.name)}.`}
                 </h1>
                 <p className="mt-4 text-white/80">
                   {!invite
