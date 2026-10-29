@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { AnimatePresence, motion } from 'framer-motion'
-import { Activity, Database, Inbox, LogIn, RefreshCw, Server, Sparkles, Wifi, X, Zap } from 'lucide-react'
+import { Activity, Bug, Database, Inbox, LogIn, RefreshCw, Server, Sparkles, Wifi, X, Zap } from 'lucide-react'
 import { API_ORIGIN, get, post, setToken } from '@/lib/http'
 import { homeFor, useSession, type SessionUser } from '@/lib/session'
 
@@ -119,7 +119,7 @@ export default function DevToolbar() {
   const agentVision = status && typeof status.agent.detail === 'object' ? status.agent.detail.vision : undefined
 
   return (
-    <div className="fixed bottom-4 left-20 z-[150] font-sans text-[13px]">
+    <div className="fixed bottom-4 right-4 z-[150] flex flex-col items-end font-sans text-[13px]">
       <AnimatePresence>
         {open && (
           <motion.section
@@ -219,9 +219,12 @@ export default function DevToolbar() {
                         {g.role && <button type="button" disabled={busy !== null || !status} onClick={() => void signInAs(g.role as 'admin' | 'mentor' | 'candidate')} className="text-[11px] text-sky-300 hover:underline disabled:opacity-50">sign in as {g.role}</button>}
                       </div>
                       <div className="grid grid-cols-2 gap-1.5">
-                        {g.links.map(([href, label]) => (
-                          <a key={href} href={href} className="truncate rounded-lg bg-white/5 px-2.5 py-1.5 text-xs text-slate-200 ring-1 ring-white/10 hover:bg-white/15 hover:text-white">{label}</a>
-                        ))}
+                        {g.links.map(([href, label]) => {
+                          const external = href.startsWith('http')
+                          return (
+                            <a key={href} href={href} {...(external ? { target: '_blank', rel: 'noreferrer' } : {})} className="truncate rounded-lg bg-white/5 px-2.5 py-1.5 text-xs text-slate-200 ring-1 ring-white/10 hover:bg-white/15 hover:text-white">{label}</a>
+                          )
+                        })}
                       </div>
                     </div>
                   ))}
@@ -257,6 +260,15 @@ export default function DevToolbar() {
           </div>
         </div>
       )}
+      <button
+        type="button"
+        aria-label={open ? 'Close developer toolbar' : 'Open developer toolbar'}
+        aria-expanded={open}
+        onClick={() => setOpen((value) => !value)}
+        className="flex h-10 w-10 items-center justify-center rounded-full bg-[#0A4DA6] text-white shadow-lg transition hover:bg-[#1E6FF0] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#FFB020]"
+      >
+        <Bug className="h-5 w-5" aria-hidden />
+      </button>
     </div>
   )
 }
