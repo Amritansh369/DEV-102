@@ -9,15 +9,35 @@ import type { BrowsingLog, ViolationCode } from './types';
 type QueueItem =
   | { kind: 'event'; body: { code: ViolationCode; message?: string; at: string } }
   | { kind: 'browsing'; body: Omit<BrowsingLog, 'id' | 'sessionId'> };
-interface QueueState { sessionId: string; items: QueueItem[]; answers?: { answers: Record<string, string[]>; values?: Record<string, number | null>; flagged: string[] } }
+type FrameKind = 'webcam' | 'screen';
+/** A webcam or screen frame captured while offline; the image itself is stored under `key`. */
+interface QueuedFrame { key: string; kind: FrameKind; at: string }
+interface QueueState { sessionId: string; items: QueueItem[]; answers?: { answers: Record<string, string[]>; values?: Record<string, number | null>; flagged: string[] }; frames?: QueuedFrame[] }
 
 const QUEUE_KEY = 'offline-queue';
+/** Frames kept per kind while offline; when full, every other one is dropped so the whole outage stays covered. */
+const MAX_FRAMES: Record<FrameKind, number> = { webcam: 120, screen: 30 };
 let queue: QueueState | null = null;
 let flushing = false;
+let sendingFrame = false;
+let serverReachable = true;
+const memoryFrames = new Map<string, string>();
 const queueListeners = new Set<(size: number) => void>();
 
+/** No network, or the server stopped answering heartbeats. */
+const isOffline = () => !navigator.onLine || !serverReachable;
+const sessionClosed = (e: unknown) => e instanceof HttpError && (e.code === 'CONFLICT' || e.code === 'FORBIDDEN' || e.code === 'NOT_FOUND');
+
+// Each frame gets its own encrypted file so adding one never rewrites the whole queue. The browser build keeps them in memory.
+async function putFrame(key: string, image: string | null): Promise<void> {
+  if (window.proctor) await (image ? window.proctor.store.set(key, image) : window.proctor.store.del(key));
+  else if (image) memoryFrames.set(key, image);
+  else memoryFrames.delete(key);
+}
+const getFrame = async (key: string): Promise<string | null> => (window.proctor ? window.proctor.store.get<string>(key) : memoryFrames.get(key) ?? null);
+
 async function persist(): Promise<void> {
-  const value = queue && (queue.items.length || queue.answers) ? queue : null;
+  const value = queue && (queue.items.length || queue.answers || queue.frames?.length) ? queue : null;
   try {
     if (window.proctor) {
       if (value) await window.proctor.store.set(QUEUE_KEY, value);
@@ -30,7 +50,7 @@ async function persist(): Promise<void> {
   queueListeners.forEach((l) => l(queueSize()));
 }
 
-export const queueSize = (): number => (queue?.items.length ?? 0) + (queue?.answers ? 1 : 0);
+export const queueSize = (): number => (queue?.items.length ?? 0) + (queue?.answers ? 1 : 0) + (queue?.frames?.length ?? 0);
 export function onQueueChange(cb: (size: number) => void): () => void {
   queueListeners.add(cb);
   return () => queueListeners.delete(cb);
@@ -51,6 +71,47 @@ export async function enqueue(sessionId: string, item: QueueItem | { kind: 'answ
   await persist();
 }
 
+export async function enqueueFrame(sessionId: string, kind: FrameKind, image: string): Promise<void> {
+  if (!queue || queue.sessionId !== sessionId) queue = { sessionId, items: [] };
+  const key = `offline-frame-${Date.now()}-${kind}`;
+  try {
+    await putFrame(key, image);
+  } catch {
+    return; // storage full or unavailable: this frame is lost, the next one may fit
+  }
+  const frames = [...(queue.frames ?? []), { key, kind, at: new Date().toISOString() }];
+  const same = frames.filter((f) => f.kind === kind);
+  const thinned = same.length > MAX_FRAMES[kind] ? new Set(same.filter((_, i) => i % 2 === 1)) : new Set<QueuedFrame>();
+  queue.frames = frames.filter((f) => !thinned.has(f));
+  await Promise.all([...thinned].map((f) => putFrame(f.key, null).catch(() => undefined)));
+  await persist();
+}
+
+async function dropFrames(frames: QueuedFrame[]): Promise<void> {
+  if (!queue) return;
+  const gone = new Set(frames.map((f) => f.key));
+  queue.frames = (queue.frames ?? []).filter((f) => !gone.has(f.key));
+  await Promise.all(frames.map((f) => putFrame(f.key, null).catch(() => undefined)));
+  await persist();
+}
+
+/** Sends the oldest frame kept while offline, with its capture time, so the AI checks the outage after the fact. */
+async function sendNextFrame(): Promise<void> {
+  const f = queue?.frames?.[0];
+  if (!queue || !f || sendingFrame || isOffline()) return;
+  sendingFrame = true;
+  try {
+    const image = await getFrame(f.key);
+    if (image) await post(f.kind === 'webcam' ? '/proctoring/frames' : '/proctoring/screen', { sessionId: queue.sessionId, image, capturedAt: f.at });
+    await dropFrames([f]);
+  } catch (e) {
+    if (sessionClosed(e)) await dropFrames(queue.frames ?? []);
+    else if (e instanceof HttpError && e.code === 'VALIDATION') await dropFrames([f]); // unreadable image: skip it
+  } finally {
+    sendingFrame = false;
+  }
+}
+
 /** Replays queued work in order once the connection is back; stops at the first network failure. */
 export async function flushQueue(): Promise<void> {
   if (!queue || flushing || !navigator.onLine) return;
@@ -62,21 +123,22 @@ export async function flushQueue(): Promise<void> {
       queue.answers = undefined;
       await persist();
     }
-    const events = queue.items.filter((i) => i.kind === 'event').map((i) => i.body);
-    if (events.length) {
-      for (let i = 0; i < events.length; i += 100) await post('/proctoring/events', { sessionId: sid, events: events.slice(i, i + 100) });
-      queue.items = queue.items.filter((i) => i.kind !== 'event');
-      await persist();
-    }
-    const browsing = queue.items.filter((i) => i.kind === 'browsing').map((i) => i.body);
-    if (browsing.length) {
-      await post('/proctoring/browsing-logs', { sessionId: sid, entries: browsing.slice(0, 100) });
-      queue.items = [];
-      await persist();
+    // Each batch leaves the queue only once the server accepted it, so a drop mid-sync neither loses nor resends entries.
+    for (const kind of ['event', 'browsing'] as const) {
+      const pending = () => queue?.items.filter((i) => i.kind === kind).slice(0, 100) ?? [];
+      for (let batch = pending(); batch.length; batch = pending()) {
+        const bodies = batch.map((i) => i.body);
+        if (kind === 'event') await post('/proctoring/events', { sessionId: sid, events: bodies });
+        else await post('/proctoring/browsing-logs', { sessionId: sid, entries: bodies });
+        const sent = new Set<QueueItem>(batch);
+        queue.items = queue.items.filter((i) => !sent.has(i));
+        await persist();
+      }
     }
   } catch (e) {
     // A finished session will never accept the backlog; drop it instead of retrying forever.
-    if (e instanceof HttpError && (e.code === 'CONFLICT' || e.code === 'FORBIDDEN' || e.code === 'NOT_FOUND')) {
+    if (sessionClosed(e)) {
+      await dropFrames(queue.frames ?? []);
       queue = { sessionId: sid, items: [] };
       await persist();
     }
@@ -93,6 +155,8 @@ export interface LiveHandlers {
   onKicked(reason: string): void;
   onClock(remainingSec: number): void;
   onReinstated(): void;
+  /** Whether the server answers heartbeats; false after two misses even when the OS reports a network. */
+  onServerReachable?(reachable: boolean): void;
 }
 
 let socket: Socket | null = null;
@@ -119,20 +183,31 @@ export function startLive(sessionId: string, h: LiveHandlers, opts: { audioMonit
   });
 
   // Server-synced clock and liveness; the server auto-submits on its own deadline regardless.
+  let missed = 0;
   const beat = async () => {
     if (!navigator.onLine) return;
     try {
       const r = await post<{ status: string; remainingSec: number }>(`/sessions/${sessionId}/heartbeat`, {});
+      missed = 0;
+      serverReachable = true;
+      h.onServerReachable?.(true);
       h.onClock(r.remainingSec);
       if (r.status !== 'LIVE') h.onEnded({ reason: 'The exam session has ended.', status: r.status });
       void flushQueue();
     } catch (e) {
       if (e instanceof HttpError && e.code === 'AUTH') h.onKicked(e.message);
+      else if (e instanceof HttpError && e.code === 'NETWORK' && ++missed >= 2) {
+        serverReachable = false;
+        h.onServerReachable?.(false);
+      }
     }
   };
   void beat();
   const hb = window.setInterval(() => void beat(), 10_000);
-  stops.push(() => window.clearInterval(hb));
+  stops.push(() => {
+    window.clearInterval(hb);
+    serverReachable = true;
+  });
   const online = () => void flushQueue();
   window.addEventListener('online', online);
   stops.push(() => window.removeEventListener('online', online));
@@ -300,26 +375,49 @@ function startFrameUploads(sessionId: string): () => void {
   };
   attachPreviewCamera();
 
+  // A live frame that fails on the network is kept like an offline one.
+  const keepOnNetworkError = (kind: FrameKind, frame: string) => (e: unknown) => {
+    if (e instanceof HttpError && e.code === 'NETWORK') void enqueueFrame(sessionId, kind, frame);
+  };
+
+  // Offline, a smaller frame is kept every 4th webcam tick (~16 s) and every 3rd screen tick (60 s).
+  let camTick = 0;
   const camTimer = window.setInterval(() => {
     attachPreviewCamera();
-    if (!navigator.onLine) return;
+    camTick += 1;
+    if (isOffline()) {
+      const kept = camTick % 4 === 0 ? grab(camVideo, 480, 0.6) : null;
+      if (kept) void enqueueFrame(sessionId, 'webcam', kept);
+      return;
+    }
+    // The backlog goes first, so the agent sees frames in the order they were taken.
+    if (queue?.frames?.length) return;
     const frame = grab(camVideo, 640, 0.72);
-    if (frame) void post('/proctoring/frames', { sessionId, image: frame }).catch(() => undefined);
+    if (frame) void post('/proctoring/frames', { sessionId, image: frame }).catch(keepOnNetworkError('webcam', frame));
   }, 4000);
+  const backfill = window.setInterval(() => void sendNextFrame(), 1000);
 
+  let screenTick = 0;
   const screenTimer = window.setInterval(() => {
     const stream = getScreenStream();
-    if (!stream || !navigator.onLine) return;
+    if (!stream) return;
     if (screenVideo.srcObject !== stream) {
       screenVideo.srcObject = stream;
       void screenVideo.play();
     }
+    screenTick += 1;
+    if (isOffline()) {
+      const kept = screenTick % 3 === 0 ? grab(screenVideo, 960, 0.5) : null;
+      if (kept) void enqueueFrame(sessionId, 'screen', kept);
+      return;
+    }
     const frame = grab(screenVideo, 1280, 0.6);
-    if (frame) void post('/proctoring/screen', { sessionId, image: frame }).catch(() => undefined);
+    if (frame) void post('/proctoring/screen', { sessionId, image: frame }).catch(keepOnNetworkError('screen', frame));
   }, 20_000);
 
   return () => {
     window.clearInterval(camTimer);
+    window.clearInterval(backfill);
     window.clearInterval(screenTimer);
     camVideo.srcObject = null;
     screenVideo.srcObject = null;
