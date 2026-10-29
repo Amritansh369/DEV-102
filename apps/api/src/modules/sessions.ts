@@ -3,7 +3,7 @@ import { z } from 'zod';
 import { fail, handle, must, parse } from '../lib/core.js';
 import { prisma } from '../lib/db.js';
 import { auth, authenticate, candidateOnly } from '../lib/auth.js';
-import { examInclude, examStatus, readExtras, readOptions, readPolicy, readSettings, toExam, toQuestion, toSession } from '../lib/domain.js';
+import { PAUSE_AFTER_MS, examInclude, examStatus, readExtras, resumedDeadline, readOptions, readPolicy, readSettings, toExam, toQuestion, toSession } from '../lib/domain.js';
 import { finalizeSession } from '../lib/policy.js';
 import { realtime } from '../lib/realtime.js';
 import { sendMail, templates } from '../lib/mailer.js';
@@ -24,6 +24,23 @@ export async function ownSession(req: Request, sessionId: string) {
 }
 
 const remainingSec = (deadline: Date) => Math.max(0, Math.round((deadline.getTime() - Date.now()) / 1000));
+
+type LoadedSession = Awaited<ReturnType<typeof ownSession>>;
+
+/** First contact after an outage: give the offline time back to the clock and tell staff. */
+async function resumeIfPaused(s: LoadedSession): Promise<LoadedSession> {
+  if (s.status !== 'LIVE' || !s.lastHeartbeatAt) return s;
+  const now = Date.now();
+  if (!s.networkLost && now - s.lastHeartbeatAt.getTime() <= PAUSE_AFTER_MS) return s;
+  const deadlineAt = resumedDeadline(s.deadlineAt, s.lastHeartbeatAt, s.exam.endsAt, now);
+  const lastHeartbeatAt = new Date(now);
+  // Matching on the last contact time lets only one of several parallel requests on reconnect credit the pause.
+  const { count } = await prisma.examSession.updateMany({ where: { id: s.id, lastHeartbeatAt: s.lastHeartbeatAt }, data: { networkLost: false, deadlineAt, lastHeartbeatAt } });
+  if (count === 0) return must(await prisma.examSession.findUnique({ where: { id: s.id }, include: { exam: true } }), 'Session');
+  const pausedSec = Math.round((now - s.lastHeartbeatAt.getTime()) / 1000);
+  realtime.toExam(s.examId, 'session:presence', { sessionId: s.id, online: true, pausedSec, deadlineAt: deadlineAt.toISOString() });
+  return { ...s, networkLost: false, deadlineAt, lastHeartbeatAt };
+}
 
 function shuffle<T>(arr: T[]): T[] {
   const out = [...arr];
@@ -152,7 +169,7 @@ sessionsRouter.get('/:id/questions', ...candidateOnly, handle(async (req) => {
 }));
 
 sessionsRouter.put('/:id/answers', ...candidateOnly, handle(async (req) => {
-  const s = await ownSession(req, String(req.params.id));
+  const s = await resumeIfPaused(await ownSession(req, String(req.params.id)));
   const body = parse(z.object({ answers: answersSchema, values: valuesSchema.optional(), flagged: z.array(z.string().max(64)).max(2000).optional() }), req.body);
   if (s.status !== 'LIVE' || Date.now() > s.deadlineAt.getTime() + GRACE_MS) fail('CONFLICT', 'This exam has ended. Answers can no longer be changed.', { status: s.status });
   const r = await saveAnswers(s.id, s.questionOrder, body.answers, body.flagged, body.values);
@@ -161,18 +178,15 @@ sessionsRouter.put('/:id/answers', ...candidateOnly, handle(async (req) => {
 }));
 
 sessionsRouter.post('/:id/heartbeat', ...candidateOnly, handle(async (req) => {
-  const s = await ownSession(req, String(req.params.id));
+  const s = await resumeIfPaused(await ownSession(req, String(req.params.id)));
   const body = parse(z.object({ currentQuestion: z.number().int().min(0).max(5000).optional(), online: z.boolean().optional() }), req.body ?? {});
-  if (s.status === 'LIVE') {
-    await prisma.examSession.update({ where: { id: s.id }, data: { lastHeartbeatAt: new Date(), networkLost: false } });
-    if (s.networkLost) realtime.toExam(s.examId, 'session:presence', { sessionId: s.id, online: true });
-  }
+  if (s.status === 'LIVE') await prisma.examSession.update({ where: { id: s.id }, data: { lastHeartbeatAt: new Date() } });
   if (body.currentQuestion !== undefined) realtime.toExam(s.examId, 'session:progress', { sessionId: s.id, progress: s.progress, currentQuestion: body.currentQuestion });
   return { status: s.status, remainingSec: remainingSec(s.deadlineAt), warnings: s.warnings, riskScore: s.riskScore, serverTime: new Date().toISOString() };
 }));
 
 sessionsRouter.post('/:id/submit', ...candidateOnly, handle(async (req) => {
-  const s = await ownSession(req, String(req.params.id));
+  const s = await resumeIfPaused(await ownSession(req, String(req.params.id)));
   const body = parse(z.object({
     answers: answersSchema.optional(),
     values: valuesSchema.optional(),

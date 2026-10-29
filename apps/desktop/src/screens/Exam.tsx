@@ -198,6 +198,8 @@ export default function Exam({ examId, userId, onSubmitted }: ExamProps) {
   const [activeWarning, setActiveWarning] = useState<WarningInfo | null>(null)
   const [face, setFace] = useState<FaceStatus>('OK')
   const [online, setOnline] = useState(() => navigator.onLine)
+  const [serverReachable, setServerReachable] = useState(true)
+  const paused = !online || !serverReachable
   const [toasts, setToasts] = useState<Toast[]>([])
   const [helpOpen, setHelpOpen] = useState(false)
 
@@ -223,7 +225,7 @@ export default function Exam({ examId, userId, onSubmitted }: ExamProps) {
   const savedRev = useRef(0)
   const inflight = useRef(false)
   const uiRef = useRef({ view, modalOpen: false })
-  uiRef.current = { view, modalOpen: submitOpen || forcedReason !== null || activeWarning !== null }
+  uiRef.current = { view, modalOpen: submitOpen || forcedReason !== null || activeWarning !== null || paused }
   paperRef.current = paper
   phaseRef.current = phase
 
@@ -379,6 +381,16 @@ export default function Exam({ examId, userId, onSubmitted }: ExamProps) {
     }
   }, [report, pushToast, saveNow])
 
+  /* offline pause: hold the time left while disconnected; the server gives the same time back on reconnect */
+  const pausedLeft = useRef<number | null>(null)
+  useEffect(() => {
+    if (paused) pausedLeft.current = useExamStore.getState().endsAt - Date.now()
+    else if (pausedLeft.current !== null) {
+      useExamStore.setState({ endsAt: Date.now() + pausedLeft.current })
+      pausedLeft.current = null
+    }
+  }, [paused])
+
   /* live channels: socket warnings and terminations, server clock, frames, activity, offline sync */
   useEffect(() => {
     if (phase !== 'active' || !paper) return
@@ -407,6 +419,7 @@ export default function Exam({ examId, userId, onSubmitted }: ExamProps) {
         setActiveWarning(null)
         pushToast('An invigilator reviewed the flag and reinstated your session.', 'ok')
       },
+      onServerReachable: setServerReachable,
     }, { audioMonitoring: paper.exam.settings.audioMonitoring })
     const onSimulate = (e: Event) => report((e as CustomEvent<{ code: ViolationCode }>).detail.code)
     window.addEventListener('proctor:report', onSimulate)
@@ -551,7 +564,7 @@ export default function Exam({ examId, userId, onSubmitted }: ExamProps) {
   const quality: LinkQuality = online ? 'GOOD' : 'OFFLINE'
 
   return (
-    <div className="flex h-full min-h-[700px] min-w-[1100px] flex-col bg-soft text-ink">
+    <div className="relative flex h-full min-h-[700px] min-w-[1100px] flex-col bg-soft text-ink">
       <header className="flex h-16 shrink-0 items-center justify-between gap-4 border-b border-border bg-white px-6">
         <div className="flex min-w-0 items-center gap-3">
           <img src="/images/logo.png" alt="" className="h-8 w-auto" onError={(e) => (e.currentTarget.style.display = 'none')} />
@@ -574,7 +587,7 @@ export default function Exam({ examId, userId, onSubmitted }: ExamProps) {
 
         <div className="flex items-center gap-3">
           <SaveIndicator status={save.status} at={save.at} />
-          <Timer endsAt={endsAt} onExpire={() => void finalize(true, 'Time is up. Your answers were submitted automatically.')} />
+          <Timer endsAt={endsAt} paused={paused} onExpire={() => void finalize(true, 'Time is up. Your answers were submitted automatically.')} />
           <button type="button" onClick={() => setHelpOpen((h) => !h)} aria-label="Keyboard shortcuts" aria-pressed={helpOpen} className="rounded-lg p-2 text-muted hover:bg-soft focus-visible:outline-2 focus-visible:outline-accent">
             <Keyboard className="h-4 w-4" />
           </button>
@@ -584,14 +597,16 @@ export default function Exam({ examId, userId, onSubmitted }: ExamProps) {
         </div>
       </header>
 
-      {!online && (
-        <div role="alert" className="flex items-center gap-2 bg-amber-50 px-6 py-2 text-xs font-medium text-amber-800">
-          <WifiOff className="h-4 w-4" aria-hidden />
-          You are offline. Answers are kept on this device and will sync when you reconnect. Your timer keeps running.
+      {paused && (
+        // Covers everything under the 64 px header, so the paused timer and Submit stay visible.
+        <div role="alert" className="absolute inset-x-0 bottom-0 top-16 z-30 flex flex-col items-center justify-center gap-3 bg-white/90 px-6 text-center backdrop-blur-md">
+          <span className="flex h-12 w-12 items-center justify-center rounded-full bg-amber-50 text-amber-700"><WifiOff className="h-6 w-6" aria-hidden /></span>
+          <h2 className="font-heading text-lg font-semibold">Connection lost. Your exam is paused.</h2>
+          <p className="max-w-md text-sm text-muted">The timer is stopped and you will not lose this time. Your answers are kept on this device, and monitoring continues. The exam resumes as soon as you reconnect.</p>
         </div>
       )}
 
-      <div className="grid min-h-0 flex-1 grid-cols-[minmax(0,1fr)_320px] gap-4 p-4">
+      <div className="grid min-h-0 flex-1 grid-cols-[minmax(0,1fr)_320px] gap-4 p-4" inert={paused}>
         <section ref={stageRef} className="relative min-h-0 overflow-hidden rounded-2xl border border-border bg-white shadow-sm">
           <div className={view === 'exam' ? 'h-full' : 'hidden'}>
             {!q ? (

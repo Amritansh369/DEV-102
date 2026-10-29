@@ -5,6 +5,8 @@ import { AlarmClock } from 'lucide-react'
 interface TimerProps {
   /** Epoch ms when the exam ends. Using a deadline instead of a counter prevents drift. */
   endsAt: number
+  /** While paused (offline) the clock holds its value and never expires; the caller moves endsAt on resume. */
+  paused?: boolean
   onExpire: () => void
   onThreshold?: (minutesLeft: 10 | 5 | 1) => void
 }
@@ -26,7 +28,7 @@ const TONES = {
   danger: 'border-red-300 bg-red-50 text-danger',
 } as const
 
-export default function Timer({ endsAt, onExpire, onThreshold }: TimerProps) {
+export default function Timer({ endsAt, paused = false, onExpire, onThreshold }: TimerProps) {
   const [left, setLeft] = useState(() => Math.max(0, Math.ceil((endsAt - Date.now()) / 1000)))
   const [notice, setNotice] = useState<string | null>(null)
   const fired = useRef(new Set<number>())
@@ -37,6 +39,10 @@ export default function Timer({ endsAt, onExpire, onThreshold }: TimerProps) {
   const reduceMotion = useReducedMotion()
 
   useEffect(() => {
+    if (paused) {
+      setLeft(Math.max(0, Math.ceil((endsAt - Date.now()) / 1000)))
+      return
+    }
     fired.current = new Set()
     primed.current = false
     expired.current = false
@@ -74,7 +80,7 @@ export default function Timer({ endsAt, onExpire, onThreshold }: TimerProps) {
       window.clearInterval(id)
       window.clearTimeout(noticeTimer)
     }
-  }, [endsAt])
+  }, [endsAt, paused])
 
   const tone = left <= 60 ? 'danger' : left <= 300 ? 'urgent' : left <= 600 ? 'warn' : 'normal'
   const pulse = left > 0 && left <= 60 && !reduceMotion
@@ -83,13 +89,14 @@ export default function Timer({ endsAt, onExpire, onThreshold }: TimerProps) {
     <div className="relative">
       <motion.div
         role="timer"
-        aria-label={`Time remaining: ${Math.floor(left / 60)} minutes ${left % 60} seconds`}
+        aria-label={`Time remaining: ${Math.floor(left / 60)} minutes ${left % 60} seconds${paused ? ', paused' : ''}`}
         animate={pulse ? { scale: [1, 1.07, 1] } : { scale: 1 }}
         transition={pulse ? { repeat: Infinity, duration: 1, ease: 'easeInOut' } : { duration: 0.2 }}
         className={`inline-flex items-center gap-2 rounded-xl border px-3.5 py-2 ${TONES[tone]}`}
       >
         <AlarmClock className="h-4 w-4" aria-hidden />
         <span className="font-heading text-lg font-semibold tabular-nums">{formatClock(left)}</span>
+        {paused && <span className="text-[11px] font-semibold uppercase tracking-wide">Paused</span>}
       </motion.div>
       <AnimatePresence>
         {notice && (
