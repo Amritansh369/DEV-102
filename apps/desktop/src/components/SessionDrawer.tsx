@@ -2,10 +2,10 @@ import { useCallback, useEffect, useId, useMemo, useRef, useState, type Keyboard
 import { createPortal } from 'react-dom'
 import { AnimatePresence, motion } from 'framer-motion'
 import { z } from 'zod'
-import { AlertTriangle, Ban, Bot, Check, Globe, Loader2, MonitorPlay, RefreshCw, Search, Send, Undo2, X } from 'lucide-react'
+import { AlertTriangle, Ban, Bot, Check, CornerDownRight, Globe, Loader2, MonitorPlay, RefreshCw, Search, Send, Undo2, X } from 'lucide-react'
 import type { Severity, Violation } from '../lib/types'
 import { monitorApi, type MonitorSession, type SessionDetail } from '../lib/api'
-import { STATUS_LABEL, VIOLATION_META, formatClock, timeAgo, useNow } from '../lib/monitorUtils'
+import { STATUS_LABEL, VIOLATION_META, formatClock, groupVisits, timeAgo, useNow } from '../lib/monitorUtils'
 import { watchScreen, type ScreenState } from '../lib/live'
 import { RiskBadge, SEVERITY_STYLES, SeverityBadge } from './RiskBadge'
 import { FakeWebcam } from './StudentTile'
@@ -267,6 +267,7 @@ function DrawerBody({ session, onClose, onSendWarning, onTerminate, onSessionPat
   const [termOpen, setTermOpen] = useState(false)
   const [aiOnly, setAiOnly] = useState(false)
   const [q, setQ] = useState('')
+  const [logView, setLogView] = useState<'activity' | 'entries'>('activity')
   const now = useNow(1000)
   const closeRef = useRef<HTMLButtonElement>(null)
   const loadedOnce = useRef(false)
@@ -305,6 +306,10 @@ function DrawerBody({ session, onClose, onSendWarning, onTerminate, onSessionPat
   const logs = useMemo(() => {
     const term = q.trim().toLowerCase()
     return (detail?.logs ?? []).filter((l) => (!aiOnly || l.flaggedAi) && (!term || `${l.url} ${l.title} ${l.query ?? ''}`.toLowerCase().includes(term))).slice().sort((a, b) => Date.parse(b.at) - Date.parse(a.at))
+  }, [detail, aiOnly, q])
+  const visits = useMemo(() => {
+    const term = q.trim().toLowerCase()
+    return groupVisits(detail?.logs ?? []).filter((v) => (!aiOnly || v.ai) && (!term || `${v.site} ${v.url} ${v.queries.map((x) => x.text).join(' ')}`.toLowerCase().includes(term)))
   }, [detail, aiOnly, q])
   const aiCount = detail?.logs.filter((l) => l.flaggedAi).length ?? 0
   const bySeverity = useMemo(() => {
@@ -416,8 +421,43 @@ function DrawerBody({ session, onClose, onSendWarning, onTerminate, onSessionPat
                 <input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Search URL, title or query" className="w-full rounded-xl border border-border bg-white py-2 pl-9 pr-3 text-sm focus:border-accent focus:outline-none focus:ring-4 focus:ring-accent/20" />
               </label>
               <label className="flex cursor-pointer items-center gap-2 text-sm text-text"><input type="checkbox" checked={aiOnly} onChange={(e) => setAiOnly(e.target.checked)} className="h-4 w-4 accent-primary-600" />AI sites only</label>
+              <div className="flex rounded-lg bg-soft p-0.5" role="group" aria-label="Browsing view">
+                {([['activity', 'Activity'], ['entries', 'All entries']] as const).map(([id, label]) => (
+                  <button key={id} type="button" aria-pressed={logView === id} onClick={() => setLogView(id)} className={`rounded-md px-2.5 py-1 text-xs font-medium focus:outline-none focus-visible:ring-2 focus-visible:ring-accent ${logView === id ? 'bg-white text-primary shadow-sm' : 'text-muted hover:text-text'}`}>{label}</button>
+                ))}
+              </div>
             </div>
-            {logs.length === 0 ? (
+            {logView === 'activity' ? (
+              visits.length === 0 ? (
+                <div className="grid place-items-center rounded-xl border border-dashed border-border bg-white py-16 text-center text-sm text-muted">{detail.logs.length === 0 ? 'This candidate has not opened any exam tabs yet.' : 'No entries match your filters.'}</div>
+              ) : (
+                <ol className="space-y-2" aria-label="Sites opened and what was typed on them">
+                  {visits.map((v) => (
+                    <li key={v.key} className={`rounded-xl bg-white p-3 ring-1 ${v.ai ? 'border-l-4 border-danger ring-danger/20' : 'border-l-4 border-transparent ring-border'}`}>
+                      <div className="flex items-start gap-3">
+                        <span className={`mt-0.5 grid h-8 w-8 shrink-0 place-items-center rounded-lg ${v.ai ? 'bg-danger text-white' : 'bg-soft text-muted'}`}>{v.ai ? <Bot className="h-4 w-4" aria-hidden="true" /> : <Globe className="h-4 w-4" aria-hidden="true" />}</span>
+                        <div className="min-w-0 flex-1">
+                          <p className="text-sm text-text">{v.returned ? <>Switched back to <span className="font-semibold">{v.site}</span></> : <><span className="font-semibold">{v.site}</span> opened</>}{v.ai && <span className="ml-2 rounded-full bg-danger/10 px-2 py-0.5 text-[11px] font-semibold text-danger">AI site</span>}</p>
+                          <p className="truncate font-mono text-xs text-muted">{v.url}</p>
+                        </div>
+                        <span className="shrink-0 text-xs tabular-nums text-muted">{formatClock(v.at)}</span>
+                      </div>
+                      {v.queries.length > 0 && (
+                        <ul className="mt-2 space-y-1.5 pl-11">
+                          {v.queries.map((x) => (
+                            <li key={x.id} className="flex items-start gap-2 text-sm">
+                              <CornerDownRight className={`mt-0.5 h-4 w-4 shrink-0 ${v.ai ? 'text-danger' : 'text-muted'}`} aria-hidden="true" />
+                              <p className="min-w-0 flex-1 text-text"><span className="text-muted">{v.ai ? 'Typed' : 'Searched'}:</span> <span className="font-medium">“{x.text}”</span></p>
+                              <span className="shrink-0 text-xs tabular-nums text-muted">{formatClock(x.at)}</span>
+                            </li>
+                          ))}
+                        </ul>
+                      )}
+                    </li>
+                  ))}
+                </ol>
+              )
+            ) : logs.length === 0 ? (
               <div className="grid place-items-center rounded-xl border border-dashed border-border bg-white py-16 text-center text-sm text-muted">{detail.logs.length === 0 ? 'This candidate has not opened any exam tabs yet.' : 'No entries match your filters.'}</div>
             ) : (
               <ul className="divide-y divide-border overflow-hidden rounded-xl bg-white ring-1 ring-border">
