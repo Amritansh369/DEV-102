@@ -204,7 +204,8 @@ export default function Login({ onLoggedIn }: LoginProps) {
           <label className="block text-sm font-medium text-ink">
             Select exam
             <select {...register('examId')} disabled={locked || examsLoading || exams.length === 0} aria-invalid={!!errors.examId} className={inputCls(!!errors.examId)}>
-              <option value="">{examsLoading ? 'Loading exams…' : 'Choose your exam'}</option>
+              {/* Shown while nothing is selected, but not offered in the list. */}
+              <option value="" disabled hidden>{examsLoading ? 'Loading exams…' : 'Choose your exam'}</option>
               {exams.map((exam) => (
                 <option key={exam.id} value={exam.code}>{exam.code} · {exam.title}</option>
               ))}
