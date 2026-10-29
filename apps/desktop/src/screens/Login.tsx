@@ -1,89 +1,65 @@
-import { useCallback, useEffect, useState } from 'react'
-import { useForm } from 'react-hook-form'
-import { zodResolver } from '@hookform/resolvers/zod'
-import { z } from 'zod'
-import { motion } from 'framer-motion'
-import { AlertCircle, Clock3, Eye, EyeOff, Loader2, Lock, ShieldCheck, Video, Wifi, WifiOff } from 'lucide-react'
-import { api } from '../lib/api'
-
-const schema = z.object({
-  examId: z.string().trim().min(3, 'Choose your exam').regex(/^[A-Za-z0-9-]+$/, 'Select a valid exam'),
-  userId: z.string().trim().min(3, 'User ID must be at least 3 characters'),
-  password: z.string().min(6, 'Password must be at least 6 characters'),
-  remember: z.boolean(),
-})
-type FormValues = z.infer<typeof schema>
-
-const MAX_ATTEMPTS = 5
-const LOCK_SECONDS = 30
-const REMEMBER_KEY = 'dev102.examId'
+import { useCallback, useEffect, useState, type FormEvent } from 'react'
+import { AnimatePresence, motion } from 'framer-motion'
+import {
+  AlertCircle, ArrowLeft, ArrowRight, CalendarClock, ClipboardPaste, Clock3, Eye, EyeOff, Fingerprint, GraduationCap, Link2, Loader2,
+  Lock, MailCheck, MonitorCheck, ShieldCheck, Video, Wifi, WifiOff, type LucideIcon,
+} from 'lucide-react'
+import { api, parseInviteToken, type InvitePreview } from '../lib/api'
+import { HttpError } from '../lib/http'
 
 interface LoginProps {
-  onLoggedIn: (session: { examId: string; userId: string }) => void
+  onLoggedIn: () => void
 }
 
-interface ServerState {
-  online: boolean
-  latencyMs: number
-}
-
-type TimeTheme = 'morning' | 'evening' | 'night'
+type TimeTheme = 'morning' | 'day' | 'night'
+type Look = 'student' | 'proctor'
 
 function getTimeTheme(date: Date): TimeTheme {
   const hour = date.getHours()
   if (hour >= 5 && hour < 12) return 'morning'
-  if (hour >= 12 && hour < 18) return 'evening'
+  if (hour >= 12 && hour < 18) return 'day'
   return 'night'
 }
 
-function formatTime(date: Date) {
-  return date.toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit', second: '2-digit' })
+const GREETING: Record<TimeTheme, string> = { morning: 'Good morning', day: 'Good afternoon', night: 'Good evening' }
+
+/** Brand gradient over the background photo, tinted for the time of day. */
+const OVERLAY: Record<TimeTheme, string> = {
+  morning: 'linear-gradient(115deg, rgba(10,77,166,.88) 0%, rgba(30,111,240,.55) 48%, rgba(255,176,32,.18) 100%)',
+  day: 'linear-gradient(115deg, rgba(10,77,166,.9) 0%, rgba(30,111,240,.6) 50%, rgba(30,111,240,.12) 100%)',
+  night: 'linear-gradient(115deg, rgba(2,8,23,.94) 0%, rgba(10,31,77,.78) 50%, rgba(10,77,166,.35) 100%)',
 }
 
+const FEATURES: Record<Look, [LucideIcon, string][]> = {
+  student: [
+    [ShieldCheck, 'Encrypted, tamper-aware exam browser'],
+    [Video, 'Webcam and screen monitoring during the test'],
+    [Lock, 'Only approved sites open inside the sandbox'],
+  ],
+  proctor: [
+    [MonitorCheck, 'Live grid of every candidate in your exam'],
+    [Fingerprint, 'Face and email verification before the console opens'],
+    [Eye, 'Review violations, warn and pause in real time'],
+  ],
+}
+
+const formatTime = (date: Date) => date.toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' })
+const formatWhen = (iso: string) => new Date(iso).toLocaleString('en-IN', { weekday: 'short', day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })
+const errorText = (e: unknown, fallback: string) => (e instanceof Error ? e.message : fallback)
+
 export default function Login({ onLoggedIn }: LoginProps) {
-  const [showPw, setShowPw] = useState(false)
-  const [formError, setFormError] = useState<string | null>(null)
-  const [attempts, setAttempts] = useState(0)
-  const [lockUntil, setLockUntil] = useState<number | null>(null)
-  const [remaining, setRemaining] = useState(0)
-  const [server, setServer] = useState<ServerState | null>(null)
-  const [exams, setExams] = useState<Awaited<ReturnType<typeof api.availableExams>>>([])
-  const [examsLoading, setExamsLoading] = useState(true)
-  const [examsError, setExamsError] = useState<string | null>(null)
   const [now, setNow] = useState(() => new Date())
+  const [server, setServer] = useState<{ online: boolean; latencyMs: number } | null>(null)
+  const [link, setLink] = useState('')
+  const [token, setToken] = useState<string | null>(null)
+  const [invite, setInvite] = useState<InvitePreview | null>(null)
+  const [password, setPassword] = useState('')
+  const [showPw, setShowPw] = useState(false)
+  const [busy, setBusy] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+  const [bgFailed, setBgFailed] = useState(false)
 
-  const savedExam = typeof localStorage !== 'undefined' ? localStorage.getItem(REMEMBER_KEY) ?? '' : ''
-  const {
-    register,
-    handleSubmit,
-    setValue,
-    formState: { errors, isSubmitting },
-  } = useForm<FormValues>({
-    resolver: zodResolver(schema),
-    defaultValues: { examId: savedExam, userId: '', password: '', remember: savedExam !== '' },
-  })
-
-  const pingServer = useCallback(async () => {
-    try {
-      setServer(await api.serverStatus())
-    } catch {
-      setServer({ online: false, latencyMs: 0 })
-    }
-  }, [])
-
-  const loadExams = useCallback(async () => {
-    setExamsLoading(true)
-    setExamsError(null)
-    try {
-      const list = await api.availableExams()
-      setExams(list)
-      if (savedExam && !list.some((exam) => exam.code === savedExam)) setValue('examId', '')
-    } catch (e) {
-      setExamsError(e instanceof Error ? e.message : 'Could not load available exams.')
-    } finally {
-      setExamsLoading(false)
-    }
-  }, [savedExam, setValue])
+  const pingServer = useCallback(async () => setServer(await api.serverStatus()), [])
 
   useEffect(() => {
     void pingServer()
@@ -92,185 +68,265 @@ export default function Login({ onLoggedIn }: LoginProps) {
   }, [pingServer])
 
   useEffect(() => {
-    void loadExams()
-  }, [loadExams])
-
-  useEffect(() => {
-    const id = window.setInterval(() => setNow(new Date()), 1000)
+    const id = window.setInterval(() => setNow(new Date()), 30_000)
     return () => window.clearInterval(id)
   }, [])
 
-  useEffect(() => {
-    if (!lockUntil) return
-    const tick = () => {
-      const left = Math.ceil((lockUntil - Date.now()) / 1000)
-      if (left <= 0) {
-        setLockUntil(null)
-        setAttempts(0)
-        setRemaining(0)
-        setFormError(null)
-      } else setRemaining(left)
+  const resolve = useCallback(async (text: string) => {
+    const t = parseInviteToken(text)
+    if (!t) {
+      setError('That does not look like an exam link. Copy the whole link from your invitation email.')
+      return
     }
-    tick()
-    const id = window.setInterval(tick, 250)
-    return () => window.clearInterval(id)
-  }, [lockUntil])
-
-  const locked = lockUntil !== null
-  const offline = server?.online === false
-  const timeTheme = getTimeTheme(now)
-  const backgroundImage = `/images/${timeTheme}.png`
-  const timeLabel = timeTheme === 'morning' ? 'Good morning' : timeTheme === 'evening' ? 'Good evening' : 'Good night'
-
-  const onSubmit = async (v: FormValues) => {
-    setFormError(null)
+    setBusy(true)
+    setError(null)
     try {
-      await api.login({ examId: v.examId, userId: v.userId, password: v.password })
-      if (v.remember) localStorage.setItem(REMEMBER_KEY, v.examId)
-      else localStorage.removeItem(REMEMBER_KEY)
-      onLoggedIn({ examId: v.examId, userId: v.userId })
+      setInvite(await api.previewInvite(t))
+      setToken(t)
     } catch (e) {
-      const next = attempts + 1
-      setAttempts(next)
-      if (next >= MAX_ATTEMPTS) {
-        setLockUntil(Date.now() + LOCK_SECONDS * 1000)
-        setFormError('Too many failed attempts. Sign-in is temporarily locked.')
-      } else {
-        const msg = e instanceof Error ? e.message : 'Sign-in failed'
-        setFormError(`${msg} (${MAX_ATTEMPTS - next} attempt${MAX_ATTEMPTS - next === 1 ? '' : 's'} left)`)
-      }
+      setError(errorText(e, 'Could not check this link.'))
+    } finally {
+      setBusy(false)
+    }
+  }, [])
+
+  // If the invitation link is already on the clipboard, offer it straight away.
+  useEffect(() => {
+    navigator.clipboard?.readText().then((text) => {
+      if (parseInviteToken(text)) setLink((current) => current || text.trim())
+    }).catch(() => undefined)
+  }, [])
+
+  const pasteFromClipboard = async () => {
+    try {
+      const text = (await navigator.clipboard.readText()).trim()
+      setLink(text)
+      if (parseInviteToken(text)) void resolve(text)
+    } catch {
+      setError('Clipboard access was blocked. Paste the link with Ctrl+V.')
     }
   }
 
-  const inputCls = (bad: boolean) =>
-    `mt-1 w-full rounded-xl border bg-white px-3.5 py-2.5 text-sm text-ink placeholder:text-muted/70 focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-accent disabled:bg-soft ${bad ? 'border-danger' : 'border-border'}`
+  const onLink = (e: FormEvent) => {
+    e.preventDefault()
+    void resolve(link)
+  }
+
+  const onPassword = async (e: FormEvent) => {
+    e.preventDefault()
+    if (!token) return
+    setBusy(true)
+    setError(null)
+    try {
+      await api.loginWithInvite(token, password)
+      onLoggedIn()
+    } catch (err) {
+      const left = err instanceof HttpError ? err.details?.attemptsLeft : undefined
+      setError(`${errorText(err, 'Sign-in failed.')}${typeof left === 'number' ? ` (${left} attempt${left === 1 ? '' : 's'} left)` : ''}`)
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  const startOver = () => {
+    setInvite(null)
+    setToken(null)
+    setPassword('')
+    setError(null)
+  }
+
+  const time = getTimeTheme(now)
+  const look: Look = invite?.role === 'MENTOR' ? 'proctor' : 'student'
+  const background = `/images/bg/${look}-${time}.webp`
+  const offline = server?.online === false
+  const isProctor = invite?.role === 'MENTOR'
+
+  useEffect(() => setBgFailed(false), [background])
 
   return (
-    <div className="grid h-full min-h-[700px] grid-cols-1 bg-white lg:grid-cols-[1.05fr_1fr]">
-      <aside
-        className="relative hidden overflow-hidden bg-cover bg-center p-12 text-white transition-[background-image] duration-700 lg:flex lg:flex-col lg:justify-between"
-        style={{ backgroundImage: `linear-gradient(135deg, rgba(10, 77, 166, .9), rgba(11, 91, 211, .72) 55%, rgba(30, 111, 240, .78)), url('${backgroundImage}')` }}
-      >
-        <div className="absolute inset-0 opacity-20 [background-image:radial-gradient(#fff_1px,transparent_1px)] [background-size:22px_22px]" aria-hidden />
-        <div className="relative flex items-center gap-3">
-          <img src="/images/logo.png" alt="Where U Elevate" className="h-10 w-auto rounded bg-white/90 p-1" onError={(e) => (e.currentTarget.style.display = 'none')} />
-          <span className="font-heading text-lg font-semibold">Smart Proctor</span>
-        </div>
-        <div className="relative max-w-md">
-          <p className="mb-4 inline-flex items-center gap-2 rounded-full bg-white/15 px-3 py-1.5 text-xs font-medium ring-1 ring-white/20 backdrop-blur">
-            <Clock3 className="h-3.5 w-3.5" aria-hidden /> {timeLabel} · {formatTime(now)}
-          </p>
-          <h1 className="font-heading text-4xl font-semibold leading-tight">Your secure exam, one sign-in away.</h1>
-          <p className="mt-4 text-white/80">Use the Exam ID and credentials from your invitation email. The app locks your device into exam mode once checks are complete.</p>
-          <ul className="mt-8 space-y-3 text-sm">
-            {[
-              [ShieldCheck, 'Encrypted, tamper-aware exam browser'],
-              [Video, 'Webcam and screen monitoring during the test'],
-              [Lock, 'Only approved sites open inside the sandbox'],
-            ].map(([Icon, text]) => {
-              const I = Icon as typeof ShieldCheck
-              return (
-                <li key={text as string} className="flex items-center gap-3">
-                  <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-white/15"><I className="h-4 w-4" aria-hidden /></span>
-                  {text as string}
-                </li>
-              )
-            })}
-          </ul>
-        </div>
-        <p className="relative text-xs text-white/60">© Where U Elevate · DEV102 Assessment Platform</p>
-      </aside>
+    <div className="relative h-full min-h-[700px] overflow-hidden bg-[#06142e]">
+      <AnimatePresence initial={false}>
+        {!bgFailed && (
+          <motion.img
+            key={background}
+            src={background}
+            alt=""
+            aria-hidden
+            onError={() => setBgFailed(true)}
+            initial={{ opacity: 0, scale: 1.04 }}
+            animate={{ opacity: 1, scale: 1 }}
+            exit={{ opacity: 0 }}
+            transition={{ duration: 0.9, ease: 'easeOut' }}
+            className="absolute inset-0 h-full w-full object-cover"
+          />
+        )}
+      </AnimatePresence>
+      <div className="absolute inset-0 transition-[background] duration-700" style={{ background: OVERLAY[time] }} aria-hidden />
+      <div className="absolute inset-0 opacity-[.12] [background-image:radial-gradient(#fff_1px,transparent_1px)] [background-size:22px_22px]" aria-hidden />
 
-      <main className="flex items-center justify-center p-8">
-        <motion.form
-          initial={{ opacity: 0, y: 12 }}
-          animate={{ opacity: 1, y: 0 }}
-          onSubmit={handleSubmit(onSubmit)}
-          noValidate
-          className="w-full max-w-sm"
-          aria-label="Candidate sign in"
-        >
-          <div className="mb-6 flex items-center justify-between">
-            <h2 className="font-heading text-2xl font-semibold text-ink">Candidate sign in</h2>
-            <span
-              className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-[11px] font-medium ${server === null ? 'bg-soft text-muted' : offline ? 'bg-red-50 text-danger' : 'bg-green-50 text-success'}`}
-              role="status"
-            >
-              {offline ? <WifiOff className="h-3 w-3" aria-hidden /> : <Wifi className="h-3 w-3" aria-hidden />}
-              {server === null ? 'Checking server…' : offline ? 'Server offline' : `Server online · ${server.latencyMs} ms`}
-            </span>
+      <div className="relative grid h-full grid-cols-1 lg:grid-cols-[1.1fr_1fr]">
+        <aside className="hidden flex-col justify-between p-12 text-white lg:flex">
+          <div className="flex items-center gap-3">
+            <img src="/images/logo.png" alt="Where U Elevate" className="h-10 w-auto rounded bg-white/90 p-1" onError={(e) => (e.currentTarget.style.display = 'none')} />
+            <span className="font-heading text-lg font-semibold">Smart Proctor</span>
           </div>
+          <div className="max-w-md">
+            <p className="mb-4 inline-flex items-center gap-2 rounded-full bg-white/15 px-3 py-1.5 text-xs font-medium ring-1 ring-white/25 backdrop-blur">
+              <Clock3 className="h-3.5 w-3.5" aria-hidden /> {GREETING[time]} · {formatTime(now)}
+            </p>
+            <AnimatePresence mode="wait">
+              <motion.div key={look + (invite?.name ?? '')} initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -6 }} transition={{ duration: 0.3 }}>
+                <h1 className="font-heading text-4xl font-semibold leading-tight">
+                  {!invite ? 'Your secure exam, one link away.' : isProctor ? `Ready to proctor, ${invite.name.split(' ')[0]}?` : `Welcome, ${invite.name.split(' ')[0]}.`}
+                </h1>
+                <p className="mt-4 text-white/80">
+                  {!invite
+                    ? 'Your organisation emails a personal link to each invited candidate and proctor. Paste it here to continue.'
+                    : isProctor
+                      ? 'After your password, confirm your identity with your face and an email code. Then the live console opens.'
+                      : 'After your password, the app checks your device, verifies your face and locks into exam mode.'}
+                </p>
+                <ul className="mt-8 space-y-3 text-sm">
+                  {FEATURES[look].map(([Icon, text]) => (
+                    <li key={text} className="flex items-center gap-3">
+                      <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-white/15 ring-1 ring-white/20"><Icon className="h-4 w-4" aria-hidden /></span>
+                      {text}
+                    </li>
+                  ))}
+                </ul>
+              </motion.div>
+            </AnimatePresence>
+          </div>
+          <p className="text-xs text-white/60">© Where U Elevate · DEV102 Assessment Platform</p>
+        </aside>
 
-          <label className="block text-sm font-medium text-ink">
-            Select exam
-            {/* required makes the select :invalid while the placeholder is shown, which greys it; the form is noValidate. */}
-            <select {...register('examId')} required disabled={locked || examsLoading || exams.length === 0} aria-invalid={!!errors.examId} className={`${inputCls(!!errors.examId)} invalid:text-muted/70`}>
-              {/* Shown while nothing is selected, but not offered in the list. */}
-              <option value="" disabled hidden>{examsLoading ? 'Loading exams…' : 'Choose your exam'}</option>
-              {exams.map((exam) => (
-                <option key={exam.id} value={exam.code} className="text-ink">{exam.code} · {exam.title}</option>
-              ))}
-            </select>
-            {errors.examId && <span className="mt-1 block text-xs text-danger">{errors.examId.message}</span>}
-            {examsError && <span role="alert" className="mt-1 block text-xs text-danger">{examsError}</span>}
-            {!examsLoading && !examsError && exams.length === 0 && <span className="mt-1 block text-xs text-muted">No scheduled or live exams are available right now.</span>}
-            {examsError && <button type="button" onClick={() => void loadExams()} className="mt-1 text-xs font-medium text-accent underline">Retry loading exams</button>}
-          </label>
-
-          <label className="mt-4 block text-sm font-medium text-ink">
-            User ID
-            <input {...register('userId')} disabled={locked} autoComplete="username" placeholder="e.g. WUE24-0381" aria-invalid={!!errors.userId} className={inputCls(!!errors.userId)} />
-            {errors.userId && <span className="mt-1 block text-xs text-danger">{errors.userId.message}</span>}
-          </label>
-
-          <label className="mt-4 block text-sm font-medium text-ink">
-            Password
-            <div className="relative">
-              <input {...register('password')} type={showPw ? 'text' : 'password'} disabled={locked} autoComplete="current-password" aria-invalid={!!errors.password} className={`${inputCls(!!errors.password)} pr-11`} />
-              <button
-                type="button"
-                onClick={() => setShowPw((s) => !s)}
-                aria-label={showPw ? 'Hide password' : 'Show password'}
-                aria-pressed={showPw}
-                className="absolute right-2 top-1/2 mt-0.5 -translate-y-1/2 rounded-md p-1.5 text-muted hover:text-primary focus-visible:outline-2 focus-visible:outline-accent"
+        <main className="flex items-center justify-center p-6 sm:p-10">
+          <motion.div
+            initial={{ opacity: 0, y: 16 }}
+            animate={{ opacity: 1, y: 0 }}
+            className="w-full max-w-[400px] rounded-3xl bg-white/95 p-7 shadow-[0_30px_80px_-20px_rgba(2,8,23,.55)] ring-1 ring-white/60 backdrop-blur-xl"
+          >
+            <div className="mb-5 flex items-center justify-between gap-3">
+              <span className="inline-flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wide text-primary">
+                {isProctor ? <ShieldCheck className="h-3.5 w-3.5" aria-hidden /> : <GraduationCap className="h-3.5 w-3.5" aria-hidden />}
+                {!invite ? 'Join exam' : isProctor ? 'Proctor sign in' : 'Candidate sign in'}
+              </span>
+              <span
+                role="status"
+                className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-[11px] font-medium ${server === null ? 'bg-soft text-muted' : offline ? 'bg-red-50 text-danger' : 'bg-green-50 text-success'}`}
               >
-                {showPw ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
-              </button>
-            </div>
-            {errors.password && <span className="mt-1 block text-xs text-danger">{errors.password.message}</span>}
-          </label>
-
-          <label className="mt-4 flex items-center gap-2 text-sm text-muted">
-            <input type="checkbox" {...register('remember')} className="h-4 w-4 rounded border-border accent-primary-600" />
-            Remember exam on this device
-          </label>
-
-          {formError && (
-            <div role="alert" className="mt-4 flex items-start gap-2 rounded-xl bg-red-50 px-3 py-2.5 text-xs text-danger">
-              <AlertCircle className="mt-0.5 h-4 w-4 shrink-0" aria-hidden />
-              <span>
-                {formError}
-                {locked && <strong className="ml-1 tabular-nums">Try again in {remaining}s.</strong>}
+                {offline ? <WifiOff className="h-3 w-3" aria-hidden /> : <Wifi className="h-3 w-3" aria-hidden />}
+                {server === null ? 'Checking…' : offline ? 'Server offline' : `Online · ${server.latencyMs} ms`}
               </span>
             </div>
-          )}
 
-          <button
-            type="submit"
-            disabled={isSubmitting || locked || offline}
-            className="mt-6 flex w-full items-center justify-center gap-2 rounded-xl bg-cta px-4 py-3 text-sm font-semibold text-ink shadow-sm transition hover:brightness-95 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent disabled:cursor-not-allowed disabled:opacity-60"
-          >
-            {isSubmitting && <Loader2 className="h-4 w-4 animate-spin" aria-hidden />}
-            {locked ? `Locked · ${remaining}s` : isSubmitting ? 'Signing in…' : 'Sign in & start checks'}
-          </button>
-          {offline && (
-            <button type="button" onClick={() => void pingServer()} className="mt-3 w-full text-center text-xs font-medium text-accent underline">
-              Server unreachable — retry connection
-            </button>
-          )}
-          <p className="mt-6 text-center text-xs text-muted">Lost your credentials? Contact your exam coordinator.</p>
-        </motion.form>
-      </main>
+            <AnimatePresence mode="wait" initial={false}>
+              {!invite ? (
+                <motion.form key="link" onSubmit={onLink} noValidate initial={{ opacity: 0, x: -12 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -12 }} aria-label="Paste exam link">
+                  <h2 className="font-heading text-2xl font-semibold text-ink">Paste your exam link</h2>
+                  <p className="mt-1 text-sm text-muted">Find it in the invitation email from your organisation.</p>
+                  <label className="mt-5 block text-sm font-medium text-ink" htmlFor="invite-link">Exam link</label>
+                  <div className="relative mt-1">
+                    <Link2 className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted" aria-hidden />
+                    <input
+                      id="invite-link"
+                      value={link}
+                      onChange={(e) => setLink(e.target.value)}
+                      onPaste={(e) => {
+                        const text = e.clipboardData.getData('text')
+                        if (parseInviteToken(text)) {
+                          e.preventDefault()
+                          setLink(text.trim())
+                          void resolve(text)
+                        }
+                      }}
+                      autoFocus
+                      spellCheck={false}
+                      placeholder="https://…/join/…"
+                      aria-invalid={!!error}
+                      className={`w-full rounded-xl border bg-white py-2.5 pl-9 pr-24 font-mono text-xs text-ink placeholder:font-sans placeholder:text-sm placeholder:text-muted/70 focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-accent ${error ? 'border-danger' : 'border-border'}`}
+                    />
+                    <button type="button" onClick={() => void pasteFromClipboard()} className="absolute right-1.5 top-1/2 inline-flex -translate-y-1/2 items-center gap-1 rounded-lg bg-soft px-2.5 py-1.5 text-xs font-medium text-primary hover:bg-primary/10">
+                      <ClipboardPaste className="h-3.5 w-3.5" aria-hidden /> Paste
+                    </button>
+                  </div>
+                  {error && <ErrorNote text={error} />}
+                  <button type="submit" disabled={busy || offline || !link.trim()} className={submitCls}>
+                    {busy ? <Loader2 className="h-4 w-4 animate-spin" aria-hidden /> : <ArrowRight className="h-4 w-4" aria-hidden />}
+                    {busy ? 'Checking link…' : 'Continue'}
+                  </button>
+                  {offline && <button type="button" onClick={() => void pingServer()} className="mt-3 w-full text-center text-xs font-medium text-accent underline">Server unreachable. Retry connection</button>}
+                  <p className="mt-6 text-center text-xs text-muted">No link? Only candidates and proctors invited by an organisation can join. Contact your exam coordinator.</p>
+                </motion.form>
+              ) : (
+                <motion.form key="password" onSubmit={(e) => void onPassword(e)} noValidate initial={{ opacity: 0, x: 12 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: 12 }} aria-label="Enter password">
+                  <button type="button" onClick={startOver} className="mb-3 inline-flex items-center gap-1 text-xs font-medium text-muted hover:text-primary">
+                    <ArrowLeft className="h-3.5 w-3.5" aria-hidden /> Use a different link
+                  </button>
+                  <div className="rounded-2xl bg-gradient-to-br from-[#0A4DA6] to-[#1E6FF0] p-4 text-white">
+                    <p className="text-[11px] font-semibold uppercase tracking-wide text-white/70">{invite.exam.code}</p>
+                    <p className="mt-0.5 font-heading text-lg font-semibold leading-snug">{invite.exam.title}</p>
+                    <p className="mt-2 inline-flex items-center gap-1.5 text-xs text-white/80">
+                      <CalendarClock className="h-3.5 w-3.5" aria-hidden /> {formatWhen(invite.exam.startsAt)} · {invite.exam.durationMin} min
+                    </p>
+                  </div>
+                  <dl className="mt-4 grid grid-cols-[auto_1fr] gap-x-4 gap-y-1.5 text-sm">
+                    <dt className="text-muted">Name</dt><dd className="truncate font-medium text-ink">{invite.name}</dd>
+                    {invite.userId && <><dt className="text-muted">User ID</dt><dd className="font-mono font-medium text-ink">{invite.userId}</dd></>}
+                    <dt className="text-muted">Email</dt><dd className="truncate text-ink">{invite.email}</dd>
+                    <dt className="text-muted">Role</dt>
+                    <dd><span className={`rounded-full px-2 py-0.5 text-xs font-semibold ${isProctor ? 'bg-amber-100 text-amber-800' : 'bg-blue-50 text-primary'}`}>{isProctor ? 'Proctor' : 'Candidate'}</span></dd>
+                  </dl>
+
+                  <label className="mt-5 block text-sm font-medium text-ink" htmlFor="invite-password">Password</label>
+                  <div className="relative mt-1">
+                    <input
+                      id="invite-password"
+                      type={showPw ? 'text' : 'password'}
+                      value={password}
+                      onChange={(e) => setPassword(e.target.value)}
+                      autoFocus
+                      autoComplete="current-password"
+                      aria-invalid={!!error}
+                      className={`w-full rounded-xl border bg-white px-3.5 py-2.5 pr-11 text-sm text-ink focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-accent ${error ? 'border-danger' : 'border-border'}`}
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setShowPw((s) => !s)}
+                      aria-label={showPw ? 'Hide password' : 'Show password'}
+                      aria-pressed={showPw}
+                      className="absolute right-2 top-1/2 -translate-y-1/2 rounded-md p-1.5 text-muted hover:text-primary focus-visible:outline-2 focus-visible:outline-accent"
+                    >
+                      {showPw ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                    </button>
+                  </div>
+                  {error && <ErrorNote text={error} />}
+                  <button type="submit" disabled={busy || offline || !password} className={submitCls}>
+                    {busy && <Loader2 className="h-4 w-4 animate-spin" aria-hidden />}
+                    {busy ? 'Signing in…' : isProctor ? 'Sign in & verify identity' : 'Sign in & start checks'}
+                  </button>
+                  <p className="mt-4 flex items-start gap-2 text-xs text-muted">
+                    <MailCheck className="mt-0.5 h-3.5 w-3.5 shrink-0" aria-hidden />
+                    {isProctor ? 'Next: face verification and a code sent to your email.' : 'This link will be locked to this computer after you sign in.'}
+                  </p>
+                </motion.form>
+              )}
+            </AnimatePresence>
+          </motion.div>
+        </main>
+      </div>
+    </div>
+  )
+}
+
+const submitCls =
+  'mt-6 flex w-full items-center justify-center gap-2 rounded-xl bg-cta px-4 py-3 text-sm font-semibold text-ink shadow-sm transition hover:brightness-95 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent disabled:cursor-not-allowed disabled:opacity-60'
+
+function ErrorNote({ text }: { text: string }) {
+  return (
+    <div role="alert" className="mt-3 flex items-start gap-2 rounded-xl bg-red-50 px-3 py-2.5 text-xs text-danger">
+      <AlertCircle className="mt-0.5 h-4 w-4 shrink-0" aria-hidden />
+      <span>{text}</span>
     </div>
   )
 }

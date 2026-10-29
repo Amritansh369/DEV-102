@@ -34,6 +34,23 @@ export interface ViolationResult {
 }
 
 interface LoginResponse { token: string; user: Omit<AuthUser, 'token'>; exam: Exam; sessionId?: string }
+
+/** What a pasted join link resolves to before the password is entered. */
+export interface InvitePreview {
+  role: 'CANDIDATE' | 'MENTOR';
+  name: string;
+  /** Masked, e.g. ra••••@gmail.com */
+  email: string;
+  userId?: string;
+  exam: { code: string; title: string; startsAt: string; endsAt: string; durationMin: number };
+  deviceBound: boolean;
+}
+
+/** Accepts the full link from the email (…/join/<token>) or the bare token; null when neither is present. */
+export function parseInviteToken(text: string): string | null {
+  return /(?:^|\/join\/|\s)([a-f0-9]{48})(?=$|[/?#\s])/i.exec(text.trim())?.[1]?.toLowerCase() ?? null;
+}
+
 export interface AvailableExam { id: string; code: string; title: string; startsAt: string; endsAt: string; status: 'SCHEDULED' | 'LIVE' }
 
 let current: { auth: AuthUser; exam: Exam; sessionId?: string } | null = null;
@@ -81,6 +98,17 @@ export const api = {
     const r = await post<LoginResponse>('/auth/login', { ...parsed.data, deviceId: await getDeviceId(), channel: 'desktop' });
     setToken(r.token);
     current = { auth: { ...r.user, token: r.token }, exam: r.exam, ...(r.sessionId ? { sessionId: r.sessionId } : {}) };
+  },
+
+  previewInvite: (token: string) => get<InvitePreview>(`/auth/invites/${encodeURIComponent(token)}`),
+
+  /** Signs in with a join link: a candidate continues to the system check, a proctor to face and OTP checks. */
+  async loginWithInvite(token: string, password: string): Promise<'CANDIDATE' | 'MENTOR'> {
+    if (!password) throw new Error('Enter the password from your invitation email');
+    const r = await post<LoginResponse & { role: 'CANDIDATE' | 'MENTOR' }>('/auth/invites/login', { token, password, deviceId: await getDeviceId() });
+    setToken(r.token);
+    current = { auth: { ...r.user, token: r.token }, exam: r.exam, ...(r.sessionId ? { sessionId: r.sessionId } : {}) };
+    return r.role;
   },
 
   async getExamPaper(_examId?: string): Promise<ExamPaper> {
@@ -168,6 +196,14 @@ export const devApi = {
     await post('/dev/reset-candidate', { userId: DEMO_CREDENTIALS.userId });
     await api.login(DEMO_CREDENTIALS);
     return { auth: current!.auth, exam: current!.exam };
+  },
+  /** A fresh join link for the demo candidate or demo mentor (signs in as admin to issue it). */
+  async inviteLink(role: 'CANDIDATE' | 'MENTOR'): Promise<{ link: string; password: string }> {
+    await signInStaff({ email: 'admin@wue.in', password: 'Admin@123' });
+    if (role === 'CANDIDATE') await post('/dev/reset-candidate', { userId: DEMO_CREDENTIALS.userId });
+    const r = await post<{ link: string; password: string }>('/dev/invite-link', { role });
+    setToken(null);
+    return r;
   },
   /** Marks the signed-in candidate as face- and OTP-verified so the exam can start. */
   verifyMe: () => post('/dev/verify-me'),

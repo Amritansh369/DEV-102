@@ -9,6 +9,7 @@ import { VIOLATION_CODES } from '../lib/domain.js';
 import { agent } from '../lib/agent.js';
 import { recordViolation } from '../lib/policy.js';
 import { realtime } from '../lib/realtime.js';
+import { issueInvite } from './invites.js';
 
 /** Development-only helpers for the floating dev toolbar. Never mounted when NODE_ENV=production. */
 export const devRouter = Router();
@@ -92,4 +93,22 @@ devRouter.post('/reset-candidate', authenticate, handle(async (req) => {
     data: { status: 'EMAILED', failedLogins: 0, lockedUntil: null, faceVerifiedAt: null, faceScore: null, photoPath: null, tokenVersion: { increment: 1 } },
   });
   return { reset: body.userId };
+}));
+
+/** Issues a fresh join link for the demo candidate or demo mentor on the demo exam, so the paste-link flow can be tested without email. */
+devRouter.post('/invite-link', ...adminOnly, handle(async (req) => {
+  const { role } = parse(z.object({ role: z.enum(['CANDIDATE', 'MENTOR']) }), req.body);
+  const exam = await prisma.exam.findFirst({ where: { code: DEMO.candidate.examId } });
+  if (!exam) return fail('NOT_FOUND', 'Demo exam not found. Reseed the database.');
+  if (role === 'CANDIDATE') {
+    const c = await prisma.candidate.findFirst({ where: { examId: exam.id, userId: DEMO.candidate.userId } });
+    if (!c) return fail('NOT_FOUND', 'Demo candidate not found. Reseed the database.');
+    await prisma.deviceBinding.deleteMany({ where: { candidateId: c.id } });
+    const { link } = await issueInvite({ examId: exam.id, endsAt: exam.endsAt, role, email: c.email, candidateId: c.id });
+    return { link, password: DEMO.candidate.password };
+  }
+  const u = await prisma.user.findUnique({ where: { email: DEMO.mentor.email } });
+  if (!u) return fail('NOT_FOUND', 'Demo mentor not found. Reseed the database.');
+  const { link } = await issueInvite({ examId: exam.id, endsAt: exam.endsAt, role, email: u.email, userId: u.id });
+  return { link, password: DEMO.mentor.password };
 }));

@@ -1,7 +1,7 @@
 import { HttpError, del, get, http, patch, post, put, qs, setToken } from './http'
 import { takeBuffered } from './realtime'
 import type { ViolationPolicy } from './examPolicy'
-import type { BrowsingLog, Candidate, Exam, Question, Role, Session, Severity, Violation, ViolationCode } from './types'
+import type { BrowsingLog, Candidate, Exam, InviteStatus, Question, Role, Session, Severity, Violation, ViolationCode } from './types'
 
 /* ------------------------------------------------------------------ errors */
 
@@ -144,7 +144,7 @@ export const importQuestions = (examId: string, rows: QuestionDraft[]) =>
 
 export interface ImportRowError { row: number; message: string }
 export interface CredentialRow { candidateId: string; name: string; email: string; examCode: string; userId: string; password: string }
-export interface EmailResult { candidateId: string; emailStatus: Candidate['emailStatus']; error?: string }
+export interface EmailResult { candidateId: string; emailStatus: Candidate['emailStatus']; error?: string; inviteId?: string; devLink?: string }
 
 export const listCandidates = (p: { examId?: string; q?: string; page?: number; pageSize?: number; sort?: string; dir?: 'asc' | 'desc' } = {}) =>
   call(get<{ items: Candidate[]; total: number }>(`/candidates${qs(p)}`))
@@ -154,6 +154,20 @@ export const importCandidates = (examId: string, rows: { name: string; email: st
 export const sendCredentialEmail = (candidateId: string, template?: { subject: string; body: string }) =>
   call(post<EmailResult>(`/candidates/${candidateId}/send-credentials`, template ?? {}))
 export const resetCandidatePassword = (candidateId: string) => call(post<CredentialRow>(`/candidates/${candidateId}/reset-password`))
+
+/* ------------------------------------------------------------------ join links */
+
+export interface ProctorInvite { inviteId: string; userId: string | null; name: string; email: string; status: InviteStatus; usedAt: string | null; deviceBound: boolean; createdAt: string }
+/** devLink is returned only in development when no SMTP server is configured. */
+export interface InviteSent { inviteId: string; devLink?: string }
+export const listProctors = (examId: string) => call(get<ProctorInvite[]>(`/exams/${examId}/proctors`))
+export const inviteProctor = (examId: string, input: { name: string; email: string }) =>
+  call(post<InviteSent & { userId: string; created: boolean }>(`/exams/${examId}/proctors`, input))
+/** Public: what a join link is for, shown on /join/<token> before the person opens the desktop app. */
+export interface InvitePreview { role: 'CANDIDATE' | 'MENTOR'; name: string; email: string; userId?: string; exam: { code: string; title: string; startsAt: string; endsAt: string; durationMin: number }; deviceBound: boolean }
+export const previewInvite = (token: string) => call(get<InvitePreview>(`/auth/invites/${encodeURIComponent(token)}`))
+export const resendInvite = (inviteId: string) => call(post<InviteSent>(`/invites/${inviteId}/resend`))
+export const revokeInvite = (inviteId: string) => call(post<{ inviteId: string; status: InviteStatus }>(`/invites/${inviteId}/revoke`))
 
 /* ------------------------------------------------------------------ reports */
 

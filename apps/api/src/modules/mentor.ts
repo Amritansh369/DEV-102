@@ -163,14 +163,20 @@ mentorRouter.get('/mentor/dashboard', handle(async (req) => {
 const FRAME_OF: Partial<Record<ViolationCode, 'NO_FACE' | 'MULTI' | 'AWAY'>> = { NO_FACE: 'NO_FACE', CAMERA_BLOCKED: 'NO_FACE', MULTIPLE_FACES: 'MULTI', GAZE_AWAY: 'AWAY' };
 const hue = (id: string) => [...id].reduce((h, c) => (h * 31 + c.charCodeAt(0)) % 360, 7);
 
-mentorRouter.get('/monitor/exams', handle(async () => {
+/** A proctor signed in through a join link sees only the exam the link was for. */
+const scopedExam = (req: Parameters<typeof auth>[0]) => auth(req).examId;
+
+mentorRouter.get('/monitor/exams', handle(async (req) => {
   const now = new Date();
-  const exams = await prisma.exam.findMany({ where: { deletedAt: null, status: { not: 'DRAFT' }, startsAt: { lte: now }, endsAt: { gt: now } }, include: examInclude, orderBy: { startsAt: 'asc' } });
+  const only = scopedExam(req);
+  const exams = await prisma.exam.findMany({ where: { deletedAt: null, status: { not: 'DRAFT' }, startsAt: { lte: now }, endsAt: { gt: now }, ...(only ? { id: only } : {}) }, include: examInclude, orderBy: { startsAt: 'asc' } });
   return exams.map(toExam);
 }));
 
 mentorRouter.get('/monitor/exams/:id', handle(async (req) => {
   const examId = String(req.params.id);
+  const only = scopedExam(req);
+  if (only && only !== examId) fail('FORBIDDEN', 'You are not assigned to proctor this exam.');
   const sessions = await prisma.examSession.findMany({ where: { examId }, include: { ...sessionInclude, browsing: { where: { flaggedAi: true }, orderBy: { at: 'desc' }, take: 1 } }, orderBy: { startedAt: 'asc' } });
   const now = Date.now();
   const list = sessions.map((s) => {
@@ -192,6 +198,8 @@ mentorRouter.get('/monitor/exams/:id', handle(async (req) => {
 
 mentorRouter.get('/monitor/sessions/:id', handle(async (req) => {
   const id = String(req.params.id);
+  const only = scopedExam(req);
+  if (only && !(await prisma.examSession.findFirst({ where: { id, examId: only }, select: { id: true } }))) fail('FORBIDDEN', 'You are not assigned to proctor this exam.');
   const [violations, logs] = await Promise.all([
     prisma.violation.findMany({ where: { sessionId: id }, orderBy: { at: 'asc' } }),
     prisma.browsingLog.findMany({ where: { sessionId: id }, orderBy: { at: 'asc' } }),

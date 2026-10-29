@@ -17,6 +17,7 @@ export const VARIABLES = [
   { key: 'password', label: 'Password' },
   { key: 'startTime', label: 'Start time' },
   { key: 'appLink', label: 'App download link' },
+  { key: 'inviteLink', label: 'Exam link (one per candidate)' },
 ] as const
 
 export const DEFAULT_TEMPLATE: EmailTemplate = {
@@ -25,11 +26,13 @@ export const DEFAULT_TEMPLATE: EmailTemplate = {
 
 You have been registered for {{examName}}, starting {{startTime}}.
 
-Exam ID: {{examId}}
-User ID: {{userId}}
+Your exam link: {{inviteLink}}
 Password: {{password}}
 
-Install the Smart Proctor app from {{appLink}}, sign in with the details above and complete the system check at least 15 minutes before the start.
+Install the Smart Proctor app from {{appLink}}, paste the exam link, enter the password and complete the system check at least 15 minutes before the start. The link works on one computer only and expires when the exam ends.
+
+Exam ID: {{examId}}
+User ID: {{userId}}
 
 Keep these details private. If you did not expect this email, contact your exam coordinator.`,
 }
@@ -67,7 +70,7 @@ const FALLBACK_SAMPLE = { name: 'Aarav Sharma', userId: 'WUE26-0001', password: 
 
 export default function EmailPreviewModal({ open, onClose, template, onChange, examName, examId, startTime, appLink, sample }: EmailPreviewModalProps) {
   const s = sample ?? FALLBACK_SAMPLE
-  const vars: Record<string, string> = { name: s.name, examName, examId, userId: s.userId, password: s.password, startTime, appLink }
+  const vars: Record<string, string> = { name: s.name, examName, examId, userId: s.userId, password: s.password, startTime, appLink, inviteLink: `${typeof window === 'undefined' ? '' : window.location.origin}/join/3f9c…e21a` }
 
   const subjectRef = useRef<HTMLInputElement>(null)
   const bodyRef = useRef<HTMLTextAreaElement>(null)

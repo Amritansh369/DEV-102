@@ -6,19 +6,22 @@ import { fail, handle, must, pageArgs, parse } from '../lib/core.js';
 import { prisma } from '../lib/db.js';
 import { adminOnly, audit, staff } from '../lib/auth.js';
 import { decrypt, encrypt, hashPassword, randomPassword } from '../lib/crypto.js';
-import { toCandidate } from '../lib/domain.js';
+import { inviteStatus, toCandidate } from '../lib/domain.js';
 import { renderTemplate, sendMail, templates } from '../lib/mailer.js';
+import { issueInvite } from './invites.js';
 
 const DEFAULT_SUBJECT = 'Your sign-in details for {{examName}}';
 const DEFAULT_BODY = `Hello {{name}},
 
 You have been registered for {{examName}}, starting {{startTime}}.
 
-Exam ID: {{examId}}
-User ID: {{userId}}
+Your exam link: {{inviteLink}}
 Password: {{password}}
 
-Install the Smart Proctor app from {{appLink}}, sign in with the details above and complete the system check at least 15 minutes before the start.
+Install the Smart Proctor app from {{appLink}}, paste the exam link, enter the password and complete the system check at least 15 minutes before the start. The link works on one computer only and expires when the exam ends.
+
+Exam ID: {{examId}}
+User ID: {{userId}}
 
 All the best,
 Where U Elevate Assessments`;
@@ -52,18 +55,29 @@ async function deliverCredentials(candidateId: string, tpl: { subject?: string |
   if (!password) {
     return { candidateId, emailStatus: 'FAILED' as const, error: 'The candidate already signed in, so the original password is gone. Reset the password to email new details.' };
   }
+  if (c.exam.endsAt <= new Date()) return { candidateId, emailStatus: 'FAILED' as const, error: 'This exam has already ended.' };
+  const invite = await issueInvite({ examId: c.examId, endsAt: c.exam.endsAt, role: 'CANDIDATE', email: c.email, candidateId: c.id });
   const vars = {
-    name: c.name, examName: c.exam.title, examId: c.exam.code, userId: c.userId, password,
+    name: c.name, examName: c.exam.title, examId: c.exam.code, userId: c.userId, password, inviteLink: invite.link,
     startTime: c.exam.startsAt.toLocaleString('en-IN', { dateStyle: 'medium', timeStyle: 'short', timeZone: 'Asia/Kolkata' }),
     appLink: config.APP_DOWNLOAD_URL,
   };
-  const mail = templates.credentials(renderTemplate(tpl.subject || DEFAULT_SUBJECT, vars), renderTemplate(tpl.body || DEFAULT_BODY, vars));
+  // Custom templates written before join links existed still get the link.
+  const body = tpl.body && !tpl.body.includes('{{inviteLink}}') ? `${tpl.body}
+
+Your exam link: {{inviteLink}}` : tpl.body || DEFAULT_BODY;
+  const mail = templates.credentials(renderTemplate(tpl.subject || DEFAULT_SUBJECT, vars), renderTemplate(body, vars));
   const r = await sendMail({ to: c.email, ...mail, kind: 'credentials', candidateId: c.id });
   await prisma.candidate.update({
     where: { id: c.id },
     data: { emailStatus: r.ok ? 'SENT' : 'FAILED', ...(r.ok && c.status === 'INVITED' ? { status: 'EMAILED' } : {}) },
   });
-  return { candidateId, emailStatus: r.ok ? ('SENT' as const) : ('FAILED' as const), ...(r.error ? { error: r.error } : {}) };
+  return {
+    candidateId, emailStatus: r.ok ? ('SENT' as const) : ('FAILED' as const), ...(r.error ? { error: r.error } : {}),
+    // Development only: with no SMTP configured the link is returned so the flow can be tested locally.
+    inviteId: invite.id,
+    ...(r.outbox && !config.isProd ? { devLink: invite.link } : {}),
+  };
 }
 
 /** Bounded concurrency so a large batch does not overwhelm the SMTP server. */
@@ -95,8 +109,14 @@ candidatesRouter.get('/candidates', ...staff, handle(async (req) => {
   };
   const sortable = ['name', 'email', 'userId', 'status', 'emailStatus', 'createdAt'];
   const orderBy = sortable.includes(q.sort ?? '') ? { [q.sort as string]: q.dir === 'desc' ? 'desc' : 'asc' } : { userId: 'asc' as const };
-  const [total, rows] = await Promise.all([prisma.candidate.count({ where }), prisma.candidate.findMany({ where, orderBy, skip, take })]);
-  return { items: rows.map(toCandidate), total, page, pageSize };
+  const [total, rows] = await Promise.all([
+    prisma.candidate.count({ where }),
+    prisma.candidate.findMany({ where, orderBy, skip, take, include: { invites: { orderBy: { createdAt: 'desc' }, take: 1 } } }),
+  ]);
+  return {
+    items: rows.map(({ invites: [inv], ...c }) => ({ ...toCandidate(c), ...(inv ? { invite: { id: inv.id, status: inviteStatus(inv), deviceBound: Boolean(inv.deviceId) } } : {}) })),
+    total, page, pageSize,
+  };
 }));
 
 candidatesRouter.post('/exams/:id/candidates/import', ...adminOnly, handle(async (req) => {
