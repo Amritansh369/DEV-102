@@ -1,0 +1,413 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum Role {
+  ADMIN
+  MENTOR
+  CANDIDATE
+}
+
+enum ExamStatus {
+  DRAFT
+  SCHEDULED
+  LIVE
+  COMPLETED
+}
+
+enum Difficulty {
+  EASY
+  MEDIUM
+  HARD
+}
+
+enum CandidateStatus {
+  INVITED
+  EMAILED
+  IN_EXAM
+  SUBMITTED
+  DISQUALIFIED
+}
+
+enum EmailStatus {
+  PENDING
+  SENT
+  FAILED
+}
+
+enum SessionStatus {
+  WAITING
+  LIVE
+  SUBMITTED
+  TERMINATED
+}
+
+enum Severity {
+  LOW
+  MEDIUM
+  HIGH
+  CRITICAL
+}
+
+enum ViolationCode {
+  MULTIPLE_FACES
+  NO_FACE
+  GAZE_AWAY
+  FACE_MISMATCH
+  AI_SITE_OPENED
+  AI_QUERY_DETECTED
+  BLACKLISTED_APP
+  SCREEN_MIRRORING
+  MULTI_MONITOR
+  VM_DETECTED
+  REMOTE_DESKTOP
+  EXTERNAL_DEVICE
+  CLIPBOARD_USE
+  SHORTCUT_BLOCKED
+  SCREEN_SHARE_STOPPED
+  CAMERA_BLOCKED
+  MULTI_LOGIN
+  NETWORK_LOST
+  WINDOW_BLUR
+  VOICE_DETECTED
+  MIC_BLOCKED
+  PHONE_DETECTED
+  NOTES_DETECTED
+}
+
+enum QuestionType {
+  MCQ
+  NUMERIC
+}
+
+enum Verdict {
+  CONFIRMED
+  OVERRULED
+}
+
+enum SubmitReason {
+  MANUAL
+  TIME_UP
+  REPEATED_VIOLATIONS
+  CRITICAL_VIOLATION
+  TERMINATED_BY_MENTOR
+}
+
+/// Staff accounts (admins and mentors). Candidates live in Candidate, one row per exam enrollment.
+model User {
+  id           String    @id @default(cuid())
+  email        String    @unique
+  name         String
+  role         Role
+  passwordHash String
+  failedLogins Int       @default(0)
+  lockedUntil  DateTime?
+  lastLoginAt  DateTime?
+  tokenVersion Int       @default(0)
+  createdAt    DateTime  @default(now())
+  deletedAt    DateTime?
+
+  examsCreated Exam[]       @relation("ExamCreator")
+  reviews      Violation[]  @relation("Reviewer")
+  audits       AuditLog[]
+  warnings     WarningMessage[]
+}
+
+model Exam {
+  id          String     @id @default(cuid())
+  title       String
+  code        String     @unique
+  /// DRAFT or SCHEDULED is stored; LIVE and COMPLETED are derived from the time window at read time.
+  status      ExamStatus @default(DRAFT)
+  startsAt    DateTime
+  endsAt      DateTime
+  durationMin Int
+  /// { shuffle, negativeMarking, allowedSites[], maxWarnings, autoSubmit, audioMonitoring }
+  settings    Json
+  /// { category, description, instructions, lateEntryMin, checkInMin, negativeValue, allowCalculator, releaseResults }
+  extras      Json
+  /// ViolationPolicy (weights, maxWarnings, warnFrom, autoSubmit, autoSubmitFrom, autoSubmitOnCritical, riskFlagAt, cooldownSec)
+  policy      Json
+  createdById String?
+  createdAt   DateTime   @default(now())
+  updatedAt   DateTime   @updatedAt
+  deletedAt   DateTime?
+
+  createdBy  User?         @relation("ExamCreator", fields: [createdById], references: [id], onDelete: SetNull)
+  questions  Question[]
+  candidates Candidate[]
+  sessions   ExamSession[]
+
+  @@index([status, startsAt])
+}
+
+model Question {
+  id         String     @id @default(cuid())
+  examId     String
+  position   Int
+  text       String
+  /// [{ id, text }]
+  options    Json
+  correctIds String[]
+  multi      Boolean    @default(false)
+  type       QuestionType @default(MCQ)
+  /// NUMERIC only: { value, tolerance, unit }
+  answerKey  Json?
+  marks      Int        @default(1)
+  difficulty Difficulty @default(MEDIUM)
+  tags       String[]
+  createdAt  DateTime   @default(now())
+
+  exam    Exam     @relation(fields: [examId], references: [id], onDelete: Cascade)
+  answers Answer[]
+
+  @@index([examId, position])
+}
+
+/// Enrollment of one candidate in one exam: carries the credentials emailed for that exam.
+model Candidate {
+  id           String          @id @default(cuid())
+  examId       String
+  userId       String
+  name         String
+  email        String
+  passwordHash String
+  status       CandidateStatus @default(INVITED)
+  emailStatus  EmailStatus     @default(PENDING)
+  photoPath    String?
+  faceVerifiedAt DateTime?
+  faceScore    Float?
+  /// AES-GCM encrypted initial password, kept only until the first successful login so emails can be resent.
+  credentialCipher String?
+  tokenVersion Int             @default(0)
+  failedLogins Int             @default(0)
+  lockedUntil  DateTime?
+  createdAt    DateTime        @default(now())
+
+  exam     Exam           @relation(fields: [examId], references: [id], onDelete: Cascade)
+  sessions ExamSession[]
+  device   DeviceBinding?
+  emails   EmailLog[]
+
+  @@unique([examId, userId])
+  @@unique([examId, email])
+  @@index([userId])
+}
+
+model DeviceBinding {
+  id          String   @id @default(cuid())
+  candidateId String   @unique
+  deviceId    String
+  firstSeenAt DateTime @default(now())
+  lastSeenAt  DateTime @default(now())
+
+  candidate Candidate @relation(fields: [candidateId], references: [id], onDelete: Cascade)
+}
+
+model ExamSession {
+  id              String        @id @default(cuid())
+  candidateId     String
+  examId          String
+  status          SessionStatus @default(WAITING)
+  progress        Int           @default(0)
+  riskScore       Int           @default(0)
+  warnings        Int           @default(0)
+  deviceId        String?
+  /// Per-session shuffled question order.
+  questionOrder   String[]
+  flagged         String[]
+  consentAt       DateTime?
+  faceVerifiedAt  DateTime?
+  faceScore       Float?
+  otpVerifiedAt   DateTime?
+  startedAt       DateTime      @default(now())
+  deadlineAt      DateTime
+  lastHeartbeatAt DateTime?
+  networkLost     Boolean       @default(false)
+  submittedAt     DateTime?
+  submitReason    SubmitReason?
+  score           Float?
+  receiptId       String?       @unique
+  /// Mentor's final decision { outcome, note, decidedAt }
+  decision        Json?
+
+  candidate  Candidate        @relation(fields: [candidateId], references: [id], onDelete: Cascade)
+  exam       Exam             @relation(fields: [examId], references: [id], onDelete: Cascade)
+  answers    Answer[]
+  violations Violation[]
+  browsing   BrowsingLog[]
+  activity   ActivityLog[]
+  evidence   Evidence[]
+  warningsSent WarningMessage[]
+  riskPoints RiskPoint[]
+
+  @@index([examId, status])
+  @@index([candidateId])
+  @@index([status, deadlineAt])
+}
+
+model Answer {
+  id         String   @id @default(cuid())
+  sessionId  String
+  questionId String
+  optionIds  String[]
+  /// The number typed for a NUMERIC question
+  value      Float?
+  updatedAt  DateTime @updatedAt
+
+  session  ExamSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  question Question    @relation(fields: [questionId], references: [id], onDelete: Cascade)
+
+  @@unique([sessionId, questionId])
+}
+
+model Violation {
+  id           String        @id @default(cuid())
+  sessionId    String
+  code         ViolationCode
+  severity     Severity
+  at           DateTime      @default(now())
+  message      String
+  source       String        @default("client")
+  confidence   Float?
+  evidenceId   String?       @unique
+  reviewed     Verdict?
+  reviewReason String?
+  reviewedById String?
+  reviewedAt   DateTime?
+  /// Outcome the policy engine applied: LOGGED, SUPPRESSED, WARNING, AUTO_SUBMIT
+  outcome      String        @default("LOGGED")
+
+  session    ExamSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  evidence   Evidence?   @relation(fields: [evidenceId], references: [id], onDelete: SetNull)
+  reviewedBy User?       @relation("Reviewer", fields: [reviewedById], references: [id], onDelete: SetNull)
+
+  @@index([sessionId, at])
+  @@index([at])
+  @@index([code])
+}
+
+model Evidence {
+  id        String   @id @default(cuid())
+  sessionId String
+  kind      String
+  path      String
+  mime      String
+  createdAt DateTime @default(now())
+
+  session   ExamSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  violation Violation?
+
+  @@index([createdAt])
+}
+
+model BrowsingLog {
+  id        String   @id @default(cuid())
+  sessionId String
+  at        DateTime @default(now())
+  url       String
+  title     String
+  query     String?
+  flaggedAi Boolean  @default(false)
+
+  session ExamSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+
+  @@index([sessionId, at])
+}
+
+/// Keystroke timing and mouse movement summaries, captured only inside the exam window.
+model ActivityLog {
+  id        String   @id @default(cuid())
+  sessionId String
+  at        DateTime @default(now())
+  kind      String
+  data      Json
+
+  session ExamSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+
+  @@index([sessionId, at])
+}
+
+model RiskPoint {
+  id        String   @id @default(cuid())
+  sessionId String
+  at        DateTime @default(now())
+  score     Int
+
+  session ExamSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+
+  @@index([sessionId, at])
+}
+
+model WarningMessage {
+  id        String   @id @default(cuid())
+  sessionId String
+  message   String
+  byId      String?
+  at        DateTime @default(now())
+
+  session ExamSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  by      User?       @relation(fields: [byId], references: [id], onDelete: SetNull)
+}
+
+model OtpCode {
+  id         String    @id @default(cuid())
+  /// candidate id or staff user id
+  subjectId  String
+  codeHash   String
+  sentTo     String
+  expiresAt  DateTime
+  attempts   Int       @default(0)
+  consumedAt DateTime?
+  createdAt  DateTime  @default(now())
+
+  @@index([subjectId, createdAt])
+}
+
+model AuditLog {
+  id        String   @id @default(cuid())
+  actorId   String?
+  actorRole Role?
+  action    String
+  target    String?
+  meta      Json?
+  ip        String?
+  at        DateTime @default(now())
+
+  actor User? @relation(fields: [actorId], references: [id], onDelete: SetNull)
+
+  @@index([at])
+}
+
+model EmailLog {
+  id          String      @id @default(cuid())
+  candidateId String?
+  to          String
+  kind        String
+  subject     String
+  /// Rendered body, kept for the dev outbox only when SMTP is not configured.
+  html        String?
+  status      EmailStatus @default(PENDING)
+  error       String?
+  attempts    Int         @default(0)
+  at          DateTime    @default(now())
+
+  candidate Candidate? @relation(fields: [candidateId], references: [id], onDelete: SetNull)
+
+  @@index([at])
+}
+
+model Notification {
+  id    String   @id @default(cuid())
+  title String
+  body  String
+  tone  String
+  href  String?
+  read  Boolean  @default(false)
+  at    DateTime @default(now())
+}

@@ -1,0 +1,122 @@
+@import "tailwindcss";
+
+@theme {
+  --color-primary: #0a4da6;
+  --color-primary-600: #0b5bd3;
+  --color-accent: #1e6ff0;
+  --color-cta: #ffb020;
+  --color-soft: #f5f8ff;
+  --color-surface: #ffffff;
+  --color-border: #e2e8f0;
+  --color-text: #0f172a;
+  --color-muted: #64748b;
+  --color-success: #16a34a;
+  --color-warning: #f59e0b;
+  --color-danger: #dc2626;
+
+  --font-heading: "Poppins", "Inter", ui-sans-serif, system-ui, sans-serif;
+  --font-sans: "Inter", ui-sans-serif, system-ui, "Segoe UI", sans-serif;
+
+  --shadow-card: 0 1px 2px rgb(15 23 42 / 0.04), 0 8px 24px -12px rgb(10 77 166 / 0.18);
+  --shadow-pop: 0 2px 4px rgb(15 23 42 / 0.05), 0 24px 48px -16px rgb(10 77 166 / 0.3);
+
+  --animate-rec: rec-pulse 1.6s ease-in-out infinite;
+  --animate-shimmer: shimmer 1.6s linear infinite;
+}
+
+@keyframes rec-pulse {
+  0%, 100% { opacity: 1; transform: scale(1); }
+  50% { opacity: 0.35; transform: scale(0.78); }
+}
+
+@keyframes shimmer {
+  from { background-position: -200% 0; }
+  to { background-position: 200% 0; }
+}
+
+@layer base {
+  html, body, #root { height: 100%; }
+
+  body {
+    margin: 0;
+    overflow: hidden;
+    font-family: var(--font-sans);
+    background: var(--color-soft);
+    color: var(--color-text);
+    -webkit-font-smoothing: antialiased;
+    -webkit-user-select: none;
+    user-select: none;
+  }
+
+  h1, h2, h3, h4 {
+    font-family: var(--font-heading);
+    letter-spacing: -0.01em;
+  }
+
+  input, textarea, [contenteditable="true"] {
+    -webkit-user-select: text;
+    user-select: text;
+  }
+
+  img { -webkit-user-drag: none; }
+
+  :focus-visible {
+    outline: 2px solid var(--color-accent);
+    outline-offset: 2px;
+    border-radius: 8px;
+  }
+
+  ::selection { background: rgb(30 111 240 / 0.2); }
+}
+
+/* Title-bar drag region (Electron frameless window). Interactive children must opt out. */
+@utility drag-region { -webkit-app-region: drag; }
+@utility no-drag { -webkit-app-region: no-drag; }
+@utility no-select { -webkit-user-select: none; user-select: none; }
+
+@utility scroll-thin {
+  scrollbar-width: thin;
+  scrollbar-color: #cbd5e1 transparent;
+  &::-webkit-scrollbar { width: 10px; height: 10px; }
+  &::-webkit-scrollbar-track { background: transparent; }
+  &::-webkit-scrollbar-thumb {
+    background: #cbd5e1;
+    border-radius: 999px;
+    border: 3px solid transparent;
+    background-clip: content-box;
+  }
+  &::-webkit-scrollbar-thumb:hover { background: #94a3b8; background-clip: content-box; border: 3px solid transparent; }
+}
+
+/* Subtle network-dot pattern used behind hero-like panels. */
+@utility dot-pattern {
+  background-image: radial-gradient(rgb(30 111 240 / 0.14) 1px, transparent 1px);
+  background-size: 22px 22px;
+}
+
+@utility skeleton {
+  background: linear-gradient(90deg, #e2e8f0 25%, #f1f5f9 37%, #e2e8f0 63%);
+  background-size: 200% 100%;
+  animation: var(--animate-shimmer);
+}
+
+/* Full-window overlay shown when the exam window loses focus or the kiosk is paused. */
+@utility kiosk-lock {
+  position: fixed;
+  inset: 0;
+  z-index: 90;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgb(245 248 255 / 0.94);
+  -webkit-backdrop-filter: blur(14px);
+  backdrop-filter: blur(14px);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}

@@ -1,0 +1,50 @@
+{
+  "name": "where-u-elevate",
+  "private": true,
+  "workspaces": [
+    "apps/*"
+  ],
+  "scripts": {
+    "start": "node scripts/start.mjs",
+    "start:web": "node scripts/start.mjs --no-desktop",
+    "dev:web": "npm run dev -w apps/web",
+    "dev:api": "npm run dev -w apps/api",
+    "dev:desktop": "npm run dev -w apps/desktop",
+    "dev:agent": "node scripts/python.cjs run",
+    "db": "node scripts/db.mjs",
+    "db:generate": "prisma generate --schema database/prisma/schema.prisma",
+    "db:push": "prisma db push --schema database/prisma/schema.prisma",
+    "db:migrate": "prisma migrate dev --schema database/prisma/schema.prisma",
+    "db:deploy": "prisma migrate deploy --schema database/prisma/schema.prisma",
+    "db:seed": "tsx database/prisma/seed.ts",
+    "db:studio": "prisma studio --schema database/prisma/schema.prisma",
+    "python:install": "node scripts/python.cjs install",
+    "smoke": "node scripts/smoke.mjs",
+    "build": "npm run build --workspaces --if-present",
+    "typecheck": "npm run typecheck --workspaces --if-present",
+    "lint": "npm run lint --workspaces --if-present",
+    "test": "npm run test --workspaces --if-present",
+    "test:agent": "node scripts/python.cjs test"
+  },
+  "engines": {
+    "node": ">=22.12"
+  },
+  "prisma": {
+    "seed": "tsx database/prisma/seed.ts"
+  },
+  "devDependencies": {
+    "concurrently": "^9.2.1",
+    "electron": "35.1.2",
+    "embedded-postgres": "^17.5.0-beta.15"
+  },
+  "allowScripts": {
+    "@prisma/client@6.19.3": true,
+    "@prisma/engines@6.19.3": true,
+    "electron@35.1.2": true,
+    "electron-winstaller@5.4.0": true,
+    "esbuild@0.25.12": true,
+    "esbuild@0.28.2": true,
+    "prisma@6.19.3": true,
+    "unrs-resolver@1.12.2": true
+  }
+}

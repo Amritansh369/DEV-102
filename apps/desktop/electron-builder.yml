@@ -1,0 +1,20 @@
+appId: com.whereuelevate.desktop
+productName: Where U Elevate
+directories:
+  output: release
+files:
+  - out/**
+  - public/images/**
+  - package.json
+protocols:
+  - name: Where U Elevate exam link
+    schemes: [dev102]
+win:
+  target: nsis
+  icon: public/images/logo.png
+  requestedExecutionLevel: asInvoker
+nsis:
+  oneClick: false
+  perMachine: false
+  allowToChangeInstallationDirectory: true
+  createDesktopShortcut: true

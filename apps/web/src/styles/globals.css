@@ -1,0 +1,208 @@
+@import "tailwindcss";
+
+/* Fonts are loaded with next/font in app/layout.tsx and exposed as --font-inter / --font-poppins. */
+
+@theme {
+  --color-primary: #0a4da6;
+  --color-primary-600: #0b5bd3;
+  --color-primary-100: #d6e4ff;
+  --color-primary-50: #eaf1ff;
+  --color-accent: #1e6ff0;
+  --color-cta: #ffb020;
+  --color-soft: #f5f8ff;
+  --color-surface: #ffffff;
+  --color-border: #e2e8f0;
+  --color-ink: #0f172a;
+  --color-text: #0f172a;
+  /* Darker than Tailwind's slate-500 so small text passes WCAG AA (4.5:1) on soft and primary-50 backgrounds. */
+  --color-muted: #5b6b82;
+  --color-slate-500: #5b6b82;
+  /* Darker than green-600 / red-600 so small coloured text and white-on-colour badges pass WCAG AA. */
+  --color-success: #137336;
+  --color-warning: #f59e0b;
+  --color-danger: #c81e1e;
+
+  --shadow-card:
+    0 1px 2px rgb(15 23 42 / 0.04), 0 4px 12px rgb(15 23 42 / 0.05),
+    0 16px 40px rgb(10 77 166 / 0.07);
+  --shadow-pop:
+    0 2px 4px rgb(15 23 42 / 0.05), 0 12px 28px rgb(15 23 42 / 0.12),
+    0 32px 64px rgb(10 77 166 / 0.14);
+  --shadow-btn:
+    0 1px 2px rgb(15 23 42 / 0.08), 0 6px 14px rgb(11 91 211 / 0.22);
+
+  --animate-shimmer: shimmer 1.5s ease-in-out infinite;
+  --animate-pulse-dot: pulse-dot 1.8s ease-in-out infinite;
+
+  @keyframes shimmer {
+    0% {
+      background-position: 200% 0;
+    }
+    100% {
+      background-position: -200% 0;
+    }
+  }
+
+  @keyframes pulse-dot {
+    0%,
+    100% {
+      box-shadow: 0 0 0 0 rgb(22 163 74 / 0.45);
+    }
+    50% {
+      box-shadow: 0 0 0 6px rgb(22 163 74 / 0);
+    }
+  }
+}
+
+/* `inline` so the font variables injected by next/font on <html> are resolved at the point of use. */
+@theme inline {
+  --font-sans:
+    var(--font-inter), ui-sans-serif, system-ui, -apple-system, "Segoe UI",
+    Roboto, "Helvetica Neue", Arial, sans-serif;
+  --font-heading:
+    var(--font-poppins), var(--font-inter), ui-sans-serif, system-ui,
+    sans-serif;
+}
+
+@layer base {
+  *,
+  ::before,
+  ::after {
+    border-color: var(--color-border);
+  }
+
+  html {
+    scroll-behavior: smooth;
+    -webkit-text-size-adjust: 100%;
+    color-scheme: light;
+  }
+
+  body {
+    background: var(--color-soft);
+    color: var(--color-ink);
+    font-family: var(--font-sans);
+    text-rendering: optimizeLegibility;
+  }
+
+  h1,
+  h2,
+  h3,
+  h4,
+  h5,
+  h6 {
+    font-family: var(--font-heading);
+    letter-spacing: -0.01em;
+    /* Inherit so headings on blue panels stay white; the body sets ink for light pages. */
+    color: inherit;
+  }
+
+  ::selection {
+    background: var(--color-primary-100);
+    color: var(--color-primary);
+  }
+
+  :focus-visible {
+    outline: 2px solid var(--color-accent);
+    outline-offset: 2px;
+  }
+
+  button,
+  [role="button"],
+  summary {
+    cursor: pointer;
+  }
+
+  button:disabled {
+    cursor: not-allowed;
+  }
+
+  /* Slim, unobtrusive scrollbars for tables, drawers and logs. */
+  * {
+    scrollbar-width: thin;
+    scrollbar-color: #cbd5e1 transparent;
+  }
+}
+
+/* Blue hero gradient with a soft light bloom, as on the Where U Elevate site. */
+@utility hero-gradient {
+  background:
+    radial-gradient(
+      60rem 30rem at 85% -10%,
+      rgb(255 255 255 / 0.18),
+      transparent 60%
+    ),
+    radial-gradient(
+      40rem 24rem at 0% 100%,
+      rgb(30 111 240 / 0.55),
+      transparent 70%
+    ),
+    linear-gradient(135deg, #0a4da6 0%, #0b5bd3 55%, #1e6ff0 100%);
+}
+
+/* Subtle network-dot pattern; place on an absolutely positioned overlay inside the hero. */
+@utility network-dots {
+  background-image:
+    radial-gradient(rgb(255 255 255 / 0.28) 1.2px, transparent 1.6px),
+    radial-gradient(rgb(255 255 255 / 0.14) 1px, transparent 1.4px);
+  background-size:
+    32px 32px,
+    64px 64px;
+  background-position:
+    0 0,
+    16px 16px;
+  mask-image: linear-gradient(to bottom, black 35%, transparent 100%);
+  -webkit-mask-image: linear-gradient(to bottom, black 35%, transparent 100%);
+}
+
+/* White curved shape at the bottom of a `relative` hero section. */
+@utility hero-curve {
+  position: relative;
+  &::after {
+    content: "";
+    position: absolute;
+    left: -8%;
+    right: -8%;
+    bottom: -1px;
+    height: 72px;
+    background: var(--color-soft);
+    border-radius: 50% 50% 0 0 / 100% 100% 0 0;
+    pointer-events: none;
+  }
+}
+
+@utility glass-card {
+  background: rgb(255 255 255 / 0.74);
+  -webkit-backdrop-filter: blur(16px) saturate(140%);
+  backdrop-filter: blur(16px) saturate(140%);
+  border: 1px solid rgb(255 255 255 / 0.65);
+  box-shadow: var(--shadow-card);
+}
+
+@utility skeleton {
+  background: linear-gradient(
+    90deg,
+    #eaf0fa 20%,
+    #f7f9fe 40%,
+    #eaf0fa 60%
+  );
+  background-size: 200% 100%;
+  animation: var(--animate-shimmer);
+}
+
+@utility focus-ring {
+  &:focus-visible {
+    outline: 2px solid var(--color-accent);
+    outline-offset: 2px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  ::before,
+  ::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}

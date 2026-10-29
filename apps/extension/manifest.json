@@ -1,0 +1,63 @@
+{
+  "manifest_version": 3,
+  "name": "Where U Elevate Exam",
+  "version": "0.1.0",
+  "description": "Take a proctored Where U Elevate exam in Chrome. Reports tab switches, visited sites, text typed into AI tools and leaving the browser to your invigilator.",
+  "key": "MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAv3YMCxJQ1keAa/9u5cHYxlO9MzXgcx9rK0ucLG7ifkle5WSYhGBlWY3iFNgR8H6rhpP1XmN1y1p1z1yhYGhHuEo2ykzzm2B5ygxVW9yiPLzm0HXoRnjqDeIgIYuPz5JuhvvsoLPYh3BvPv52CZG3JRvG3A8s7rN5xDTvhJZ8Qv0fHNBZYtJ7vbQ6WTutMDCIKTLwFt+5evHTsBS0W5Pe7M3OOSUNW8eyTquk3TRv20DYT1uik1yP8pWoO1SyuWS78UU4RktOTtVJLhzivqR7JMAlaZ25O01p8SC/+t+ZBDamfztT80A875GMh3WrK4A9S7VuPJBUMJonKXiaZdQyvQIDAQAB",
+  "icons": {
+    "48": "icon.png",
+    "128": "icon.png"
+  },
+  "action": {
+    "default_title": "Open the exam"
+  },
+  "background": {
+    "service_worker": "background.js",
+    "type": "module"
+  },
+  "permissions": [
+    "tabs",
+    "storage"
+  ],
+  "host_permissions": [
+    "__API__/*"
+  ],
+  "content_scripts": [
+    {
+      "matches": [
+        "https://chatgpt.com/*",
+        "https://chat.openai.com/*",
+        "https://claude.ai/*",
+        "https://gemini.google.com/*",
+        "https://aistudio.google.com/*",
+        "https://copilot.microsoft.com/*",
+        "https://www.bing.com/*",
+        "https://perplexity.ai/*",
+        "https://www.perplexity.ai/*",
+        "https://poe.com/*",
+        "https://chat.deepseek.com/*",
+        "https://you.com/*",
+        "https://phind.com/*",
+        "https://www.phind.com/*",
+        "https://character.ai/*",
+        "https://huggingface.co/*",
+        "https://chat.mistral.ai/*",
+        "https://grok.com/*",
+        "https://www.meta.ai/*",
+        "https://pi.ai/*",
+        "https://www.wolframalpha.com/*",
+        "https://www.chegg.com/*",
+        "https://www.symbolab.com/*",
+        "https://www.mathway.com/*",
+        "https://brainly.com/*",
+        "https://brainly.in/*",
+        "https://chat.qwen.ai/*",
+        "https://www.blackbox.ai/*"
+      ],
+      "js": [
+        "content.js"
+      ],
+      "run_at": "document_idle"
+    }
+  ]
+}

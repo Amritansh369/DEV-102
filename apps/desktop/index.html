@@ -1,0 +1,34 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta
+      http-equiv="Content-Security-Policy"
+      content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com data:; img-src 'self' data: blob:; media-src 'self' blob: mediastream:; connect-src 'self' http://localhost:* ws://localhost:*; object-src 'none'; base-uri 'self'; form-action 'none'"
+    />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="color-scheme" content="light" />
+    <title>DEV102 Secure Exam Browser</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Poppins:wght@500;600;700&display=swap"
+      rel="stylesheet"
+    />
+  </head>
+  <body>
+    <div id="root">
+      <div
+        id="boot-splash"
+        role="status"
+        aria-label="Loading secure exam browser"
+        style="position:fixed;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:14px;background:#F5F8FF;font-family:Inter,system-ui,sans-serif;color:#0A4DA6"
+      >
+        <div style="width:44px;height:44px;border-radius:14px;background:#0B5BD3;color:#fff;display:flex;align-items:center;justify-content:center;font-weight:700;font-size:20px">W</div>
+        <div style="font-size:13px;color:#64748B">Starting secure exam browser…</div>
+      </div>
+    </div>
+    <noscript>This application requires JavaScript to run.</noscript>
+    <script type="module" src="/src/main.tsx"></script>
+  </body>
+</html>

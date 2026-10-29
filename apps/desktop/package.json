@@ -1,0 +1,49 @@
+{
+  "name": "@where-u-elevate/desktop",
+  "version": "0.1.0",
+  "private": true,
+  "main": "out/main/main.js",
+  "scripts": {
+    "dev": "electron-vite dev",
+    "build": "electron-vite build && electron-builder",
+    "typecheck": "tsc --noEmit",
+    "lint": "eslint .",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "@hookform/resolvers": "^4.1.0",
+    "@vladmandic/face-api": "^1.7.15",
+    "axios": "^1.8.4",
+    "electron-store": "^10.0.1",
+    "electron-updater": "^6.3.9",
+    "framer-motion": "^12.6.3",
+    "lucide-react": "^0.511.0",
+    "react": "^19.0.0",
+    "react-dom": "^19.0.0",
+    "react-hook-form": "^7.55.0",
+    "socket.io-client": "^4.8.1",
+    "systeminformation": "^5.27.11",
+    "zod": "^3.24.2",
+    "zustand": "^5.0.3"
+  },
+  "devDependencies": {
+    "@eslint/js": "^9.39.5",
+    "@tailwindcss/vite": "^4.3.3",
+    "@types/node": "^22.13.10",
+    "@types/react": "^19.0.10",
+    "@types/react-dom": "^19.0.4",
+    "@vitejs/plugin-react": "^4.3.4",
+    "electron": "35.1.2",
+    "electron-builder": "^26.0.12",
+    "electron-vite": "^3.1.0",
+    "eslint": "^9.39.5",
+    "eslint-plugin-react-hooks": "^5.2.0",
+    "globals": "^16.5.0",
+    "postcss": "^8.5.3",
+    "tailwindcss": "^4.0.12",
+    "typescript": "^5.8.2",
+    "typescript-eslint": "^8.72.1",
+    "vite": "^6.2.2",
+    "vitest": "^3.2.7"
+  }
+}

@@ -1,0 +1,60 @@
+# Render blueprint: API (public), AI agent (private) and PostgreSQL. See docs/deploy.md.
+databases:
+  - name: dev102-db
+    plan: basic-256mb
+    databaseName: dev102
+    user: dev102
+
+services:
+  - type: web
+    name: dev102-api
+    runtime: docker
+    dockerfilePath: ./apps/api/Dockerfile
+    dockerContext: .
+    plan: starter
+    healthCheckPath: /health
+    disk:
+      name: evidence
+      mountPath: /data
+      sizeGB: 1
+    envVars:
+      - key: DATABASE_URL
+        fromDatabase:
+          name: dev102-db
+          property: connectionString
+      - key: JWT_SECRET
+        generateValue: true
+      - key: AGENT_API_KEY
+        fromService:
+          type: pserv
+          name: dev102-agent
+          envVarKey: AGENT_API_KEY
+      # Set these in the dashboard after the first deploy (docs/deploy.md, step 3).
+      - key: AGENT_URL
+        sync: false
+      - key: CLIENT_URL
+        sync: false
+      - key: PUBLIC_API_URL
+        sync: false
+      - key: APP_DOWNLOAD_URL
+        sync: false
+      - key: SMTP_HOST
+        sync: false
+      - key: SMTP_USER
+        sync: false
+      - key: SMTP_PASS
+        sync: false
+      - key: MAIL_FROM
+        sync: false
+
+  - type: pserv
+    name: dev102-agent
+    runtime: docker
+    dockerfilePath: ./backend-services/Dockerfile
+    dockerContext: ./backend-services
+    plan: starter
+    envVars:
+      - key: AGENT_API_KEY
+        generateValue: true
+      - key: LLM_API_KEY
+        sync: false
