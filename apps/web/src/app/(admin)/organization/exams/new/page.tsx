@@ -95,7 +95,10 @@ function validateStep(step: StepKey, f: WizardForm): Errors {
     case 'schedule': {
       const r = scheduleSchema.safeParse({ startsAtMs: startMs(f), durationMin: num(f.durationMin), lateEntryMin: num(f.lateEntryMin), checkInMin: num(f.checkInMin) })
       const errs = r.success ? {} : toErrors(r.error)
-      if (errs.startsAtMs) errs.date = errs.startsAtMs
+      if (errs.startsAtMs) {
+        errs.date = errs.startsAtMs
+        delete errs.startsAtMs
+      }
       return errs
     }
     case 'settings': {
@@ -223,9 +226,13 @@ export default function NewExamPage() {
   const set = <K extends keyof WizardForm>(k: K, v: WizardForm[K]) => {
     setForm((f) => ({ ...f, [k]: v }))
     setErrors((e) => {
-      if (!(k in e)) return e
       const next = { ...e }
-      delete next[k]
+      if (k === 'date' || k === 'time') {
+        delete next.date
+        delete next.startsAtMs
+      } else {
+        delete next[k]
+      }
       return next
     })
   }
@@ -282,7 +289,7 @@ export default function NewExamPage() {
       const exam = await createExamFromWizard({
         status,
         exam: {
-          title: form.title.trim(), code: form.code, startsAt: new Date(start).toISOString(), endsAt: new Date(start + (duration + late) * 60_000).toISOString(),
+          title: form.title.trim(), code: form.code, startsAt: new Date(start).toISOString(), endsAt: new Date(start + duration * 60_000).toISOString(),
           durationMin: duration, totalMarks: num(form.totalMarks), questionCount: num(form.questionCount),
           settings: { shuffle: form.shuffle, negativeMarking: form.negativeMarking, allowedSites: form.allowedSites, maxWarnings: form.policy.maxWarnings, autoSubmit: form.policy.autoSubmit, audioMonitoring: form.audioMonitoring, proctorOnly: form.proctorOnly, oneWay: form.oneWay, liveAudio: form.liveAudio },
         },
@@ -319,10 +326,10 @@ export default function NewExamPage() {
     setRestore(null)
   }
 
-  const errorList = useMemo(() => Object.values(errors), [errors])
+  const errorList = useMemo(() => [...new Set(Object.values(errors))], [errors])
   const e = errors
   const total = num(form.questionCount)
-  const endsPreview = startMs(form) > 0 ? new Date(startMs(form) + (num(form.durationMin) + num(form.lateEntryMin)) * 60_000).toISOString() : null
+  const endsPreview = startMs(form) > 0 ? new Date(startMs(form) + num(form.durationMin) * 60_000).toISOString() : null
 
   return (
     <div className="space-y-6">
