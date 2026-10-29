@@ -4,6 +4,7 @@ import { FormEvent, useState } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { AlertCircle, ArrowRight, Loader2, ShieldCheck } from 'lucide-react'
 import { BrandMark } from '@/components/layout/BrandMark'
+import { OrgBackdrop } from '@/components/layout/OrgBackdrop'
 import { DEMO_CREDENTIALS, login } from '@/lib/api'
 import { homeFor, useSession } from '@/lib/session'
 
@@ -51,8 +52,9 @@ export default function LoginPage() {
   }
 
   return (
-    <main className="min-h-[calc(100vh-5rem)] bg-[#050b1a] bg-[url('/images/backgrounds/data-rain.svg')] bg-cover bg-center px-5 py-12">
-      <div className="mx-auto grid max-w-5xl overflow-hidden rounded-3xl border border-white/60 bg-white/95 shadow-pop backdrop-blur md:grid-cols-[.9fr_1.1fr]">
+    <main className="relative min-h-[calc(100vh-5rem)] overflow-hidden bg-[#050b1a] px-5 py-12">
+      <OrgBackdrop />
+      <div className="relative mx-auto grid max-w-5xl overflow-hidden rounded-3xl border border-white/60 bg-white/95 shadow-pop backdrop-blur md:grid-cols-[.9fr_1.1fr]">
         <section className="hidden bg-primary p-10 text-white md:flex md:flex-col md:justify-between">
           <div>
             <BrandMark light />

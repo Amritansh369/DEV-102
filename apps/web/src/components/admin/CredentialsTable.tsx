@@ -2,7 +2,8 @@
 
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { motion } from 'framer-motion'
-import { AlertTriangle, ArrowDown, ArrowUp, ArrowUpDown, Check, CheckCircle2, Clock, Copy, Download, Eye, EyeOff, KeyRound, Loader2, RotateCw, Send } from 'lucide-react'
+import { AlertTriangle, ArrowDown, ArrowUp, ArrowUpDown, Ban, Check, CheckCircle2, Clock, Copy, Download, Eye, EyeOff, KeyRound, Loader2, RotateCw, Send } from 'lucide-react'
+import type { InviteStatus } from '@/lib/types'
 
 export type SendStatus = 'pending' | 'queued' | 'sending' | 'sent' | 'failed'
 
@@ -14,6 +15,14 @@ export interface CredentialRow {
   password: string
   status: SendStatus
   error?: string
+  invite?: { id: string; status: InviteStatus; deviceBound: boolean }
+}
+
+const LINK_LABEL: Record<InviteStatus, [string, string]> = {
+  PENDING: ['Link not used yet', 'text-muted'],
+  USED: ['Link in use', 'text-success'],
+  REVOKED: ['Link revoked', 'text-danger'],
+  EXPIRED: ['Link expired', 'text-muted'],
 }
 
 interface CredentialsTableProps {
@@ -23,6 +32,7 @@ interface CredentialsTableProps {
   busy?: boolean
   onResend: (row: CredentialRow) => void
   onReset: (row: CredentialRow) => void
+  onRevoke?: (row: CredentialRow) => void
   onResendFailed?: () => void
 }
 
@@ -78,7 +88,7 @@ const csvCell = (v: string, guard = false) => {
   return /[",\n\r]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s
 }
 
-export default function CredentialsTable({ rows, examId, busy = false, onResend, onReset, onResendFailed }: CredentialsTableProps) {
+export default function CredentialsTable({ rows, examId, busy = false, onResend, onReset, onRevoke, onResendFailed }: CredentialsTableProps) {
   const [sort, setSort] = useState<{ key: SortKey; dir: 1 | -1 }>({ key: 'name', dir: 1 })
   const [shown, setShown] = useState<Set<string>>(new Set())
   const timers = useRef(new Map<string, number>())
@@ -203,6 +213,7 @@ export default function CredentialsTable({ rows, examId, busy = false, onResend,
                     <td className="px-4 py-2.5">
                       <StatusBadge status={r.status} />
                       {r.status === 'failed' && r.error && <p className="mt-1 max-w-[12rem] truncate text-[11px] text-danger" title={r.error}>{r.error}</p>}
+                      {r.invite && <p className={`mt-1 text-[11px] ${LINK_LABEL[r.invite.status][1]}`}>{LINK_LABEL[r.invite.status][0]}{r.invite.deviceBound ? ' · device locked' : ''}</p>}
                     </td>
                     <td className="px-4 py-2.5">
                       <div className="flex justify-end gap-1.5">
@@ -212,6 +223,11 @@ export default function CredentialsTable({ rows, examId, busy = false, onResend,
                         <button type="button" onClick={() => onReset(r)} disabled={busy} className="inline-flex items-center gap-1 rounded-lg border border-border px-2 py-1 text-xs font-medium text-muted hover:bg-soft hover:text-primary focus-visible:outline-2 focus-visible:outline-accent disabled:opacity-50" aria-label={`Reset password for ${r.name}`}>
                           <KeyRound className="h-3 w-3" aria-hidden /> Reset
                         </button>
+                        {onRevoke && r.invite && (r.invite.status === 'PENDING' || r.invite.status === 'USED') && (
+                          <button type="button" onClick={() => onRevoke(r)} disabled={busy} className="inline-flex items-center gap-1 rounded-lg border border-border px-2 py-1 text-xs font-medium text-danger hover:bg-red-50 focus-visible:outline-2 focus-visible:outline-accent disabled:opacity-50" aria-label={`Revoke exam link for ${r.name}`}>
+                            <Ban className="h-3 w-3" aria-hidden /> Revoke
+                          </button>
+                        )}
                       </div>
                     </td>
                   </motion.tr>

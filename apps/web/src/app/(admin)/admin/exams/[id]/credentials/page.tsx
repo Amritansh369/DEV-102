@@ -7,7 +7,8 @@ import { z } from 'zod'
 import { AlertCircle, CheckCircle2, FileUp, Mail, RefreshCw, Send, UserPlus } from 'lucide-react'
 import CredentialsTable, { type CredentialRow } from '@/components/admin/CredentialsTable'
 import EmailPreviewModal, { DEFAULT_TEMPLATE, type EmailTemplate } from '@/components/admin/EmailPreviewModal'
-import { getExam, importCandidates, listCandidates, resetCandidatePassword, sendCredentialEmail } from '@/lib/api'
+import ProctorInvites from '@/components/admin/ProctorInvites'
+import { getExam, importCandidates, listCandidates, resetCandidatePassword, revokeInvite, sendCredentialEmail } from '@/lib/api'
 
 const CONCURRENCY = 3
 const APP_LINK = process.env.NEXT_PUBLIC_APP_DOWNLOAD_URL ?? 'http://localhost:3000/download'
@@ -64,6 +65,7 @@ export default function CandidatesPage() {
         setRows(page.items.map((c) => ({
           id: c.id, name: c.name, email: c.email, userId: c.userId, password: '',
           status: c.emailStatus === 'SENT' ? 'sent' : c.emailStatus === 'FAILED' ? 'failed' : 'pending',
+          ...(c.invite ? { invite: c.invite } : {}),
         })))
       } catch (e) {
         if (alive) setNotice(e instanceof Error ? e.message : 'Could not load candidates.')
@@ -85,6 +87,11 @@ export default function CandidatesPage() {
     async (row: CredentialRow) => {
       const r = await sendCredentialEmail(row.id, { subject: template.subject, body: template.body })
       if (r.emailStatus !== 'SENT') throw new Error(r.error ?? 'Delivery failed')
+      // Sending always issues a fresh link and withdraws the previous one.
+      if (r.inviteId) {
+        const invite = { id: r.inviteId, status: 'PENDING' as const, deviceBound: false }
+        setRows((prev) => prev.map((x) => (x.id === row.id ? { ...x, invite } : x)))
+      }
     },
     [template],
   )
@@ -152,6 +159,17 @@ export default function CandidatesPage() {
     }
   }
 
+  const revoke = async (row: CredentialRow) => {
+    if (!row.invite) return
+    try {
+      const r = await revokeInvite(row.invite.id)
+      setRows((prev) => prev.map((x) => (x.id === row.id && x.invite ? { ...x, invite: { ...x.invite, status: r.status } } : x)))
+      setNotice(`Exam link for ${row.name} revoked. Resend to issue a new one.`)
+    } catch (e) {
+      setNotice(e instanceof Error ? e.message : 'Could not revoke the link.')
+    }
+  }
+
   const pending = rows.filter((r) => r.status === 'pending')
   const failed = rows.filter((r) => r.status === 'failed')
   const sentCount = rows.filter((r) => r.status === 'sent').length
@@ -167,7 +185,7 @@ export default function CandidatesPage() {
         <div className="relative">
           <p className="text-xs font-medium text-muted">Exam {routeId}</p>
           <h1 className="font-heading text-2xl font-semibold text-ink">Candidates &amp; credentials</h1>
-          <p className="text-sm text-muted">Import candidates, generate sign-in details and email them securely.</p>
+          <p className="text-sm text-muted">Import candidates and proctors, then email each one a personal exam link and password.</p>
           {rows.length > 0 && (
             <div className="mt-4 flex items-center gap-3">
               <div className="h-2 w-48 overflow-hidden rounded-full bg-slate-100" role="progressbar" aria-valuemin={0} aria-valuemax={rows.length} aria-valuenow={sentCount} aria-label="Credentials emailed">
@@ -265,7 +283,9 @@ export default function CandidatesPage() {
         )}
       </section>
 
-      <CredentialsTable rows={rows} examId={examCode} busy={sending} onResend={(r) => void sendMany([r])} onReset={resetPassword} onResendFailed={() => void sendMany(failed)} />
+      <CredentialsTable rows={rows} examId={examCode} busy={sending} onResend={(r) => void sendMany([r])} onReset={resetPassword} onRevoke={(r) => void revoke(r)} onResendFailed={() => void sendMany(failed)} />
+
+      <ProctorInvites examId={routeId} />
 
       <EmailPreviewModal open={previewOpen} onClose={() => setPreviewOpen(false)} template={template} onChange={setTemplate} examName={examName} examId={examCode} startTime={startLabel} appLink={APP_LINK} sample={sample} />
     </div>
