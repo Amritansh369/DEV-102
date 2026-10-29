@@ -117,12 +117,12 @@ adminRouter.get('/admin/activity', ...staff, handle(async (req) => {
       { id: `ss_${s.id}`, kind: 'SESSION_STARTED' as const, at: s.startedAt.toISOString(), examCode: s.exam.code, candidateName: s.candidate.name, text: 'passed the system check and started the exam' },
       ...(s.submittedAt ? [{
         id: `sd_${s.id}`, kind: s.status === 'TERMINATED' ? ('TERMINATED' as const) : ('SESSION_SUBMITTED' as const), at: s.submittedAt.toISOString(), examCode: s.exam.code, candidateName: s.candidate.name,
-        text: s.status === 'TERMINATED' ? (s.submitReason === 'TERMINATED_BY_MENTOR' ? 'was terminated by a mentor' : 'was auto-submitted after repeated violations') : 'submitted the exam',
+        text: s.status === 'TERMINATED' ? (s.submitReason === 'TERMINATED_BY_MENTOR' ? 'was terminated by a proctor' : 'was auto-submitted after repeated violations') : 'submitted the exam',
       }] : []),
     ]),
-    ...warnings.map((w) => ({ id: `w_${w.id}`, kind: 'WARNING_SENT' as const, at: w.at.toISOString(), examCode: w.session.exam.code, candidateName: w.session.candidate.name, text: 'received a warning from the mentor' })),
+    ...warnings.map((w) => ({ id: `w_${w.id}`, kind: 'WARNING_SENT' as const, at: w.at.toISOString(), examCode: w.session.exam.code, candidateName: w.session.candidate.name, text: 'received a warning from the proctor' })),
     ...emails.map((e) => ({ id: `e_${e.id}`, kind: 'EMAIL_SENT' as const, at: e.at.toISOString(), examCode: e.candidate?.exam.code ?? '', text: `Credentials emailed to ${e.to}` })),
-    ...publishes.map((p) => ({ id: `p_${p.id}`, kind: 'EXAM_PUBLISHED' as const, at: p.at.toISOString(), examCode: p.target ?? '', text: 'Exam published and scheduled by Admin' })),
+    ...publishes.map((p) => ({ id: `p_${p.id}`, kind: 'EXAM_PUBLISHED' as const, at: p.at.toISOString(), examCode: p.target ?? '', text: 'Exam published and scheduled by the organization' })),
   ];
   return items.sort((a, b) => b.at.localeCompare(a.at)).slice(0, limit);
 }));

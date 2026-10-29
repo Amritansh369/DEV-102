@@ -294,7 +294,7 @@ export default function NewExamPage() {
       })
       try { window.localStorage.removeItem(DRAFT_KEY) } catch { /* nothing to clean up */ }
       toast.success(status === 'DRAFT' ? 'Draft saved' : 'Exam scheduled', status === 'DRAFT' ? 'Add questions next to get it ready.' : `${exam.title} is scheduled.`)
-      router.push(status === 'DRAFT' ? `/admin/exams/${exam.id}?tab=questions` : `/admin/exams/${exam.id}`)
+      router.push(status === 'DRAFT' ? `/organization/exams/${exam.id}?tab=questions` : `/organization/exams/${exam.id}`)
     } catch (e) {
       if (e instanceof ApiError && e.status === 409) {
         setStep(0)
@@ -401,7 +401,7 @@ export default function NewExamPage() {
                       <input id="w-marks" inputMode="numeric" value={form.totalMarks} onChange={(ev) => set('totalMarks', ev.target.value.replace(/\D/g, ''))} aria-invalid={Boolean(e.totalMarks)} aria-describedby={describedBy('w-marks', e.totalMarks, total > 0 ? 'x' : undefined)} className={cx(inputCls, inputState(e.totalMarks))} />
                     </Field>
                   </div>
-                  <Field id="w-desc" label="Description" error={e.description} hint="Optional. Shown to mentors and in reports.">
+                  <Field id="w-desc" label="Description" error={e.description} hint="Optional. Shown to proctors and in reports.">
                     <textarea id="w-desc" rows={2} value={form.description} onChange={(ev) => set('description', ev.target.value)} className={cx(inputCls, inputState(e.description), 'h-auto py-2.5')} />
                   </Field>
                   <Field id="w-ins" label="Instructions for candidates" required error={e.instructions} hint={`${form.instructions.length} / 2000 characters`}>
@@ -509,7 +509,7 @@ export default function NewExamPage() {
           <div className="mt-8 flex flex-wrap items-center justify-between gap-3 border-t border-border pt-5">
             <div className="flex gap-3">
               <button type="button" onClick={() => goTo(step - 1)} disabled={step === 0} className={btnGhost}><ArrowLeft className="h-4 w-4" aria-hidden="true" /> Back</button>
-              <Link href="/admin/exams" className="inline-flex items-center rounded-xl px-3 py-2.5 text-sm font-semibold text-muted outline-none hover:text-text focus-visible:ring-2 focus-visible:ring-accent">Cancel</Link>
+              <Link href="/organization/exams" className="inline-flex items-center rounded-xl px-3 py-2.5 text-sm font-semibold text-muted outline-none hover:text-text focus-visible:ring-2 focus-visible:ring-accent">Cancel</Link>
             </div>
             {key === 'review' ? (
               <div className="flex flex-wrap gap-3">

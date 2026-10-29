@@ -37,7 +37,7 @@ const COLUMNS: FooterColumn[] = [
     title: 'Resources',
     links: [
       { href: '/help/candidates', label: 'Candidate guide' },
-      { href: '/help/mentors', label: 'Mentor handbook' },
+      { href: '/help/mentors', label: 'Proctor handbook' },
       { href: '/faq', label: 'FAQs' },
       { href: '/status', label: 'System status' },
     ],
@@ -126,7 +126,7 @@ export function Footer() {
             <BrandMark />
             <p className="mt-5 max-w-md text-sm leading-6 text-muted">
               Secure, fair and transparent online assessments. Smart Proctor combines a locked-down exam browser with AI
-              monitoring and human mentors, so every result can be trusted.
+              monitoring and human proctors, so every result can be trusted.
             </p>
             <h2 className="mt-8 text-sm font-semibold text-ink">Get product updates</h2>
             <p className="mt-1 text-sm text-muted">One short email a month. Unsubscribe any time.</p>

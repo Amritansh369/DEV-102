@@ -14,7 +14,7 @@ import { formatDate, formatTime, useAsyncData } from '@/lib/adminHooks'
 const SECTIONS: Record<string, { title: string; blurb: string; icon: LucideIcon; target: string; cta: string; art?: string }> = {
   questions: { title: 'Question bank', blurb: 'Write, import and reorder multiple-choice and numeric questions for an exam.', icon: Library, target: 'questions', cta: 'Open questions', art: '/images/illustrations/question-bank.svg' },
   candidates: { title: 'Candidates', blurb: 'Import candidates and track who is invited, emailed or in the exam.', icon: Users, target: 'credentials', cta: 'Manage candidates' },
-  credentials: { title: 'Credentials', blurb: 'Generate Exam ID, User ID and passwords and email them securely.', icon: KeyRound, target: 'credentials', cta: 'Send credentials', art: '/images/illustrations/credentials.svg' },
+  credentials: { title: 'Credentials', blurb: 'Generate Exam ID, Candidate ID and passwords and email them securely.', icon: KeyRound, target: 'credentials', cta: 'Send credentials', art: '/images/illustrations/credentials.svg' },
   results: { title: 'Results', blurb: 'Scores, pass rate and rankings with Excel and PDF exports.', icon: BarChart3, target: 'reports', cta: 'View results' },
   reports: { title: 'Violation reports', blurb: 'Violation heatmaps, flagged candidates and evidence for review.', icon: ShieldAlert, target: 'reports', cta: 'Open report' },
 }
@@ -58,7 +58,7 @@ export default function ExamSectionPicker() {
         <ul className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
           {exams.map((e, i) => (
             <motion.li key={e.id} initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: Math.min(i * 0.04, 0.4) }}>
-              <Link href={`/admin/exams/${e.id}/${meta.target}`} className="group flex h-full flex-col rounded-2xl border border-border bg-white p-5 shadow-sm transition hover:-translate-y-0.5 hover:border-primary/40 hover:shadow-pop focus-visible:outline-2 focus-visible:outline-accent">
+              <Link href={`/organization/exams/${e.id}/${meta.target}`} className="group flex h-full flex-col rounded-2xl border border-border bg-white p-5 shadow-sm transition hover:-translate-y-0.5 hover:border-primary/40 hover:shadow-pop focus-visible:outline-2 focus-visible:outline-accent">
                 <div className="flex items-start justify-between gap-3">
                   <span className="font-mono text-xs font-semibold text-primary">{e.code}</span>
                   <ExamStatusBadge status={e.status} />

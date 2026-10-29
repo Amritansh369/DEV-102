@@ -291,7 +291,7 @@ export default function Login({ onLoggedIn }: LoginProps) {
                   </div>
                   <dl className="mt-4 grid grid-cols-[auto_1fr] gap-x-4 gap-y-1.5 text-sm">
                     <dt className="text-muted">Name</dt><dd className="truncate font-medium text-ink">{invite.name}</dd>
-                    {invite.userId && <><dt className="text-muted">User ID</dt><dd className="font-mono font-medium text-ink">{invite.userId}</dd></>}
+                    {invite.userId && <><dt className="text-muted">Candidate ID</dt><dd className="font-mono font-medium text-ink">{invite.userId}</dd></>}
                     <dt className="text-muted">Email</dt><dd className="truncate text-ink">{invite.email}</dd>
                     <dt className="text-muted">Role</dt>
                     <dd><span className={`rounded-full px-2 py-0.5 text-xs font-semibold ${isProctor ? 'bg-amber-100 text-amber-800' : 'bg-blue-50 text-primary'}`}>{isProctor ? 'Proctor' : 'Candidate'}</span></dd>

@@ -175,7 +175,7 @@ export function AppHeader() {
         description={
           inExam
             ? 'The app is locked while your exam is running. Submit your exam from the question screen to finish.'
-            : 'You will need to sign in again with your Exam ID and User ID.'
+            : 'You will need to sign in again with your Exam ID and Candidate ID.'
         }
         footer={
           inExam ? (

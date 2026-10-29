@@ -45,7 +45,7 @@ export const useMentorStore = create<MentorState>()(
   ),
 );
 
-/** A mentor's saved review wins over whatever the server copy says. */
+/** A proctor's saved review wins over whatever the server copy says. */
 export function effectiveVerdict(violation: Violation, reviews: Record<string, ReviewRecord>): Verdict | undefined {
   return reviews[violation.id]?.verdict ?? violation.reviewed;
 }

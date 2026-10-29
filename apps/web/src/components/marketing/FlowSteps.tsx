@@ -18,7 +18,7 @@ interface Step {
 const STEPS: Step[] = [
   {
     id: 'email', title: 'Credentials by email', short: 'Email', icon: Mail,
-    detail: 'Each candidate receives an Exam ID, User ID and password from the organiser, with the exam time and a link to download the app.',
+    detail: 'Each candidate receives an Exam ID, Candidate ID and password from the organiser, with the exam time and a link to download the app.',
     bullets: ['Per-candidate credentials, generated in bulk', 'Delivery status tracked per row', 'Resend failed emails in one click'],
   },
   {
@@ -44,11 +44,11 @@ const STEPS: Step[] = [
   {
     id: 'exam', title: 'Secure kiosk exam', short: 'Exam', icon: Camera,
     detail: 'The exam runs full-screen with a timer, question palette, mark-for-review and autosave. Research happens only inside a sandboxed browser where every URL and search is logged.',
-    bullets: ['AI sites flagged on open', 'Warnings, then auto-submit by policy', 'Mentors watch live and can intervene'],
+    bullets: ['AI sites flagged on open', 'Warnings, then auto-submit by policy', 'Proctors watch live and can intervene'],
   },
   {
     id: 'done', title: 'Submitted and reviewed', short: 'Done', icon: FileCheck2,
-    detail: 'Answers are submitted, the candidate sees a confirmation, and the organiser gets results with a violation report that mentors can confirm or overrule.',
+    detail: 'Answers are submitted, the candidate sees a confirmation, and the organiser gets results with a violation report that proctors can confirm or overrule.',
     bullets: ['Rank-wise results', 'Evidence-backed violation reports', 'Penalty review before publishing'],
   },
 ];
@@ -62,7 +62,7 @@ function StepVisual({ id }: { id: string }) {
       return (
         <div className="space-y-2 rounded-2xl border border-border bg-white p-4 text-xs shadow-sm">
           <p className="font-semibold text-text">Your exam credentials · Campus Placement Test</p>
-          {[['Exam ID', 'CPA-26'], ['User ID', 'WUE261004'], ['Password', 'Mango@4821']].map(([k, v]) => (
+          {[['Exam ID', 'CPA-26'], ['Candidate ID', 'WUE261004'], ['Password', 'Mango@4821']].map(([k, v]) => (
             <div key={k} className="flex justify-between rounded-lg bg-soft px-3 py-2"><span className="text-muted">{k}</span><b className="font-mono text-text">{v}</b></div>
           ))}
           <p className="flex items-center gap-1.5 text-success"><CheckCircle2 className="h-3.5 w-3.5" aria-hidden /> Delivered to ananya.iyer@gmail.com</p>
@@ -72,7 +72,7 @@ function StepVisual({ id }: { id: string }) {
       return (
         <div className="grid grid-cols-2 gap-3 text-xs">
           <div className="rounded-2xl border border-border bg-white p-4 shadow-sm"><p className="font-semibold text-text">Website</p><p className="mt-1 text-muted">Install the app to continue</p><span className="mt-3 inline-block rounded-lg bg-cta px-3 py-1.5 font-bold text-slate-900">Download</span></div>
-          <div className="rounded-2xl border border-primary/30 bg-soft p-4 shadow-sm"><p className="font-semibold text-primary">Desktop app</p><p className="mt-1 text-muted">Sign in with User ID</p><span className="mt-3 inline-block rounded-lg bg-primary px-3 py-1.5 font-bold text-white">Continue</span></div>
+          <div className="rounded-2xl border border-primary/30 bg-soft p-4 shadow-sm"><p className="font-semibold text-primary">Desktop app</p><p className="mt-1 text-muted">Sign in with Candidate ID</p><span className="mt-3 inline-block rounded-lg bg-primary px-3 py-1.5 font-bold text-white">Continue</span></div>
         </div>
       );
     case 'check':

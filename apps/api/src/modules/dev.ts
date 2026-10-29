@@ -109,7 +109,7 @@ devRouter.post('/invite-link', ...adminOnly, handle(async (req) => {
     return { link, password: DEMO.candidate.password };
   }
   const u = await prisma.user.findUnique({ where: { email: DEMO.mentor.email } });
-  if (!u) return fail('NOT_FOUND', 'Demo mentor not found. Reseed the database.');
+  if (!u) return fail('NOT_FOUND', 'Demo proctor not found. Reseed the database.');
   const { link } = await issueInvite({ examId: exam.id, endsAt: exam.endsAt, role, email: u.email, userId: u.id });
   return { link, password: DEMO.mentor.password };
 }));
@@ -129,6 +129,6 @@ devRouter.post('/invite-password', handle(async (req) => {
     ? (inv.candidate.userId === DEMO.candidate.userId || inv.candidate.userId === DEMO.candidate2.userId ? DEMO.candidate.password : `Exam@${inv.candidate.userId.slice(-4)}`)
     : inv.user?.email === DEMO.mentor.email ? DEMO.mentor.password : null;
   const password = stored ?? seeded;
-  if (!password) return fail('NOT_FOUND', 'This password is no longer stored. Use Reset & copy in the admin panel.');
+  if (!password) return fail('NOT_FOUND', 'This password is no longer stored. Use Reset & copy in the organization panel.');
   return { password, source: stored ? 'stored' : 'seed' };
 }));

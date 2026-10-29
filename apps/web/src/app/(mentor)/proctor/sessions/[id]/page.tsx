@@ -69,7 +69,7 @@ function SessionLoader({ id }: { id: string }) {
                 <RefreshCw className="h-4 w-4" aria-hidden /> Try again
               </button>
             )}
-            <Link href="/mentor" className={`rounded-xl border border-border px-4 py-2.5 text-sm font-semibold text-slate-700 hover:bg-soft ${focusRing}`}>Back to queue</Link>
+            <Link href="/proctor" className={`rounded-xl border border-border px-4 py-2.5 text-sm font-semibold text-slate-700 hover:bg-soft ${focusRing}`}>Back to queue</Link>
           </div>
         </div>
       </div>
@@ -239,7 +239,7 @@ function Workspace({ detail }: { detail: SessionDetail }) {
   return (
     <div className="mx-auto max-w-7xl space-y-6 px-4 py-8 sm:px-6">
       <section className={card} aria-labelledby="candidate-name">
-        <Link href="/mentor" className={`inline-flex items-center gap-1.5 rounded-lg text-sm font-medium text-primary-600 hover:underline ${focusRing}`}>
+        <Link href="/proctor" className={`inline-flex items-center gap-1.5 rounded-lg text-sm font-medium text-primary-600 hover:underline ${focusRing}`}>
           <ArrowLeft className="h-4 w-4" aria-hidden /> Review queue
         </Link>
         <div className="mt-4 flex flex-wrap items-center gap-5">
@@ -482,7 +482,7 @@ function ReviewModal({ violation, candidateName, existing, fallbackVerdict, onCl
             </div>
             <textarea id={`${uid}-reason`} rows={3} aria-invalid={Boolean(errors.reason)} aria-describedby={`${uid}-reason-help`} {...register("reason")} className="mt-2 w-full rounded-xl border border-border p-3 text-sm outline-none focus:border-accent focus:ring-4 focus:ring-accent/20 aria-[invalid=true]:border-danger" />
             <div id={`${uid}-reason-help`} className="mt-1 flex justify-between text-xs">
-              <span role={errors.reason ? "alert" : undefined} className={errors.reason ? "text-danger" : "text-slate-500"}>{errors.reason?.message ?? "Be specific. Another mentor may read this."}</span>
+              <span role={errors.reason ? "alert" : undefined} className={errors.reason ? "text-danger" : "text-slate-500"}>{errors.reason?.message ?? "Be specific. Another proctor may read this."}</span>
               <span className="text-slate-500">{reason.length}/400</span>
             </div>
           </div>
@@ -572,7 +572,7 @@ function DecisionPanel({ sessionId, pending, suggested, existing, onSaved }: { s
           </label>
         ))}
         <div className="pt-2">
-          <label htmlFor="decision-note" className="text-sm font-semibold">Note for the administrator</label>
+          <label htmlFor="decision-note" className="text-sm font-semibold">Note for the organization</label>
           <textarea id="decision-note" rows={3} value={note} onChange={(e) => setNote(e.target.value)} onBlur={() => setTouched(true)} aria-invalid={touched && !noteCheck.success} aria-describedby="decision-note-err" className="mt-1.5 w-full rounded-xl border border-border p-3 text-sm outline-none focus:border-accent focus:ring-4 focus:ring-accent/20 aria-[invalid=true]:border-danger" />
           <p id="decision-note-err" role={touched && !noteCheck.success ? "alert" : undefined} className="mt-1 min-h-4 text-xs text-danger">{touched && !noteCheck.success ? noteCheck.error.issues[0].message : ""}</p>
         </div>

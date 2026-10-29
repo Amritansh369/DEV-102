@@ -13,7 +13,7 @@ export const VARIABLES = [
   { key: 'name', label: 'Candidate name' },
   { key: 'examName', label: 'Exam name' },
   { key: 'examId', label: 'Exam ID' },
-  { key: 'userId', label: 'User ID' },
+  { key: 'userId', label: 'Candidate ID' },
   { key: 'password', label: 'Password' },
   { key: 'startTime', label: 'Start time' },
   { key: 'appLink', label: 'App download link' },
@@ -32,7 +32,7 @@ Password: {{password}}
 Install the Smart Proctor app from {{appLink}}, paste the exam link, enter the password and complete the system check at least 15 minutes before the start. The link works on one computer only and expires when the exam ends.
 
 Exam ID: {{examId}}
-User ID: {{userId}}
+Candidate ID: {{userId}}
 
 Keep these details private. If you did not expect this email, contact your exam coordinator.`,
 }

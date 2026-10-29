@@ -203,7 +203,7 @@ export default function ReportsPage() {
           <label className="relative">
             <span className="sr-only">Search candidates</span>
             <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted" aria-hidden />
-            <input value={query} onChange={(e) => { setQuery(e.target.value); setPage(0) }} placeholder="Search name or User ID" className="w-64 rounded-xl border border-border bg-white py-2 pl-9 pr-3 text-sm text-ink focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-accent" />
+            <input value={query} onChange={(e) => { setQuery(e.target.value); setPage(0) }} placeholder="Search name or Candidate ID" className="w-64 rounded-xl border border-border bg-white py-2 pl-9 pr-3 text-sm text-ink focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-accent" />
           </label>
         </div>
         <div className="overflow-x-auto">
@@ -211,7 +211,7 @@ export default function ReportsPage() {
             <thead className="bg-soft/60">
               <tr>
                 {th('name', 'Candidate')}
-                <th scope="col" className="px-4 py-2.5 text-left text-[11px] font-semibold uppercase tracking-wide text-muted">User ID</th>
+                <th scope="col" className="px-4 py-2.5 text-left text-[11px] font-semibold uppercase tracking-wide text-muted">Candidate ID</th>
                 {th('score', 'Score', 'right')}
                 <th scope="col" className="px-4 py-2.5 text-left text-[11px] font-semibold uppercase tracking-wide text-muted">Result</th>
                 {th('violations', 'Violations', 'right')}

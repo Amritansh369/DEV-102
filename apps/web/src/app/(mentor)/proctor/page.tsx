@@ -263,7 +263,7 @@ function DashboardView({ initial }: { initial: MentorDashboardData }) {
         e.preventDefault();
         searchRef.current?.focus();
       } else if (e.key === "n" && nextRow) {
-        router.push(`/mentor/sessions/${nextRow.item.session.id}`);
+        router.push(`/proctor/sessions/${nextRow.item.session.id}`);
       }
     };
     document.addEventListener("keydown", onKey);
@@ -299,7 +299,7 @@ function DashboardView({ initial }: { initial: MentorDashboardData }) {
   const exportSelected = () => {
     const chosen = rows.filter((r) => selected.has(r.item.session.id));
     downloadCsv("flagged-sessions.csv", [
-      ["Candidate", "User ID", "Exam", "Risk (adjusted)", "Violations", "Pending review", "Status"],
+      ["Candidate", "Candidate ID", "Exam", "Risk (adjusted)", "Violations", "Pending review", "Status"],
       ...chosen.map((r) => [r.item.candidate.name, r.item.candidate.userId, r.item.examCode, String(r.adjusted), String(r.total), String(r.pending), r.item.session.status]),
     ]);
     toast({ tone: "success", title: `Exported ${chosen.length} ${chosen.length === 1 ? "session" : "sessions"}` });
@@ -321,7 +321,7 @@ function DashboardView({ initial }: { initial: MentorDashboardData }) {
             Live updates {live ? "on" : "paused"}
           </button>
           {nextRow ? (
-            <Link href={`/mentor/sessions/${nextRow.item.session.id}`} className={`inline-flex items-center gap-2 rounded-xl bg-cta px-4 py-2.5 text-sm font-semibold text-slate-900 shadow transition hover:brightness-105 ${focusRing}`}>
+            <Link href={`/proctor/sessions/${nextRow.item.session.id}`} className={`inline-flex items-center gap-2 rounded-xl bg-cta px-4 py-2.5 text-sm font-semibold text-slate-900 shadow transition hover:brightness-105 ${focusRing}`}>
               Review next <Kbd>N</Kbd>
             </Link>
           ) : null}
@@ -371,7 +371,7 @@ function DashboardView({ initial }: { initial: MentorDashboardData }) {
           <div className="relative min-w-[14rem] flex-1">
             <label htmlFor="queue-search" className="sr-only">Search candidates</label>
             <Search className="pointer-events-none absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-500" aria-hidden />
-            <input ref={searchRef} id="queue-search" type="search" value={q} onChange={(e) => setQ(e.target.value)} placeholder="Search by name, user ID or email" className="w-full rounded-xl border border-border bg-white py-2.5 pl-10 pr-3 text-sm outline-none transition placeholder:text-slate-500 focus:border-accent focus:ring-4 focus:ring-accent/20" />
+            <input ref={searchRef} id="queue-search" type="search" value={q} onChange={(e) => setQ(e.target.value)} placeholder="Search by name, candidate ID or email" className="w-full rounded-xl border border-border bg-white py-2.5 pl-10 pr-3 text-sm outline-none transition placeholder:text-slate-500 focus:border-accent focus:ring-4 focus:ring-accent/20" />
           </div>
           <Segmented<RiskFilter> label="Filter by risk" value={risk} onChange={setRisk} options={[{ value: "ALL", label: "All risk" }, { value: "HIGH", label: "High" }, { value: "MEDIUM", label: "Medium" }, { value: "LOW", label: "Low" }]} />
           <Segmented<ReviewFilter> label="Filter by review state" value={review} onChange={setReview} options={[{ value: "ALL", label: "All" }, { value: "PENDING", label: "Pending" }, { value: "DONE", label: "Reviewed" }]} />
@@ -411,7 +411,7 @@ function DashboardView({ initial }: { initial: MentorDashboardData }) {
           <>
             <div className={`${card} relative mt-4 overflow-x-auto`}>
               <table className="w-full min-w-[880px] border-collapse text-left">
-                <caption className="sr-only">Flagged sessions awaiting mentor review</caption>
+                <caption className="sr-only">Flagged sessions awaiting proctor review</caption>
                 <thead className="bg-soft text-xs uppercase tracking-wide text-slate-500">
                   <tr>
                     <th scope="col" className="w-10 px-4 py-3">
@@ -440,7 +440,7 @@ function DashboardView({ initial }: { initial: MentorDashboardData }) {
                           <div className="flex items-center gap-3">
                             <Avatar name={candidate.name} size="sm" src={candidate.photoUrl} />
                             <div className="min-w-0">
-                              <Link href={`/mentor/sessions/${session.id}`} className={`rounded text-sm font-semibold text-slate-900 hover:text-primary-600 hover:underline ${focusRing}`}>{candidate.name}</Link>
+                              <Link href={`/proctor/sessions/${session.id}`} className={`rounded text-sm font-semibold text-slate-900 hover:text-primary-600 hover:underline ${focusRing}`}>{candidate.name}</Link>
                               <p className="truncate font-mono text-xs text-slate-500">{candidate.userId}</p>
                             </div>
                           </div>
@@ -469,7 +469,7 @@ function DashboardView({ initial }: { initial: MentorDashboardData }) {
                           <p className="mt-1 text-xs text-slate-500">{formatRelative(session.startedAt)}</p>
                         </td>
                         <td className="px-4 py-3 text-right">
-                          <Link href={`/mentor/sessions/${session.id}`} aria-label={`${r.pending > 0 ? "Review" : "Open"} ${candidate.name}`} className={`inline-flex items-center gap-1 rounded-lg px-3 py-1.5 text-xs font-semibold ${focusRing} ${r.pending > 0 ? "bg-primary text-white hover:bg-primary-600" : "border border-border text-slate-700 hover:bg-soft"}`}>
+                          <Link href={`/proctor/sessions/${session.id}`} aria-label={`${r.pending > 0 ? "Review" : "Open"} ${candidate.name}`} className={`inline-flex items-center gap-1 rounded-lg px-3 py-1.5 text-xs font-semibold ${focusRing} ${r.pending > 0 ? "bg-primary text-white hover:bg-primary-600" : "border border-border text-slate-700 hover:bg-soft"}`}>
                             {r.pending > 0 ? "Review" : "Open"} <ChevronRight className="h-3.5 w-3.5" aria-hidden />
                           </Link>
                         </td>

@@ -136,7 +136,7 @@ function DashboardView({ initial, onRefresh }: { initial: DashboardData; onRefre
           <button type="button" onClick={onRefresh} className="inline-flex items-center gap-2 rounded-xl border border-border bg-surface px-4 py-2.5 text-sm font-semibold text-slate-700 outline-none transition hover:bg-soft focus-visible:ring-2 focus-visible:ring-accent">
             <RefreshCw className="h-4 w-4" aria-hidden="true" /> Refresh
           </button>
-          <Link href="/admin/exams/new" className="inline-flex items-center gap-2 rounded-xl bg-cta px-4 py-2.5 text-sm font-semibold text-slate-900 shadow-sm outline-none transition hover:brightness-95 focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2">
+          <Link href="/organization/exams/new" className="inline-flex items-center gap-2 rounded-xl bg-cta px-4 py-2.5 text-sm font-semibold text-slate-900 shadow-sm outline-none transition hover:brightness-95 focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2">
             <Plus className="h-4 w-4" aria-hidden="true" /> Create exam
           </Link>
         </div>
@@ -210,15 +210,15 @@ function DashboardView({ initial, onRefresh }: { initial: DashboardData; onRefre
         <Card
           title="Upcoming exams"
           subtitle="Next scheduled sessions"
-          action={<Link href="/admin/exams?status=SCHEDULED" className="rounded text-xs font-semibold text-accent outline-none hover:underline focus-visible:ring-2 focus-visible:ring-accent">View all</Link>}
+          action={<Link href="/organization/exams?status=SCHEDULED" className="rounded text-xs font-semibold text-accent outline-none hover:underline focus-visible:ring-2 focus-visible:ring-accent">View all</Link>}
         >
           {initial.upcoming.length === 0 ? (
-            <EmptyState icon={CalendarClock} title="Nothing scheduled" message="Schedule an exam to see it here with a live countdown." action={<Link href="/admin/exams/new" className="rounded-xl bg-primary px-4 py-2 text-sm font-semibold text-white outline-none hover:bg-primary-600 focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2">Create exam</Link>} />
+            <EmptyState icon={CalendarClock} title="Nothing scheduled" message="Schedule an exam to see it here with a live countdown." action={<Link href="/organization/exams/new" className="rounded-xl bg-primary px-4 py-2 text-sm font-semibold text-white outline-none hover:bg-primary-600 focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2">Create exam</Link>} />
           ) : (
             <ul className="space-y-3">
               {initial.upcoming.map((e) => (
                 <li key={e.id}>
-                  <Link href={`/admin/exams/${e.id}`} className="block rounded-xl border border-border p-3 outline-none transition hover:border-accent/40 hover:bg-soft focus-visible:ring-2 focus-visible:ring-accent">
+                  <Link href={`/organization/exams/${e.id}`} className="block rounded-xl border border-border p-3 outline-none transition hover:border-accent/40 hover:bg-soft focus-visible:ring-2 focus-visible:ring-accent">
                     <div className="flex items-start justify-between gap-2">
                       <p className="text-sm font-semibold text-text">{e.title}</p>
                       <ExamStatusBadge status={e.status} />

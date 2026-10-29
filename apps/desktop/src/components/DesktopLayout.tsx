@@ -102,7 +102,7 @@ function KioskLock() {
             <h2 id="kiosk-lock-title" className="mt-4 text-xl font-semibold">
               Exam paused
             </h2>
-            <p className="mt-2 text-sm text-muted">{lock.reason ?? 'The exam window lost focus.'} This event has been recorded and your mentor can see it.</p>
+            <p className="mt-2 text-sm text-muted">{lock.reason ?? 'The exam window lost focus.'} This event has been recorded and your proctor can see it.</p>
             <Button autoFocus className="mt-6" size="lg" onClick={clearLock}>
               Return to exam
             </Button>

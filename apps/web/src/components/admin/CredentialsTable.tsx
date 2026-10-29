@@ -107,7 +107,7 @@ export default function CredentialsTable({ rows, examId, busy = false, onResend,
   const sent = rows.filter((r) => r.status === 'sent').length
 
   const exportCsv = () => {
-    const head = ['Exam ID', 'Name', 'Email', 'User ID', 'Password', 'Email status']
+    const head = ['Exam ID', 'Name', 'Email', 'Candidate ID', 'Password', 'Email status']
     const lines = rows.map((r) => [csvCell(examId), csvCell(r.name, true), csvCell(r.email, true), csvCell(r.userId), csvCell(r.password), csvCell(BADGE[r.status].label)].join(','))
     const blob = new Blob(['\uFEFF' + [head.join(','), ...lines].join('\r\n')], { type: 'text/csv;charset=utf-8' })
     const url = URL.createObjectURL(blob)
@@ -158,7 +158,7 @@ export default function CredentialsTable({ rows, examId, busy = false, onResend,
             <thead className="bg-soft/60">
               <tr>
                 {th('name', 'Candidate')}
-                {th('userId', 'User ID')}
+                {th('userId', 'Candidate ID')}
                 <th scope="col" className="px-4 py-2.5 text-left text-[11px] font-semibold uppercase tracking-wide text-muted">Password</th>
                 {th('status', 'Email')}
                 <th scope="col" className="px-4 py-2.5 text-right text-[11px] font-semibold uppercase tracking-wide text-muted">Actions</th>
@@ -178,7 +178,7 @@ export default function CredentialsTable({ rows, examId, busy = false, onResend,
                     <td className="px-4 py-2.5">
                       <span className="inline-flex items-center gap-1 font-mono text-xs text-ink">
                         {r.userId}
-                        <CopyButton value={r.userId} label={`${r.name}'s user ID`} />
+                        <CopyButton value={r.userId} label={`${r.name}'s candidate ID`} />
                       </span>
                     </td>
                     <td className="px-4 py-2.5">

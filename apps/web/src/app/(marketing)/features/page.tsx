@@ -176,10 +176,10 @@ interface Feature {
 const FEATURES: Feature[] = [
   { id: "ai-proctoring", icon: ScanFace, title: "AI proctoring that watches the room, not the person", body: "MediaPipe-based analysis runs on the candidate's webcam stream and raises graded events instead of blunt pass or fail verdicts.", points: ["Multiple faces, no face, face mismatch and gaze away", "Risk score recalculated every few seconds", "Evidence snapshots attached to each event"], panel: <ProctorPanel /> },
   { id: "kiosk", icon: Lock, title: "Secure kiosk exam browser", body: "The exam opens in a locked full-screen window. Everything a candidate could use to look things up is closed before the first question.", points: ["Blacklisted apps found and closed at system check", "VM, remote desktop and extra monitors detected", "Clipboard, shortcuts and window switching blocked"], panel: <KioskPanel /> },
-  { id: "search", icon: Globe, title: "Search and browsing tracking", body: "Candidates can use only the sites you allow, inside sandboxed tabs. Every address and every search or chat query is recorded.", points: ["Allow-list per exam", "AI sites flagged instantly", "Full log available to mentors during and after the exam"], panel: <SearchPanel /> },
-  { id: "warnings", icon: AlertTriangle, title: "Warnings and disqualification", body: "A clear, configurable policy so candidates know where they stand and mentors do not have to improvise.", points: ["Default: two warnings, then auto-submit", "Critical events can submit immediately", "Mentors can send manual warnings or terminate"], panel: <WarningPanel /> },
+  { id: "search", icon: Globe, title: "Search and browsing tracking", body: "Candidates can use only the sites you allow, inside sandboxed tabs. Every address and every search or chat query is recorded.", points: ["Allow-list per exam", "AI sites flagged instantly", "Full log available to proctors during and after the exam"], panel: <SearchPanel /> },
+  { id: "warnings", icon: AlertTriangle, title: "Warnings and disqualification", body: "A clear, configurable policy so candidates know where they stand and proctors do not have to improvise.", points: ["Default: two warnings, then auto-submit", "Critical events can submit immediately", "Proctors can send manual warnings or terminate"], panel: <WarningPanel /> },
   { id: "offline", icon: WifiOff, title: "Offline mode for unstable networks", body: "A dropped connection should not ruin an exam. Answers autosave locally and sync once the network returns.", points: ["Network loss logged as a low-severity event", "Timer stays authoritative", "Sync status always visible"], panel: <OfflinePanel /> },
-  { id: "reports", icon: BarChart3, title: "Reports administrators can act on", body: "Scores, question analysis and a per-candidate violation timeline, ready to export for the placement cell or the institute.", points: ["Result and violation reports", "Review and overrule penalties with evidence", "CSV and PDF export"], panel: <ReportPanel /> },
+  { id: "reports", icon: BarChart3, title: "Reports organizations can act on", body: "Scores, question analysis and a per-candidate violation timeline, ready to export for the placement cell or the institute.", points: ["Result and violation reports", "Review and overrule penalties with evidence", "CSV and PDF export"], panel: <ReportPanel /> },
 ];
 
 export default function FeaturesPage() {
@@ -230,7 +230,7 @@ export default function FeaturesPage() {
         </div>
       </section>
 
-      <CtaBanner title="See it on your next exam" description="Run a pilot with 50 candidates and review every violation with your own mentors." primary={{ label: "Request a demo", href: "/login" }} secondary={{ label: "Read the security model", href: "/security" }} />
+      <CtaBanner title="See it on your next exam" description="Run a pilot with 50 candidates and review every violation with your own proctors." primary={{ label: "Request a demo", href: "/login" }} secondary={{ label: "Read the security model", href: "/security" }} />
     </main>
   );
 }

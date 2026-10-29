@@ -43,14 +43,14 @@ function buildChecklist(d: Loaded, now: number, id: string): Check[] {
   const n = questions.length
   return [
     { key: 'basics', label: 'Basics and instructions', status: extras.instructions.trim().length >= 20 ? 'pass' : 'warn', detail: extras.instructions.trim().length >= 20 ? 'Title, code and candidate instructions are set.' : 'Candidate instructions are too short.' },
-    { key: 'questions', label: 'Questions added', status: n === 0 ? 'fail' : n < exam.questionCount ? 'warn' : 'pass', detail: n === 0 ? 'No questions yet. Add or import them.' : `${n} of ${exam.questionCount} planned questions are ready.`, href: `/admin/exams/${id}/questions`, cta: n === 0 ? 'Add questions' : 'Manage' },
+    { key: 'questions', label: 'Questions added', status: n === 0 ? 'fail' : n < exam.questionCount ? 'warn' : 'pass', detail: n === 0 ? 'No questions yet. Add or import them.' : `${n} of ${exam.questionCount} planned questions are ready.`, href: `/organization/exams/${id}/questions`, cta: n === 0 ? 'Add questions' : 'Manage' },
     { key: 'marks', label: 'Marks add up', status: n === 0 ? 'warn' : marks === exam.totalMarks ? 'pass' : 'warn', detail: n === 0 ? 'Add questions to verify the total.' : marks === exam.totalMarks ? `Questions total ${marks} marks.` : `Questions total ${marks} marks, but the exam is set to ${exam.totalMarks}.` },
-    { key: 'candidates', label: 'Candidates imported', status: exam.candidateCount > 0 ? 'pass' : 'warn', detail: exam.candidateCount > 0 ? `${exam.candidateCount.toLocaleString('en-IN')} candidates assigned.` : 'None yet. You can import them before the exam starts.', href: `/admin/candidates?exam=${id}&import=1`, cta: 'Import' },
+    { key: 'candidates', label: 'Candidates imported', status: exam.candidateCount > 0 ? 'pass' : 'warn', detail: exam.candidateCount > 0 ? `${exam.candidateCount.toLocaleString('en-IN')} candidates assigned.` : 'None yet. You can import them before the exam starts.', href: `/organization/candidates?exam=${id}&import=1`, cta: 'Import' },
     // Only an exam that hasn't started needs a future start time; a live or finished exam has passed it by design.
     exam.status === 'LIVE' || exam.status === 'COMPLETED'
       ? { key: 'schedule', label: 'Schedule', status: 'pass', detail: `${exam.status === 'LIVE' ? 'Started' : 'Ran on'} ${formatDate(exam.startsAt)} at ${formatTime(exam.startsAt)}.` }
-      : { key: 'schedule', label: 'Start time is in the future', status: Date.parse(exam.startsAt) > now + 10 * 60_000 ? 'pass' : 'fail', detail: Date.parse(exam.startsAt) > now + 10 * 60_000 ? `Starts ${formatDate(exam.startsAt)} at ${formatTime(exam.startsAt)}.` : 'The start time has passed. Update the schedule in Settings.', href: `/admin/exams/${id}?tab=settings`, cta: 'Settings' },
-    { key: 'policy', label: 'Violation policy valid', status: policySchema.safeParse(policy).success ? 'pass' : 'fail', detail: policySchema.safeParse(policy).success ? `${policy.maxWarnings} warning${policy.maxWarnings === 1 ? '' : 's'}, auto-submit ${policy.autoSubmit ? 'on' : 'off'}.` : 'The policy has invalid values.', href: `/admin/exams/${id}?tab=settings`, cta: 'Fix' },
+      : { key: 'schedule', label: 'Start time is in the future', status: Date.parse(exam.startsAt) > now + 10 * 60_000 ? 'pass' : 'fail', detail: Date.parse(exam.startsAt) > now + 10 * 60_000 ? `Starts ${formatDate(exam.startsAt)} at ${formatTime(exam.startsAt)}.` : 'The start time has passed. Update the schedule in Settings.', href: `/organization/exams/${id}?tab=settings`, cta: 'Settings' },
+    { key: 'policy', label: 'Violation policy valid', status: policySchema.safeParse(policy).success ? 'pass' : 'fail', detail: policySchema.safeParse(policy).success ? `${policy.maxWarnings} warning${policy.maxWarnings === 1 ? '' : 's'}, auto-submit ${policy.autoSubmit ? 'on' : 'off'}.` : 'The policy has invalid values.', href: `/organization/exams/${id}?tab=settings`, cta: 'Fix' },
   ]
 }
 
@@ -177,7 +177,7 @@ function OverviewTab({ d, id, onPublish, publishing }: { d: Loaded; id: string; 
             {blocked && <p className="mt-2 text-xs text-danger">Resolve the blocking items to publish.</p>}
           </>
         ) : (
-          <p className="mt-5 rounded-xl bg-soft px-3 py-2 text-xs text-muted">{exam.status === 'LIVE' ? 'This exam is live. Mentors can monitor it now.' : exam.status === 'SCHEDULED' ? 'Published. Candidates receive credentials by email.' : 'This exam has ended.'}</p>
+          <p className="mt-5 rounded-xl bg-soft px-3 py-2 text-xs text-muted">{exam.status === 'LIVE' ? 'This exam is live. Proctors can monitor it now.' : exam.status === 'SCHEDULED' ? 'Published. Candidates receive credentials by email.' : 'This exam has ended.'}</p>
         )}
       </aside>
     </div>
@@ -192,10 +192,10 @@ function QuestionsTab({ d, id }: { d: Loaded; id: string }) {
     <section className={cx(cardCls, 'p-6')}>
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div><h2 className="font-heading text-base font-semibold text-text">{d.questions.length} questions · {marks} marks</h2><p className="text-xs text-muted">Easy {byDiff.EASY} · Medium {byDiff.MEDIUM} · Hard {byDiff.HARD}</p></div>
-        <div className="flex gap-2"><Link href={`/admin/exams/${id}/questions?import=1`} className={btnGhost}>Import</Link><Link href={`/admin/exams/${id}/questions`} className={btnPrimary}>Open question manager</Link></div>
+        <div className="flex gap-2"><Link href={`/organization/exams/${id}/questions?import=1`} className={btnGhost}>Import</Link><Link href={`/organization/exams/${id}/questions`} className={btnPrimary}>Open question manager</Link></div>
       </div>
       {d.questions.length === 0 ? (
-        <EmptyState icon={FileQuestion} title="No questions yet" message="Add questions one by one or import a spreadsheet." action={<Link href={`/admin/exams/${id}/questions`} className={btnPrimary}><Plus className="h-4 w-4" aria-hidden="true" /> Add questions</Link>} />
+        <EmptyState icon={FileQuestion} title="No questions yet" message="Add questions one by one or import a spreadsheet." action={<Link href={`/organization/exams/${id}/questions`} className={btnPrimary}><Plus className="h-4 w-4" aria-hidden="true" /> Add questions</Link>} />
       ) : (
         <ol className="mt-4 divide-y divide-border">
           {d.questions.slice(0, 6).map((q, i) => (
@@ -213,7 +213,7 @@ function CandidatesTab({ id, exam }: { id: string; exam: Exam }) {
   if (error && !loading) return <ErrorState message={error} onRetry={reload} />
   if (loading || !data) return <div className="grid gap-4 sm:grid-cols-3" aria-busy="true">{[0, 1, 2].map((i) => <Skeleton key={i} className="h-24 rounded-2xl" />)}</div>
   if (data.total === 0) {
-    return <section className={cardCls}><EmptyState icon={Users} title="No candidates yet" message="Import a spreadsheet of candidates, then generate and email their credentials." action={<Link href={`/admin/candidates?exam=${id}&import=1`} className={btnPrimary}>Import candidates</Link>} /></section>
+    return <section className={cardCls}><EmptyState icon={Users} title="No candidates yet" message="Import a spreadsheet of candidates, then generate and email their credentials." action={<Link href={`/organization/candidates?exam=${id}&import=1`} className={btnPrimary}>Import candidates</Link>} /></section>
   }
   const rows: [string, number, string][] = [
     ['Credentials pending', data.pending, 'bg-slate-400'], ['Emailed', data.emailed, 'bg-accent'], ['Email failed', data.failed, 'bg-danger'],
@@ -223,7 +223,7 @@ function CandidatesTab({ id, exam }: { id: string; exam: Exam }) {
     <section className={cx(cardCls, 'p-6')}>
       <div className="flex flex-wrap items-center justify-between gap-3">
         <h2 className="font-heading text-base font-semibold text-text">{data.total.toLocaleString('en-IN')} candidates assigned to {exam.code}</h2>
-        <div className="flex gap-2"><Link href={`/admin/candidates?exam=${id}`} className={btnGhost}><Users className="h-4 w-4" aria-hidden="true" /> Manage</Link><Link href={`/admin/credentials?exam=${id}`} className={btnPrimary}><Mail className="h-4 w-4" aria-hidden="true" /> Credentials</Link></div>
+        <div className="flex gap-2"><Link href={`/organization/candidates?exam=${id}`} className={btnGhost}><Users className="h-4 w-4" aria-hidden="true" /> Manage</Link><Link href={`/organization/credentials?exam=${id}`} className={btnPrimary}><Mail className="h-4 w-4" aria-hidden="true" /> Credentials</Link></div>
       </div>
       <div className="mt-5 flex h-3 overflow-hidden rounded-full bg-slate-100" role="img" aria-label="Candidate status distribution">{rows.map(([k, v, c]) => <div key={k} className={c} style={{ width: `${(v / data.total) * 100}%` }} />)}</div>
       <ul className="mt-5 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">{rows.filter(([, v]) => v > 0).map(([k, v, c]) => <li key={k} className="flex items-center gap-3 rounded-xl border border-border p-3 text-sm"><span className={cx('h-2.5 w-2.5 rounded-full', c)} aria-hidden="true" /><span className="flex-1 text-slate-600">{k}</span><span className="font-semibold tabular-nums text-text">{v.toLocaleString('en-IN')}</span></li>)}</ul>
@@ -314,7 +314,7 @@ function ReportsTab({ id, exam }: { id: string; exam: Exam }) {
         <Tile icon={Radio} label="Auto-submitted sessions" value={data.autoSubmitted} />
       </div>
       <section className={cx(cardCls, 'p-6')}>
-        <div className="flex flex-wrap items-center justify-between gap-3"><h2 className="font-heading text-base font-semibold text-text">Violations by type</h2><Link href={`/admin/reports?exam=${id}`} className={btnPrimary}>Review sessions</Link></div>
+        <div className="flex flex-wrap items-center justify-between gap-3"><h2 className="font-heading text-base font-semibold text-text">Violations by type</h2><Link href={`/organization/reports?exam=${id}`} className={btnPrimary}>Review sessions</Link></div>
         <ul className="mt-4 space-y-3">
           {data.byType.filter((t) => t.count > 0).map((t) => (
             <li key={t.code} className="grid grid-cols-[minmax(0,12rem)_1fr_3rem] items-center gap-3 text-sm">
@@ -344,7 +344,7 @@ function ExamOverview() {
   const reduce = useReducedMotion()
   const [publishing, setPublishing] = useState(false)
 
-  const setTab = (t: TabKey) => router.replace(`/admin/exams/${id}?tab=${t}`, { scroll: false })
+  const setTab = (t: TabKey) => router.replace(`/organization/exams/${id}?tab=${t}`, { scroll: false })
   const onTabKey = (e: KeyboardEvent<HTMLButtonElement>, i: number) => {
     const move = e.key === 'ArrowRight' ? 1 : e.key === 'ArrowLeft' ? -1 : e.key === 'Home' ? -i : e.key === 'End' ? TABS.length : 0
     if (!move) return
@@ -379,7 +379,7 @@ function ExamOverview() {
       <div className="relative flex flex-wrap items-start justify-between gap-4 overflow-hidden rounded-2xl border border-border bg-gradient-to-br from-primary-50 via-white to-white p-6">
         <motion.img src="/images/illustrations/exam-ready.svg" alt="" aria-hidden="true" className="pointer-events-none absolute -bottom-2 right-4 hidden h-32 w-auto lg:block" initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: reduce ? 0 : 0.5, ease: 'easeOut' }} />
         <div className="relative">
-          <Link href="/admin/exams" className="mb-2 inline-flex items-center gap-1.5 rounded text-sm font-medium text-muted outline-none hover:text-primary focus-visible:ring-2 focus-visible:ring-accent"><ArrowLeft className="h-4 w-4" aria-hidden="true" /> All exams</Link>
+          <Link href="/organization/exams" className="mb-2 inline-flex items-center gap-1.5 rounded text-sm font-medium text-muted outline-none hover:text-primary focus-visible:ring-2 focus-visible:ring-accent"><ArrowLeft className="h-4 w-4" aria-hidden="true" /> All exams</Link>
           <h1 className="font-heading text-2xl font-semibold tracking-tight text-text sm:text-3xl">{exam.title}</h1>
           <p className="mt-2 flex flex-wrap items-center gap-3 text-sm text-muted"><ExamStatusBadge status={exam.status} /><code className="rounded bg-slate-100 px-1.5 py-0.5 font-mono text-xs">{exam.code}</code><span className="inline-flex items-center gap-1.5"><CalendarClock className="h-4 w-4" aria-hidden="true" />{formatDate(exam.startsAt)}, {formatTime(exam.startsAt)}</span></p>
         </div>

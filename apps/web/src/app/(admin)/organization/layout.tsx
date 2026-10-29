@@ -21,33 +21,33 @@ interface NavItem { label: string; href: string; icon: LucideIcon }
 
 const NAV: { label: string; items: NavItem[] }[] = [
   { label: 'Overview', items: [
-    { label: 'Dashboard', href: '/admin', icon: LayoutDashboard },
-    { label: 'Exams', href: '/admin/exams', icon: ClipboardList },
+    { label: 'Dashboard', href: '/organization', icon: LayoutDashboard },
+    { label: 'Exams', href: '/organization/exams', icon: ClipboardList },
   ] },
   { label: 'Content', items: [
-    { label: 'Question bank', href: '/admin/questions', icon: Library },
-    { label: 'Candidates', href: '/admin/candidates', icon: Users },
-    { label: 'Credentials', href: '/admin/credentials', icon: KeyRound },
+    { label: 'Question bank', href: '/organization/questions', icon: Library },
+    { label: 'Candidates', href: '/organization/candidates', icon: Users },
+    { label: 'Credentials', href: '/organization/credentials', icon: KeyRound },
   ] },
   { label: 'Insights', items: [
-    { label: 'Results', href: '/admin/results', icon: BarChart3 },
-    { label: 'Violation reports', href: '/admin/reports', icon: ShieldAlert },
+    { label: 'Results', href: '/organization/results', icon: BarChart3 },
+    { label: 'Violation reports', href: '/organization/reports', icon: ShieldAlert },
   ] },
 ]
 
 interface SearchEntry { id: string; label: string; hint: string; href: string; icon: LucideIcon }
 
 const SEARCH_ENTRIES: SearchEntry[] = [
-  { id: 'p-dash', label: 'Dashboard', hint: 'Page · live overview', href: '/admin', icon: LayoutDashboard },
-  { id: 'p-exams', label: 'Exams', hint: 'Page · all exams', href: '/admin/exams', icon: ClipboardList },
-  { id: 'p-q', label: 'Question bank', hint: 'Page · MCQ manager', href: '/admin/questions', icon: Library },
-  { id: 'p-cand', label: 'Candidates', hint: 'Page · import and manage', href: '/admin/candidates', icon: Users },
-  { id: 'p-cred', label: 'Credentials and emails', hint: 'Page · send login details', href: '/admin/credentials', icon: KeyRound },
-  { id: 'p-res', label: 'Results', hint: 'Page · scores and ranks', href: '/admin/results', icon: BarChart3 },
-  { id: 'p-rep', label: 'Violation reports', hint: 'Page · review penalties', href: '/admin/reports', icon: ShieldAlert },
-  { id: 'a-new', label: 'Create exam', hint: 'Action · open the exam wizard', href: '/admin/exams/new', icon: Plus },
-  { id: 'a-mcq', label: 'Import MCQs from CSV or Excel', hint: 'Action · question bank', href: '/admin/questions?import=1', icon: Upload },
-  { id: 'a-cand', label: 'Import candidates', hint: 'Action · candidates', href: '/admin/candidates?import=1', icon: Upload },
+  { id: 'p-dash', label: 'Dashboard', hint: 'Page · live overview', href: '/organization', icon: LayoutDashboard },
+  { id: 'p-exams', label: 'Exams', hint: 'Page · all exams', href: '/organization/exams', icon: ClipboardList },
+  { id: 'p-q', label: 'Question bank', hint: 'Page · MCQ manager', href: '/organization/questions', icon: Library },
+  { id: 'p-cand', label: 'Candidates', hint: 'Page · import and manage', href: '/organization/candidates', icon: Users },
+  { id: 'p-cred', label: 'Credentials and emails', hint: 'Page · send login details', href: '/organization/credentials', icon: KeyRound },
+  { id: 'p-res', label: 'Results', hint: 'Page · scores and ranks', href: '/organization/results', icon: BarChart3 },
+  { id: 'p-rep', label: 'Violation reports', hint: 'Page · review penalties', href: '/organization/reports', icon: ShieldAlert },
+  { id: 'a-new', label: 'Create exam', hint: 'Action · open the exam wizard', href: '/organization/exams/new', icon: Plus },
+  { id: 'a-mcq', label: 'Import MCQs from CSV or Excel', hint: 'Action · question bank', href: '/organization/questions?import=1', icon: Upload },
+  { id: 'a-cand', label: 'Import candidates', hint: 'Action · candidates', href: '/organization/candidates?import=1', icon: Upload },
 ]
 
 const SEGMENT_LABELS: Record<string, string> = {
@@ -61,8 +61,8 @@ function Brand({ collapsed }: { collapsed: boolean }) {
   const [failed, setFailed] = useState(false)
   return (
     <Link
-      href="/admin"
-      aria-label="Where U Elevate, admin home"
+      href="/organization"
+      aria-label="Where U Elevate, organization home"
       className={cx('flex h-16 shrink-0 items-center gap-3 border-b border-border px-5 outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-accent', collapsed && 'justify-center px-0')}
     >
       {failed ? (
@@ -73,7 +73,7 @@ function Brand({ collapsed }: { collapsed: boolean }) {
       {!collapsed && (
         <span className="leading-tight">
           <span className="block font-heading text-[15px] font-semibold text-primary">Where U Elevate</span>
-          <span className="block text-[11px] font-medium uppercase tracking-wider text-muted">Proctor admin</span>
+          <span className="block text-[11px] font-medium uppercase tracking-wider text-muted">Proctor organization</span>
         </span>
       )}
     </Link>
@@ -84,12 +84,12 @@ function Brand({ collapsed }: { collapsed: boolean }) {
 
 function SidebarBody({ collapsed, onNavigate }: { collapsed: boolean; onNavigate?: () => void }) {
   const pathname = usePathname() ?? ''
-  const isActive = (href: string) => (href === '/admin' ? pathname === '/admin' : pathname === href || pathname.startsWith(`${href}/`))
+  const isActive = (href: string) => (href === '/organization' ? pathname === '/organization' : pathname === href || pathname.startsWith(`${href}/`))
 
   return (
     <>
       <Brand collapsed={collapsed} />
-      <nav aria-label="Admin navigation" className="flex-1 space-y-5 overflow-y-auto px-3 py-4">
+      <nav aria-label="Organization navigation" className="flex-1 space-y-5 overflow-y-auto px-3 py-4">
         {NAV.map((group) => (
           <div key={group.label}>
             {collapsed ? (
@@ -148,9 +148,9 @@ function Breadcrumbs() {
   const pathname = usePathname() ?? ''
   const crumbs = useMemo(() => {
     const segs = pathname.split('/').filter(Boolean).slice(1)
-    const list = [{ label: 'Admin', href: '/admin' }]
-    if (segs.length === 0) return [...list, { label: 'Dashboard', href: '/admin' }]
-    segs.forEach((s, i) => list.push({ label: SEGMENT_LABELS[s] ?? decodeURIComponent(s).toUpperCase(), href: `/admin/${segs.slice(0, i + 1).join('/')}` }))
+    const list = [{ label: 'Organization', href: '/organization' }]
+    if (segs.length === 0) return [...list, { label: 'Dashboard', href: '/organization' }]
+    segs.forEach((s, i) => list.push({ label: SEGMENT_LABELS[s] ?? decodeURIComponent(s).toUpperCase(), href: `/organization/${segs.slice(0, i + 1).join('/')}` }))
     return list
   }, [pathname])
 
@@ -190,7 +190,7 @@ function GlobalSearch() {
     const term = q.trim().toLowerCase()
     const base = term ? SEARCH_ENTRIES.filter((e) => e.label.toLowerCase().includes(term) || e.hint.toLowerCase().includes(term)) : SEARCH_ENTRIES.slice(0, 6)
     return term
-      ? [...base, { id: 'search-exams', label: `Search exams for “${q.trim()}”`, hint: 'Action · filter the exams table', href: `/admin/exams?q=${encodeURIComponent(q.trim())}`, icon: Search }]
+      ? [...base, { id: 'search-exams', label: `Search exams for “${q.trim()}”`, hint: 'Action · filter the exams table', href: `/organization/exams?q=${encodeURIComponent(q.trim())}`, icon: Search }]
       : base
   }, [q])
 
@@ -235,7 +235,7 @@ function GlobalSearch() {
         aria-controls="admin-search-list"
         aria-activedescendant={open && results[active] ? `search-${results[active].id}` : undefined}
         aria-autocomplete="list"
-        aria-label="Search the admin panel"
+        aria-label="Search the organization panel"
         placeholder="Search exams, candidates, pages…"
         className="h-10 w-full rounded-xl border border-border bg-soft pl-10 pr-14 text-sm text-text outline-none transition placeholder:text-muted focus:border-accent focus:bg-surface focus:ring-2 focus:ring-accent/30"
       />
@@ -277,7 +277,7 @@ function GlobalSearch() {
 function ProfileMenu() {
   const router = useRouter()
   const user = useSession((st) => st.user)
-  const name = user?.name ?? 'Administrator'
+  const name = user?.name ?? 'Organization'
   const initials = name.split(/\s+/).filter((w) => /^[A-Za-z]/.test(w)).map((w) => w[0]).slice(0, 2).join('').toUpperCase()
   const [open, setOpen] = useState(false)
   const wrapRef = useRef<HTMLDivElement>(null)
@@ -298,7 +298,7 @@ function ProfileMenu() {
         <span className="grid h-8 w-8 place-items-center rounded-lg bg-gradient-to-br from-primary to-accent text-xs font-bold text-white">{initials}</span>
         <span className="hidden text-left leading-tight md:block">
           <span className="block text-sm font-semibold text-text">{name}</span>
-          <span className="block text-[11px] text-muted">Exam administrator</span>
+          <span className="block text-[11px] text-muted">Exam organization</span>
         </span>
       </button>
       <AnimatePresence>
@@ -317,14 +317,14 @@ function ProfileMenu() {
               <p className="truncate text-xs text-muted">meenakshi.iyer@whereuelevate.in</p>
             </div>
             <div className="py-2">
-              <Link role="menuitem" href="/admin/profile" onClick={() => setOpen(false)} className={itemClass}><User className="h-4 w-4" aria-hidden="true" /> My profile</Link>
-              <Link role="menuitem" href="/admin/settings" onClick={() => setOpen(false)} className={itemClass}><Settings className="h-4 w-4" aria-hidden="true" /> Organisation settings</Link>
+              <Link role="menuitem" href="/organization/profile" onClick={() => setOpen(false)} className={itemClass}><User className="h-4 w-4" aria-hidden="true" /> My profile</Link>
+              <Link role="menuitem" href="/organization/settings" onClick={() => setOpen(false)} className={itemClass}><Settings className="h-4 w-4" aria-hidden="true" /> Organisation settings</Link>
               <button role="menuitem" type="button" className={itemClass} onClick={() => { setOpen(false); toast.info('Keyboard shortcuts', 'Ctrl K search · Ctrl B toggle sidebar · / search the exams table') }}>
                 <Keyboard className="h-4 w-4" aria-hidden="true" /> Keyboard shortcuts
               </button>
             </div>
             <div className="border-t border-border pt-2">
-              <button role="menuitem" type="button" className={cx(itemClass, 'text-danger hover:bg-danger/5')} onClick={() => { setOpen(false); void post('/auth/logout').catch(() => undefined).finally(() => { useSession.getState().logout(); toast.success('Signed out', 'You have been signed out of the admin panel.'); router.push('/login?role=admin') }) }}>
+              <button role="menuitem" type="button" className={cx(itemClass, 'text-danger hover:bg-danger/5')} onClick={() => { setOpen(false); void post('/auth/logout').catch(() => undefined).finally(() => { useSession.getState().logout(); toast.success('Signed out', 'You have been signed out of the organization panel.'); router.push('/login?role=organization') }) }}>
                 <LogOut className="h-4 w-4" aria-hidden="true" /> Sign out
               </button>
             </div>

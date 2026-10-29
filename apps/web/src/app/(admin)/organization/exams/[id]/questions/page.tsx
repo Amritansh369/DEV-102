@@ -161,7 +161,7 @@ function QuestionsView() {
   const header = (
     <div className="flex flex-wrap items-end justify-between gap-4">
       <div>
-        <Link href={`/admin/exams/${id}`} className="mb-2 inline-flex items-center gap-1.5 rounded text-sm font-medium text-muted outline-none hover:text-primary focus-visible:ring-2 focus-visible:ring-accent"><ArrowLeft className="h-4 w-4" aria-hidden="true" /> Back to exam</Link>
+        <Link href={`/organization/exams/${id}`} className="mb-2 inline-flex items-center gap-1.5 rounded text-sm font-medium text-muted outline-none hover:text-primary focus-visible:ring-2 focus-visible:ring-accent"><ArrowLeft className="h-4 w-4" aria-hidden="true" /> Back to exam</Link>
         <h1 className="font-heading text-2xl font-semibold tracking-tight text-text sm:text-3xl">Questions</h1>
         <p className="mt-1 text-sm text-muted">{data ? `${data.exam.title} · ${data.exam.code}` : 'Loading exam…'}</p>
       </div>

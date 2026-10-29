@@ -198,7 +198,7 @@ export default function DevToolbar() {
                     <button type="button" disabled={busy !== null} onClick={() => void run('Reset demo candidate', async () => { await post('/dev/reset-candidate', {}); return 'Demo candidate reset: session, device binding and verification cleared' })} className="inline-flex items-center justify-center gap-1.5 rounded-xl bg-white/10 px-3 py-2 text-xs font-medium hover:bg-white/20 disabled:opacity-50"><RefreshCw className="h-3.5 w-3.5" aria-hidden />Reset candidate</button>
                     <button type="button" disabled={busy !== null || status?.reseeding} onClick={() => { if (window.confirm('Wipe the database and reseed the demo data?')) void run('Reseed', async () => { const r = await post<{ ms: number }>('/dev/reseed'); return `Database reseeded in ${(r.ms / 1000).toFixed(1)} s` }) }} className="inline-flex items-center justify-center gap-1.5 rounded-xl bg-rose-500/80 px-3 py-2 text-xs font-semibold text-white hover:bg-rose-500 disabled:opacity-50"><Zap className="h-3.5 w-3.5" aria-hidden />{status?.reseeding ? 'Reseeding…' : 'Reseed DB'}</button>
                   </div>
-                  <p className="text-[11px] text-slate-500">Reseed needs an admin sign-in. Violations need a live session (start one from the desktop app).</p>
+                  <p className="text-[11px] text-slate-500">Reseed needs an organization sign-in. Violations need a live session (start one from the desktop app).</p>
                 </div>
               )}
 
@@ -207,10 +207,10 @@ export default function DevToolbar() {
                   {[
                     { group: 'Public', role: null, links: [['/', 'Home'], ['/features', 'Features'], ['/security', 'Security'], ['/download', 'Download'], ['/login', 'Login']] },
                     { group: 'Candidate', role: 'candidate', links: [['/lobby', 'Exam lobby'], ['http://localhost:5173', 'Desktop exam app (renderer)']] },
-                    { group: 'Mentor', role: 'mentor', links: [['/mentor', 'Review queue'], ...(ids.session ? [[`/mentor/sessions/${ids.session}`, 'A live session review']] : [])] },
+                    { group: 'Proctor', role: 'mentor', links: [['/proctor', 'Review queue'], ...(ids.session ? [[`/proctor/sessions/${ids.session}`, 'A live session review']] : [])] },
                     {
-                      group: 'Admin', role: 'admin', links: [['/admin', 'Dashboard'], ['/admin/exams', 'Exams'], ['/admin/exams/new', 'Create exam'], ['/admin/questions', 'Question bank'], ['/admin/candidates', 'Candidates'], ['/admin/results', 'Results'],
-                        ...(ids.exam ? [[`/admin/exams/${ids.exam}`, 'Live exam overview'], [`/admin/exams/${ids.exam}/questions`, 'Live exam questions'], [`/admin/exams/${ids.exam}/credentials`, 'Live exam credentials'], [`/admin/exams/${ids.exam}/reports`, 'Live exam report']] : [])],
+                      group: 'Organization', role: 'admin', links: [['/organization', 'Dashboard'], ['/organization/exams', 'Exams'], ['/organization/exams/new', 'Create exam'], ['/organization/questions', 'Question bank'], ['/organization/candidates', 'Candidates'], ['/organization/results', 'Results'],
+                        ...(ids.exam ? [[`/organization/exams/${ids.exam}`, 'Live exam overview'], [`/organization/exams/${ids.exam}/questions`, 'Live exam questions'], [`/organization/exams/${ids.exam}/credentials`, 'Live exam credentials'], [`/organization/exams/${ids.exam}/reports`, 'Live exam report']] : [])],
                     },
                   ].map((g) => (
                     <div key={g.group}>

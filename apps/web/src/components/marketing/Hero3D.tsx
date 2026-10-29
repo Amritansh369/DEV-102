@@ -1,98 +1,166 @@
 'use client';
 
 import { useEffect, useMemo, useRef } from 'react';
-import { Canvas, useFrame } from '@react-three/fiber';
+import { Canvas, useFrame, useThree } from '@react-three/fiber';
 import { ContactShadows, Environment, Float, Instance, Instances, Lightformer, RoundedBox, Sparkles } from '@react-three/drei';
 import * as THREE from 'three';
-import { OPTIONS, STAGES, useExamStory } from './examStory';
+import { STAGES, useExamStory } from './examStory';
 
-/* ---------------------------------------------------------------- laptop screen (exam UI drawn on a canvas texture) */
+/* ---------------------------------------------------------------- laptop screen: proctor live console (canvas texture) */
 
 const W = 1560;
 const H = 962;
-const C = { ink: '#0f172a', muted: '#64748b', border: '#e2e8f0', soft: '#f1f5f9', primary: '#0A4DA6', primarySoft: '#eff6ff', danger: '#dc2626', dangerSoft: '#fef2f2', success: '#16a34a', warning: '#f59e0b' };
+const C = {
+  panel: '#0d1d3f', line: '#1c3266', text: '#e6eeff', muted: '#8ea3c8',
+  blue: '#1E6FF0', sky: '#38bdf8', amber: '#FFB020', red: '#ef4444', green: '#22c55e',
+};
 
-function roundRect(g: CanvasRenderingContext2D, x: number, y: number, w: number, h: number, r: number, fill?: string, stroke?: string) {
+type Stage = (typeof STAGES)[number];
+
+/** Fictional candidates shown as initials only; tile 4 is the one who opens ChatGPT. */
+const TILES = [
+  { name: 'Ananya I.', initials: 'AI', hue: 210, base: 6 },
+  { name: 'Rohan M.', initials: 'RM', hue: 190, base: 18 },
+  { name: 'Kavya R.', initials: 'KR', hue: 230, base: 9 },
+  { name: 'Arjun S.', initials: 'AS', hue: 250, base: 12 },
+  { name: 'Meera P.', initials: 'MP', hue: 170, base: 22 },
+  { name: 'Dev K.', initials: 'DK', hue: 200, base: 4 },
+] as const;
+const FLAGGED = 3;
+
+const FEED_CALM = [
+  ['Rohan M.', 'Looked away 4 s', C.amber],
+  ['Meera P.', 'Copy shortcut blocked', C.amber],
+  ['Kavya R.', 'Network back, answers synced', C.sky],
+  ['Dev K.', 'Face verified', C.green],
+] as const;
+
+function rr(g: CanvasRenderingContext2D, x: number, y: number, w: number, h: number, r: number, fill?: string | CanvasGradient, stroke?: string, lw = 2) {
   g.beginPath();
   g.roundRect(x, y, w, h, r);
   if (fill) { g.fillStyle = fill; g.fill(); }
-  if (stroke) { g.strokeStyle = stroke; g.lineWidth = 3; g.stroke(); }
+  if (stroke) { g.strokeStyle = stroke; g.lineWidth = lw; g.stroke(); }
 }
 
-/** Draws one frame of the exam story; the page's own fonts are used so it matches the site. */
-function drawExam(g: CanvasRenderingContext2D, s: (typeof STAGES)[number], clock: string, fonts: { heading: string; body: string }) {
-  const text = (t: string, x: number, y: number, size: number, color: string, weight = 500, family = fonts.body) => {
-    g.font = `${weight} ${size}px ${family}`;
+function drawConsole(g: CanvasRenderingContext2D, s: Stage, clock: string, t: number, font: string) {
+  const text = (str: string, x: number, y: number, size: number, color: string, weight = 500, align: CanvasTextAlign = 'left') => {
+    g.font = `${weight} ${size}px ${font}`;
     g.fillStyle = color;
-    g.fillText(t, x, y);
-    return g.measureText(t).width;
+    g.textAlign = align;
+    g.fillText(str, x, y);
+    g.textAlign = 'left';
+    return g.measureText(str).width;
   };
   g.textBaseline = 'middle';
-  g.fillStyle = '#ffffff';
+  const bg = g.createLinearGradient(0, 0, W, H);
+  bg.addColorStop(0, '#081733');
+  bg.addColorStop(1, '#050d22');
+  g.fillStyle = bg;
   g.fillRect(0, 0, W, H);
 
-  // Tab strip
-  g.fillStyle = C.soft;
-  g.fillRect(0, 0, W, 104);
-  g.fillStyle = C.border;
-  g.fillRect(0, 103, W, 3);
-  roundRect(g, 32, 24, 290, 56, 14, '#fff', C.border);
-  text('Exam · CPA-26', 58, 53, 28, C.primary, 600);
-  if (s.tab) {
-    roundRect(g, 340, 24, 260, 56, 14, '#fff', '#fecaca');
-    g.beginPath(); g.arc(372, 52, 11, 0, Math.PI * 2); g.strokeStyle = C.danger; g.lineWidth = 3.5; g.stroke();
-    text('chatgpt.com', 394, 53, 28, C.ink, 500);
-  }
-  roundRect(g, W - 220, 24, 188, 56, 14, C.primarySoft);
-  text(clock, W - 172, 53, 30, C.primary, 700, 'ui-monospace, Consolas, monospace');
+  const alert = s.alert && !s.verdict;
+  const pulse = 0.5 + 0.5 * Math.sin(t * 6);
 
-  // Question
-  text('QUESTION 7 OF 30', 56, 158, 24, C.muted, 700);
-  text('What is the average time complexity', 56, 214, 40, C.ink, 600, fonts.heading);
-  text('of binary search on a sorted array?', 56, 266, 40, C.ink, 600, fonts.heading);
-  OPTIONS.forEach((o, i) => {
-    const x = 56 + (i % 2) * 560;
-    const y = 316 + Math.floor(i / 2) * 118;
-    const on = i === 3;
-    roundRect(g, x, y, 530, 96, 20, on ? C.primarySoft : '#fff', on ? C.primary : C.border);
-    g.beginPath(); g.arc(x + 46, y + 48, 14, 0, Math.PI * 2);
-    if (on) { g.fillStyle = C.primary; g.fill(); g.beginPath(); g.arc(x + 46, y + 48, 5, 0, Math.PI * 2); g.fillStyle = '#fff'; g.fill(); }
-    else { g.strokeStyle = '#cbd5e1'; g.lineWidth = 3; g.stroke(); }
-    text(o, x + 80, y + 50, 32, on ? C.primary : C.ink, 500);
+  // Header
+  g.fillStyle = C.panel;
+  g.fillRect(0, 0, W, 92);
+  g.beginPath(); g.arc(46, 46, 11, 0, Math.PI * 2); g.fillStyle = `rgba(239,68,68,${0.55 + 0.45 * pulse})`; g.fill();
+  const x = 70 + text('Live monitor', 70, 47, 34, C.text, 700);
+  text('CPA-26 · 6 candidates', x + 22, 48, 26, C.muted);
+  rr(g, W - 214, 22, 190, 50, 12, '#0a2a5c');
+  text(clock, W - 119, 48, 28, C.sky, 700, 'center');
+  rr(g, W - 470, 22, 236, 50, 12, alert ? 'rgba(239,68,68,.2)' : 'rgba(34,197,94,.15)');
+  text(alert ? '1 critical' : 'All clear', W - 352, 48, 24, alert ? C.red : C.green, 700, 'center');
+
+  // Candidate grid 3 × 2
+  const gx = 28, gy = 116, tw = 326, th = 300, gap = 18;
+  TILES.forEach((c, i) => {
+    const tx = gx + (i % 3) * (tw + gap);
+    const ty = gy + Math.floor(i / 3) * (th + gap);
+    const flagged = i === FLAGGED && s.tab;
+    const risk = i === FLAGGED ? s.risk : Math.round(c.base + 4 * Math.sin(t * 0.9 + i));
+    const ring = flagged && alert ? C.red : risk >= 25 ? C.amber : C.line;
+    rr(g, tx, ty, tw, th, 22, C.panel, ring, flagged && alert ? 4 : 2);
+
+    // "Webcam" area: gradient, initials avatar, face box and a moving scan line
+    const cam = g.createLinearGradient(tx, ty, tx + tw, ty + 210);
+    cam.addColorStop(0, `hsl(${c.hue} 55% 26%)`);
+    cam.addColorStop(1, `hsl(${c.hue} 60% 14%)`);
+    rr(g, tx + 12, ty + 12, tw - 24, 196, 16, cam);
+    g.beginPath(); g.arc(tx + tw / 2, ty + 104, 52, 0, Math.PI * 2);
+    g.fillStyle = `hsl(${c.hue} 70% 62%)`; g.fill();
+    text(c.initials, tx + tw / 2, ty + 106, 40, '#06122b', 700, 'center');
+    g.strokeStyle = flagged && alert ? C.red : 'rgba(110,231,183,.9)';
+    g.lineWidth = 4;
+    const fx = tx + tw / 2 - 74, fy = ty + 34, fw = 148, fh = 142, k = 22;
+    for (const [cx, cy, dx, dy] of [[fx, fy, 1, 1], [fx + fw, fy, -1, 1], [fx, fy + fh, 1, -1], [fx + fw, fy + fh, -1, -1]] as const) {
+      g.beginPath(); g.moveTo(cx + dx * k, cy); g.lineTo(cx, cy); g.lineTo(cx, cy + dy * k); g.stroke();
+    }
+    const scanY = ty + 14 + ((t * 70 + i * 40) % 190);
+    const scan = g.createLinearGradient(0, scanY - 16, 0, scanY + 16);
+    scan.addColorStop(0, 'rgba(56,189,248,0)'); scan.addColorStop(0.5, 'rgba(56,189,248,.35)'); scan.addColorStop(1, 'rgba(56,189,248,0)');
+    g.fillStyle = scan; g.fillRect(tx + 12, scanY - 16, tw - 24, 32);
+    if (flagged) {
+      rr(g, tx + 22, ty + 22, 168, 40, 10, alert ? C.red : 'rgba(255,176,32,.9)');
+      text(alert ? 'AI QUERY' : 'chatgpt.com', tx + 106, ty + 43, 22, '#fff', 700, 'center');
+    }
+
+    // Name, risk badge and bar
+    text(c.name, tx + 18, ty + 238, 26, C.text, 600);
+    const badge = risk >= 50 ? C.red : risk >= 25 ? C.amber : C.green;
+    rr(g, tx + tw - 84, ty + 220, 66, 38, 10, badge);
+    text(String(risk), tx + tw - 51, ty + 240, 24, '#06122b', 700, 'center');
+    rr(g, tx + 18, ty + 268, tw - 36, 10, 5, C.line);
+    rr(g, tx + 18, ty + 268, Math.max(10, ((tw - 36) * risk) / 100), 10, 5, badge);
   });
 
-  // Risk panel
-  roundRect(g, 1220, 140, 300, 300, 26, '#fff', C.border);
-  text('RISK', 1252, 186, 24, C.muted, 700);
-  text(String(s.risk), 1252, 262, 84, C.ink, 700, fonts.heading);
-  roundRect(g, 1252, 330, 236, 16, 8, C.border);
-  roundRect(g, 1252, 330, Math.max(16, (236 * s.risk) / 100), 16, 8, s.risk >= 50 ? C.danger : s.risk >= 25 ? C.warning : C.success);
-  text('Face verified', 1252, 384, 24, C.muted);
-  text('Kiosk locked', 1252, 418, 24, C.muted);
+  // Right panel: violation feed
+  const px = 1056, pw = W - px - 28;
+  rr(g, px, 116, pw, 446, 22, C.panel, C.line);
+  text('Violation feed', px + 26, 156, 28, C.text, 700);
+  const feed: [string, string, string][] = [];
+  if (s.alert) feed.push(['Arjun S.', s.verdict ? 'Proctor reviewing' : 'AI query typed', s.verdict ? C.sky : C.red]);
+  if (s.tab) feed.push(['Arjun S.', 'Opened chatgpt.com', C.amber]);
+  for (const f of FEED_CALM) if (feed.length < 5) feed.push([f[0], f[1], f[2]]);
+  feed.forEach(([who, what, color], i) => {
+    const fy = 206 + i * 70;
+    rr(g, px + 22, fy, pw - 44, 58, 14, i === 0 && s.alert ? 'rgba(239,68,68,.12)' : 'rgba(255,255,255,.03)');
+    g.beginPath(); g.arc(px + 48, fy + 29, 8, 0, Math.PI * 2); g.fillStyle = color; g.fill();
+    const w = text(who, px + 68, fy + 30, 22, C.text, 700);
+    text(what, px + 80 + w, fy + 30, 21, C.muted);
+  });
 
-  // Status bar
-  const alert = s.alert && !s.verdict;
-  g.fillStyle = alert ? C.dangerSoft : C.soft;
-  g.fillRect(0, H - 150, W, 150);
-  g.fillStyle = alert ? '#fecaca' : C.border;
-  g.fillRect(0, H - 150, W, 3);
-  const dot = (color: string) => { g.beginPath(); g.arc(80, H - 75, 14, 0, Math.PI * 2); g.fillStyle = color; g.fill(); };
-  if (!s.alert) {
-    dot(C.success);
-    text('All signals normal. Answers autosaved.', 116, H - 73, 32, C.muted);
-  } else if (s.verdict) {
-    dot(C.primary);
-    const w = text('Proctor reviewing the evidence', 116, H - 73, 32, C.ink, 700);
-    text('· confirm or overrule, with a reason', 130 + w, H - 73, 32, C.muted);
+  // Risk chart for the flagged candidate
+  rr(g, px, 580, pw, 270, 22, C.panel, C.line);
+  text('Risk · Arjun S.', px + 26, 620, 26, C.text, 700);
+  const cx0 = px + 26, cy0 = 820, cw = pw - 52, ch = 160;
+  g.strokeStyle = C.line; g.lineWidth = 1.5;
+  for (let r = 0; r <= 3; r++) { g.beginPath(); g.moveTo(cx0, cy0 - (r * ch) / 3); g.lineTo(cx0 + cw, cy0 - (r * ch) / 3); g.stroke(); }
+  const pts = 28;
+  g.beginPath();
+  for (let i = 0; i < pts; i++) {
+    const p = i / (pts - 1);
+    const rise = p > 0.7 ? (s.risk - 12) * ((p - 0.7) / 0.3) : 0;
+    const v = 10 + 3 * Math.sin(i * 0.9 + t) + rise;
+    const X = cx0 + p * cw, Y = cy0 - (Math.min(100, v) / 100) * ch;
+    if (i) g.lineTo(X, Y); else g.moveTo(X, Y);
+  }
+  g.strokeStyle = s.risk >= 50 ? C.red : C.sky; g.lineWidth = 4; g.stroke();
+
+  // Bottom banner
+  if (s.alert) {
+    rr(g, 28, 870, W - 56, 70, 18, s.verdict ? 'rgba(30,111,240,.25)' : `rgba(239,68,68,${0.22 + 0.12 * pulse})`, s.verdict ? C.blue : C.red);
+    text(s.verdict ? 'Proctor review · confirm or overrule with a reason' : 'CRITICAL · AI query detected · "time complexity of binary search" typed on chatgpt.com', 60, 906, 27, '#fff', 700);
   } else {
-    dot(C.danger);
-    const w = text('AI query detected', 116, H - 73, 32, C.danger, 700);
-    text('“time complexity of binary search” typed on chatgpt.com', 134 + w, H - 73, 30, C.muted);
+    rr(g, 28, 870, W - 56, 70, 18, 'rgba(34,197,94,.12)', 'rgba(34,197,94,.4)');
+    text('All candidates verified · kiosk locked · answers autosaving', 60, 906, 27, '#bbf7d0', 600);
   }
 }
 
-function useScreenTexture(reduce: boolean) {
+function useConsoleTexture(reduce: boolean) {
   const { s, clock } = useExamStory(reduce);
+  const story = useRef({ s, clock });
+  story.current = { s, clock };
   const { canvas, texture } = useMemo(() => {
     const canvas = document.createElement('canvas');
     canvas.width = W;
@@ -102,16 +170,18 @@ function useScreenTexture(reduce: boolean) {
     texture.anisotropy = 8;
     return { canvas, texture };
   }, []);
-  useEffect(() => {
+  const font = useMemo(() => getComputedStyle(document.body).fontFamily, []);
+  const last = useRef(-1);
+  // Redrawn about ten times a second so the scan lines and the alert pulse move.
+  useFrame(({ clock: c }) => {
+    const t = c.getElapsedTime();
+    if (t - last.current < 0.1) return;
+    last.current = t;
     const g = canvas.getContext('2d');
     if (!g) return;
-    const fonts = {
-      heading: getComputedStyle(document.querySelector('h1') ?? document.body).fontFamily,
-      body: getComputedStyle(document.body).fontFamily,
-    };
-    drawExam(g, s, clock, fonts);
+    drawConsole(g, story.current.s, story.current.clock, t, font);
     texture.needsUpdate = true;
-  }, [canvas, texture, s, clock]);
+  });
   useEffect(() => () => texture.dispose(), [texture]);
   return texture;
 }
@@ -125,10 +195,9 @@ const KEYS: [number, number, number][] = [];
 for (let row = 0; row < 4; row++) for (let col = 0; col < 14; col++) KEYS.push([-1.69 + col * 0.26, 0, -0.95 + row * 0.26]);
 
 function Laptop({ reduce }: { reduce: boolean }) {
-  const screen = useScreenTexture(reduce);
+  const screen = useConsoleTexture(reduce);
   return (
     <group position={[0, -0.95, 0]}>
-      {/* Base */}
       <RoundedBox args={[4.2, 0.14, 2.8]} radius={0.06} smoothness={4} castShadow receiveShadow>
         <meshPhysicalMaterial {...ALUMINIUM} />
       </RoundedBox>
@@ -151,17 +220,14 @@ function Laptop({ reduce }: { reduce: boolean }) {
         <RoundedBox args={[4.2, 2.7, 0.09]} radius={0.06} smoothness={4} position={[0, 1.35, 0]} castShadow>
           <meshPhysicalMaterial {...ALUMINIUM} />
         </RoundedBox>
-        {/* Bezel */}
         <mesh position={[0, 1.35, 0.047]}>
           <planeGeometry args={[4.08, 2.58]} />
           <meshStandardMaterial color="#05070c" roughness={0.3} metalness={0.2} />
         </mesh>
-        {/* Screen */}
         <mesh position={[0, 1.37, 0.048]}>
           <planeGeometry args={[3.92, 2.42]} />
           <meshBasicMaterial map={screen} toneMapped={false} />
         </mesh>
-        {/* Camera dot */}
         <mesh position={[0, 2.6, 0.05]}>
           <circleGeometry args={[0.025, 16]} />
           <meshBasicMaterial color="#22d3ee" toneMapped={false} />
@@ -187,16 +253,25 @@ function useShieldGeometry() {
   }, []);
 }
 
+/**
+ * Wide elliptical orbit that never touches the laptop: it dips in front of the keyboard and
+ * rises above the lid when it passes behind, so the shield is always in view.
+ */
+const ORBIT = { rx: 2.75, rz: 1.75, zShift: 0.35, y: 0.75, lift: 1.05 };
+
 function Shield({ reduce }: { reduce: boolean }) {
-  const orbit = useRef<THREE.Group>(null);
+  const holder = useRef<THREE.Group>(null);
   const iris = useRef<THREE.Mesh>(null);
   const geometry = useShieldGeometry();
+  const camera = useThree((st) => st.camera);
 
   useFrame(({ clock, pointer }) => {
-    if (!orbit.current) return;
-    const t = clock.getElapsedTime();
-    if (!reduce) orbit.current.rotation.y = t * 0.35;
-    // The eye glances toward the cursor.
+    if (!holder.current) return;
+    const a = clock.getElapsedTime() * (reduce ? 0.18 : 0.42);
+    holder.current.position.set(Math.cos(a) * ORBIT.rx, ORBIT.y - Math.sin(a) * ORBIT.lift, Math.sin(a) * ORBIT.rz + ORBIT.zShift);
+    // Always face the viewer, with a gentle wobble.
+    holder.current.lookAt(camera.position);
+    holder.current.rotateY(Math.sin(a * 2) * 0.35);
     if (iris.current) {
       iris.current.position.x = THREE.MathUtils.lerp(iris.current.position.x, pointer.x * 0.06, 0.08);
       iris.current.position.y = THREE.MathUtils.lerp(iris.current.position.y, 0.04 + pointer.y * 0.05, 0.08);
@@ -204,24 +279,19 @@ function Shield({ reduce }: { reduce: boolean }) {
   });
 
   return (
-    <group ref={orbit} position={[0, 0.2, 0]}>
-      <Float speed={reduce ? 0 : 2} rotationIntensity={0.3} floatIntensity={0.6}>
-        <group position={[2.05, 0.8, 0.2]} rotation={[0, -0.6, 0]} scale={0.75}>
-          <mesh geometry={geometry} castShadow>
-            <meshPhysicalMaterial color="#1E6FF0" metalness={0.25} roughness={0.12} transmission={0.55} thickness={0.6} ior={1.4} clearcoat={1} emissive="#0A4DA6" emissiveIntensity={0.35} />
-          </mesh>
-          {/* Eye */}
-          <mesh position={[0, 0.04, 0.2]}>
-            <torusGeometry args={[0.22, 0.035, 16, 64]} />
-            <meshBasicMaterial color="#FFB020" toneMapped={false} />
-          </mesh>
-          <mesh ref={iris} position={[0, 0.04, 0.21]}>
-            <sphereGeometry args={[0.09, 32, 32]} />
-            <meshStandardMaterial color="#e0f2fe" emissive="#38bdf8" emissiveIntensity={2.2} toneMapped={false} />
-          </mesh>
-          <pointLight position={[0, 0, 0.5]} color="#38bdf8" intensity={3} distance={2.5} />
-        </group>
-      </Float>
+    <group ref={holder} scale={0.62}>
+      <mesh geometry={geometry} castShadow>
+        <meshPhysicalMaterial color="#1E6FF0" metalness={0.25} roughness={0.12} transmission={0.55} thickness={0.6} ior={1.4} clearcoat={1} emissive="#0A4DA6" emissiveIntensity={0.4} />
+      </mesh>
+      <mesh position={[0, 0.04, 0.2]}>
+        <torusGeometry args={[0.22, 0.035, 16, 64]} />
+        <meshBasicMaterial color="#FFB020" toneMapped={false} />
+      </mesh>
+      <mesh ref={iris} position={[0, 0.04, 0.21]}>
+        <sphereGeometry args={[0.09, 32, 32]} />
+        <meshStandardMaterial color="#e0f2fe" emissive="#38bdf8" emissiveIntensity={2.2} toneMapped={false} />
+      </mesh>
+      <pointLight position={[0, 0, 0.5]} color="#38bdf8" intensity={3} distance={2.5} />
     </group>
   );
 }
@@ -231,12 +301,12 @@ function Shield({ reduce }: { reduce: boolean }) {
 function ScanRings({ reduce }: { reduce: boolean }) {
   const rings = useRef<THREE.Group>(null);
   useFrame(({ clock }) => {
-    if (!rings.current || reduce) return;
-    const t = clock.getElapsedTime();
+    if (!rings.current) return;
+    const t = clock.getElapsedTime() * (reduce ? 0.4 : 1);
     rings.current.children.forEach((ring, i) => {
       const k = (t * 0.35 + i / 3) % 1;
-      ring.scale.setScalar(1 + k * 1.6);
-      ((ring as THREE.Mesh).material as THREE.MeshBasicMaterial).opacity = 0.55 * (1 - k);
+      ring.scale.setScalar(1 + k * 1.4);
+      ((ring as THREE.Mesh).material as THREE.MeshBasicMaterial).opacity = 0.5 * (1 - k);
     });
   });
   return (
@@ -257,18 +327,29 @@ function Rig({ reduce, children }: { reduce: boolean; children: React.ReactNode 
   const group = useRef<THREE.Group>(null);
   useFrame(({ pointer, clock }) => {
     if (!group.current) return;
-    const idle = reduce ? 0 : Math.sin(clock.getElapsedTime() * 0.4) * 0.06;
-    group.current.rotation.y = THREE.MathUtils.lerp(group.current.rotation.y, -0.32 + pointer.x * 0.22 + idle, 0.05);
-    group.current.rotation.x = THREE.MathUtils.lerp(group.current.rotation.x, 0.08 - pointer.y * 0.08, 0.05);
+    const idle = Math.sin(clock.getElapsedTime() * (reduce ? 0.15 : 0.4)) * 0.06;
+    group.current.rotation.y = THREE.MathUtils.lerp(group.current.rotation.y, -0.28 + pointer.x * 0.14 + idle, 0.05);
+    group.current.rotation.x = THREE.MathUtils.lerp(group.current.rotation.x, 0.06 - pointer.y * 0.05, 0.05);
   });
   return <group ref={group}>{children}</group>;
 }
 
-/** Interactive 3D hero: a laptop running the exam, guarded by an orbiting shield. */
+/** Points the camera at the middle of the laptop and orbit, so the whole path stays in frame. */
+function Aim() {
+  const camera = useThree((st) => st.camera);
+  useEffect(() => camera.lookAt(0, 0.45, 0), [camera]);
+  return null;
+}
+
+/**
+ * Interactive 3D hero: a laptop running the proctor's live console, with a shield orbiting it.
+ * It keeps moving; for visitors who prefer reduced motion it moves slowly.
+ */
 export default function Hero3D({ reduce }: { reduce: boolean }) {
   return (
-    <div className="relative h-[440px] w-full sm:h-[520px]" role="img" aria-label="3D illustration: a laptop running a proctored exam in which a ChatGPT query is flagged and reviewed, with a glowing shield orbiting it">
-      <Canvas shadows="percentage" dpr={[1, 1.75]} camera={{ position: [0, 1.5, 8.4], fov: 34 }} gl={{ antialias: true, alpha: true }} frameloop={reduce ? 'demand' : 'always'}>
+    <div className="relative h-[400px] w-full sm:h-[470px]" role="img" aria-label="3D illustration: a laptop showing the proctor's live console where an AI query is flagged, with a glowing shield orbiting it">
+      <Canvas shadows="percentage" dpr={[1, 1.75]} camera={{ position: [0, 1.7, 10.4], fov: 34 }} gl={{ antialias: true, alpha: true }}>
+        <Aim />
         <ambientLight intensity={0.35} />
         <directionalLight position={[4, 6, 5]} intensity={1.6} castShadow shadow-mapSize={[1024, 1024]} />
         <pointLight position={[-5, 2, -3]} color="#1E6FF0" intensity={30} distance={14} />
@@ -280,15 +361,17 @@ export default function Hero3D({ reduce }: { reduce: boolean }) {
         </Environment>
 
         <Rig reduce={reduce}>
-          <Float speed={reduce ? 0 : 1.2} rotationIntensity={0.08} floatIntensity={0.25}>
-            <Laptop reduce={reduce} />
-          </Float>
+          <group scale={0.78}>
+            <Float speed={reduce ? 0.4 : 1.2} rotationIntensity={0.06} floatIntensity={0.2}>
+              <Laptop reduce={reduce} />
+            </Float>
+            <ScanRings reduce={reduce} />
+          </group>
           <Shield reduce={reduce} />
-          <ScanRings reduce={reduce} />
         </Rig>
 
-        <Sparkles count={70} scale={[9, 4.5, 6]} size={2.2} speed={reduce ? 0 : 0.35} color="#bfdbfe" opacity={0.8} />
-        <ContactShadows position={[0, -1.05, 0]} opacity={0.45} scale={12} blur={2.6} far={3} color="#020817" />
+        <Sparkles count={60} scale={[9, 4.5, 6]} size={2} speed={reduce ? 0.1 : 0.35} color="#bfdbfe" opacity={0.8} />
+        <ContactShadows position={[0, -0.86, 0]} opacity={0.45} scale={10} blur={2.6} far={3} color="#020817" />
       </Canvas>
     </div>
   );

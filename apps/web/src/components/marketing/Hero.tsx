@@ -9,7 +9,7 @@ import { Activity, ArrowRight, Building2, Download, Eye, Fingerprint, Globe, Lin
 import { OrgBackdrop } from '@/components/layout/OrgBackdrop';
 import { OPTIONS, riskTone, useExamStory } from './examStory';
 
-const ROLE_HOME_LABEL = { ADMIN: 'Admin panel', MENTOR: 'Live monitor', CANDIDATE: 'My exam' } as const;
+const ROLE_HOME_LABEL = { ADMIN: 'Organization panel', MENTOR: 'Live monitor', CANDIDATE: 'My exam' } as const;
 
 /** Signed-in visitors get a link to their dashboard instead of "Log in" (read after mount to avoid hydration mismatch). */
 function useAccountLink(): { href: string; label: string } {
@@ -67,7 +67,7 @@ function Nav() {
           <Link href={account.href} className="rounded-xl px-4 py-2 text-sm font-semibold text-white ring-1 ring-white/40 transition hover:bg-white/10 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-white">
             {account.label}
           </Link>
-          <Link href="/login?role=admin" className="inline-flex items-center gap-2 rounded-xl bg-cta px-4 py-2 text-sm font-semibold text-slate-900 shadow-lg shadow-black/10 transition hover:brightness-105 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-white">
+          <Link href="/login?role=organization" className="inline-flex items-center gap-2 rounded-xl bg-cta px-4 py-2 text-sm font-semibold text-slate-900 shadow-lg shadow-black/10 transition hover:brightness-105 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-white">
             <Building2 className="h-4 w-4" aria-hidden /> For Organization
           </Link>
         </div>
@@ -247,7 +247,7 @@ function ExamShowcase() {
 /* ---------------------------------------------------------------- hero visual */
 
 // three.js is only downloaded on the client, and only for visitors whose browser has WebGL.
-const Hero3D = dynamic(() => import('./Hero3D'), { ssr: false, loading: () => <div className="h-[440px] w-full max-w-[640px] sm:h-[500px]" aria-hidden /> });
+const Hero3D = dynamic(() => import('./Hero3D'), { ssr: false, loading: () => <div className="h-[400px] w-full max-w-[600px] sm:h-[470px]" aria-hidden /> });
 
 function HeroVisual() {
   const reduce = useReducedMotion();
@@ -261,28 +261,19 @@ function HeroVisual() {
     }
   }, []);
 
-  if (webgl === null) return <div className="h-[440px] w-full max-w-[640px] sm:h-[500px]" aria-hidden />;
+  if (webgl === null) return <div className="h-[400px] w-full max-w-[600px] sm:h-[470px]" aria-hidden />;
   if (!webgl) return <ExamShowcase />;
   return (
-    // Wider than its column so the orbiting shield is never clipped by the canvas edge.
-    <div className="relative w-full max-w-[680px] lg:-mr-10 lg:w-[calc(100%+5rem)]">
+    <div className="relative w-full max-w-[600px]">
+      {/* Frosted glass panel with a soft glow and light beams behind the model */}
+      <div className="pointer-events-none absolute inset-x-2 inset-y-6 overflow-hidden rounded-[2.5rem] bg-white/10 shadow-[inset_0_1px_0_rgba(255,255,255,.35),0_30px_80px_-30px_rgba(2,8,23,.6)] ring-1 ring-white/25 backdrop-blur-2xl" aria-hidden>
+        <div className="absolute -left-10 top-1/4 h-64 w-64 rounded-full bg-sky-400/30 blur-3xl" />
+        <div className="absolute -right-8 bottom-6 h-56 w-56 rounded-full bg-cta/25 blur-3xl" />
+        <div className="absolute left-1/2 top-[62%] h-24 w-[70%] -translate-x-1/2 rounded-full bg-primary-600/40 blur-2xl" />
+        <div className="absolute -top-1/4 left-[18%] h-[150%] w-16 rotate-[24deg] bg-gradient-to-b from-white/25 via-white/5 to-transparent blur-md" />
+        <div className="absolute -top-1/4 left-[46%] h-[150%] w-8 rotate-[24deg] bg-gradient-to-b from-white/20 via-white/5 to-transparent blur-md" />
+      </div>
       <Hero3D reduce={Boolean(reduce)} />
-      <motion.div
-        animate={reduce ? undefined : { y: [0, -6, 0] }}
-        transition={{ repeat: Infinity, duration: 4, ease: 'easeInOut' }}
-        className="absolute left-0 top-6 hidden items-center gap-2 rounded-2xl bg-white/95 px-3 py-2 shadow-xl ring-1 ring-black/5 backdrop-blur lg:flex"
-      >
-        <span className="grid h-8 w-8 place-items-center rounded-full bg-success/15 text-success"><Fingerprint className="h-4 w-4" aria-hidden /></span>
-        <span className="text-xs"><b className="block text-text">Face + OTP passed</b><span className="text-muted">Before the first question</span></span>
-      </motion.div>
-      <motion.div
-        animate={reduce ? undefined : { y: [0, 6, 0] }}
-        transition={{ repeat: Infinity, duration: 5, ease: 'easeInOut' }}
-        className="absolute bottom-8 right-0 hidden items-center gap-2 rounded-2xl bg-white/95 px-3 py-2 shadow-xl ring-1 ring-black/5 backdrop-blur lg:flex"
-      >
-        <span className="grid h-8 w-8 place-items-center rounded-full bg-cta/20 text-amber-700"><Eye className="h-4 w-4" aria-hidden /></span>
-        <span className="text-xs"><b className="block text-text">Proctor sees it live</b><span className="text-muted">With the typed query</span></span>
-      </motion.div>
     </div>
   );
 }
@@ -338,10 +329,10 @@ export default function Hero() {
             <Link href="/download" className="group inline-flex items-center gap-2 rounded-xl bg-cta px-6 py-3.5 text-sm font-bold text-slate-900 shadow-xl shadow-black/15 transition hover:brightness-105 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-white">
               <Download className="h-4 w-4" aria-hidden /> Download the app
             </Link>
-            <Link href="/login?role=admin" className="group inline-flex items-center gap-2 rounded-xl bg-white px-6 py-3.5 text-sm font-bold text-primary shadow-lg transition hover:bg-soft focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-white">
+            <Link href="/login?role=organization" className="group inline-flex items-center gap-2 rounded-xl bg-white px-6 py-3.5 text-sm font-bold text-primary shadow-lg transition hover:bg-soft focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-white">
               <Building2 className="h-4 w-4" aria-hidden /> For organizations <ArrowRight className="h-4 w-4 transition group-hover:translate-x-0.5" aria-hidden />
             </Link>
-            <Link href="/login?role=mentor" className="rounded-xl px-2 py-3.5 text-sm font-semibold text-white/90 underline-offset-4 hover:underline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-white">
+            <Link href="/login?role=proctor" className="rounded-xl px-2 py-3.5 text-sm font-semibold text-white/90 underline-offset-4 hover:underline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-white">
               Proctor sign in
             </Link>
           </motion.div>

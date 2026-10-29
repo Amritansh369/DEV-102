@@ -19,8 +19,8 @@ const ROWS: Row[] = [
   { feature: "VM and remote desktop detection", detail: "Checked at system check and during the exam", ours: "yes", typical: "no" },
   { feature: "Every URL and search query logged", detail: "AI sites and AI-style prompts are flagged", ours: "yes", typical: "no" },
   { feature: "Warnings then auto-submit policy", detail: "Configurable per exam", ours: "yes", typical: "partial", typicalNote: "Manual action only" },
-  { feature: "Mentor live grid and termination", detail: "Screens, webcam, risk score and violation feed", ours: "yes", typical: "partial", typicalNote: "Recordings reviewed later" },
-  { feature: "Human review of every penalty", detail: "Mentors confirm or overrule with evidence", ours: "yes", typical: "no" },
+  { feature: "Proctor live grid and termination", detail: "Screens, webcam, risk score and violation feed", ours: "yes", typical: "partial", typicalNote: "Recordings reviewed later" },
+  { feature: "Human review of every penalty", detail: "Proctors confirm or overrule with evidence", ours: "yes", typical: "no" },
   { feature: "Autosave through network drops", detail: "Answers queue locally and sync on reconnect", ours: "yes", typical: "partial" },
 ];
 

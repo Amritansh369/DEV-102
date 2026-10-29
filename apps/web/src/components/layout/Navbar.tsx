@@ -38,19 +38,19 @@ const PUBLIC_LINKS: NavLink[] = [
 
 const ROLE_LINKS: Record<Role, NavLink[]> = {
   ADMIN: [
-    { href: '/admin', label: 'Admin panel', icon: LayoutDashboard },
-    { href: '/admin/exams', label: 'Exams', icon: FileText },
-    { href: '/admin/reports', label: 'Reports', icon: BarChart3 },
+    { href: '/organization', label: 'Organization panel', icon: LayoutDashboard },
+    { href: '/organization/exams', label: 'Exams', icon: FileText },
+    { href: '/organization/reports', label: 'Reports', icon: BarChart3 },
   ],
   MENTOR: [
-    { href: '/mentor', label: 'Live monitor', icon: MonitorPlay },
+    { href: '/proctor', label: 'Live monitor', icon: MonitorPlay },
   ],
   CANDIDATE: [{ href: '/lobby', label: 'Exam lobby', icon: ShieldCheck }],
 };
 
 const ROLE_LABEL: Record<Role, string> = {
-  ADMIN: 'Administrator',
-  MENTOR: 'Mentor',
+  ADMIN: 'Organization',
+  MENTOR: 'Proctor',
   CANDIDATE: 'Candidate',
 };
 

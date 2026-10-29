@@ -69,7 +69,7 @@ export default function JoinPage() {
               <span className="font-mono text-ink">{invite.exam.code}</span>
               <span aria-hidden>·</span>
               <span className="inline-flex items-center gap-1"><CalendarClock className="h-3.5 w-3.5" aria-hidden />{new Date(invite.exam.startsAt).toLocaleString(undefined, { dateStyle: 'medium', timeStyle: 'short' })}</span>
-              {invite.userId && <><span aria-hidden>·</span><span>User ID <span className="font-mono text-ink">{invite.userId}</span></span></>}
+              {invite.userId && <><span aria-hidden>·</span><span>Candidate ID <span className="font-mono text-ink">{invite.userId}</span></span></>}
             </p>
 
             <ol className="mt-6 space-y-3">

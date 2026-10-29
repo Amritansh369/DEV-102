@@ -325,7 +325,7 @@ examsRouter.post('/:id/publish', ...adminOnly, handle(async (req) => {
   if (e.endsAt.getTime() - e.startsAt.getTime() < e.durationMin * 60_000) problems.push('The window is shorter than the duration.');
   if (problems.length) fail('VALIDATION', problems.join(' '), { problems });
   const exam = await prisma.exam.update({ where: { id: e.id }, data: { status: 'SCHEDULED' }, include: examInclude });
-  await prisma.notification.create({ data: { tone: 'info', title: `${exam.code} published`, body: `${exam.title} is scheduled for ${exam.startsAt.toISOString()}.`, href: `/admin/exams/${exam.id}` } });
+  await prisma.notification.create({ data: { tone: 'info', title: `${exam.code} published`, body: `${exam.title} is scheduled for ${exam.startsAt.toISOString()}.`, href: `/organization/exams/${exam.id}` } });
   audit(req, 'exam.publish', exam.id);
   return toExam(exam);
 }));
@@ -497,7 +497,7 @@ examsRouter.post('/:id/questions/import', ...adminOnly, upload.single('file'), h
   }
   const start = await nextPosition(e.id);
   const created = await prisma.$transaction(items.map((q, i) => prisma.question.create({ data: { ...questionData(q), examId: e.id, position: start + i } })));
-  if (created.length) await prisma.notification.create({ data: { tone: 'success', title: 'Question import completed', body: `${created.length} questions imported into ${e.title}.`, href: `/admin/exams/${e.id}/questions` } });
+  if (created.length) await prisma.notification.create({ data: { tone: 'success', title: 'Question import completed', body: `${created.length} questions imported into ${e.title}.`, href: `/organization/exams/${e.id}/questions` } });
   audit(req, 'question.import', e.id, { added: created.length, errors: errors.length });
   return { added: created.length, errors, questions: created.map((q) => toQuestion(q)) };
 }));

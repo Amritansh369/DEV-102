@@ -93,7 +93,7 @@ const QUICK_CODES: ViolationCode[] = ['MULTIPLE_FACES', 'GAZE_AWAY', 'AI_SITE_OP
 
 /**
  * Developer panel (dev builds only): open any screen directly with real server state behind it,
- * switch to the mentor monitor, and inject violations into the running exam.
+ * switch to the proctor monitor, and inject violations into the running exam.
  */
 function DevPanel() {
   const open = useApp((s) => s.devPanelOpen);
@@ -141,7 +141,7 @@ function DevPanel() {
     });
 
   const openMentorView = () =>
-    run('Mentor view', async () => {
+    run('Proctor view', async () => {
       useApp.getState().openMentor(await signInStaff(DEMO_MENTOR));
     });
 
@@ -191,7 +191,7 @@ function DevPanel() {
                 </Button>
               ))}
               <Button size="sm" disabled={busy !== null} variant={route === 'mentor' ? 'primary' : 'secondary'} icon={<Eye className="h-3.5 w-3.5" aria-hidden />} onClick={() => void openMentorView()}>
-                Mentor monitor
+                Proctor monitor
               </Button>
             </div>
             <p className="mt-1.5 text-[11px] text-muted">Signs in the demo candidate and marks face and OTP as verified when a screen needs it.</p>

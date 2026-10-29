@@ -170,7 +170,7 @@ candidatesRouter.post('/exams/:id/candidates/send-credentials', ...adminOnly, ha
   const sent = results.filter((r) => r.emailStatus === 'SENT').length;
   if (sent) {
     const exam = await prisma.exam.findUnique({ where: { id: String(req.params.id) }, select: { code: true } });
-    await prisma.notification.create({ data: { tone: sent === results.length ? 'success' : 'warning', title: 'Credentials sent', body: `Login details emailed to ${sent} of ${results.length} candidates of ${exam?.code ?? 'the exam'}.`, href: `/admin/exams/${req.params.id}/credentials` } });
+    await prisma.notification.create({ data: { tone: sent === results.length ? 'success' : 'warning', title: 'Credentials sent', body: `Login details emailed to ${sent} of ${results.length} candidates of ${exam?.code ?? 'the exam'}.`, href: `/organization/exams/${req.params.id}/credentials` } });
   }
   audit(req, 'candidate.send_credentials_batch', String(req.params.id), { sent, total: results.length });
   return results;

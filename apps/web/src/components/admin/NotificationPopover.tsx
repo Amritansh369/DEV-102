@@ -209,7 +209,7 @@ export function NotificationPopover() {
             </div>
 
             <div className="border-t border-border px-4 py-2.5">
-              <Link href="/admin/reports" onClick={() => setOpen(false)} className="text-xs font-semibold text-accent outline-none hover:underline focus-visible:ring-2 focus-visible:ring-accent">
+              <Link href="/organization/reports" onClick={() => setOpen(false)} className="text-xs font-semibold text-accent outline-none hover:underline focus-visible:ring-2 focus-visible:ring-accent">
                 Open violation reports
               </Link>
             </div>

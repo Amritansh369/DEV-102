@@ -35,7 +35,7 @@ const PHASE_META: Record<Phase, { label: string; tone: string; text: string }> =
   'in-progress': { label: 'In progress', tone: 'bg-amber-400/20 text-amber-100 ring-amber-300/40', text: 'You have an exam in progress. Return to the desktop app to continue where you left off.' },
   done: { label: 'Submitted', tone: 'bg-white/20 text-white ring-white/40', text: 'Your answers are submitted. Results are released after review.' },
   closed: { label: 'Closed', tone: 'bg-slate-400/20 text-slate-100 ring-slate-300/40', text: 'The exam window has closed.' },
-  blocked: { label: 'Disqualified', tone: 'bg-rose-400/20 text-rose-100 ring-rose-300/40', text: 'This attempt was ended under the exam policy. Contact your exam administrator if you think this is a mistake.' },
+  blocked: { label: 'Disqualified', tone: 'bg-rose-400/20 text-rose-100 ring-rose-300/40', text: 'This attempt was ended under the exam policy. Contact your exam organization if you think this is a mistake.' },
 }
 
 /* ------------------------------------------------------------------ device checks (run in the browser) */
@@ -302,7 +302,7 @@ export default function LobbyPage() {
                 </div>
                 <dl className="mt-6 flex flex-wrap gap-x-6 gap-y-2 text-sm text-white/75">
                   <div><dt className="inline">Exam ID </dt><dd className="inline font-mono font-semibold text-white">{lobby.exam.code}</dd></div>
-                  <div><dt className="inline">User ID </dt><dd className="inline font-mono font-semibold text-white">{lobby.candidate.userId}</dd></div>
+                  <div><dt className="inline">Candidate ID </dt><dd className="inline font-mono font-semibold text-white">{lobby.candidate.userId}</dd></div>
                   <div><dt className="inline">Opens </dt><dd className="inline font-semibold text-white">{fmt(lobby.exam.startsAt)}</dd></div>
                 </dl>
               </>

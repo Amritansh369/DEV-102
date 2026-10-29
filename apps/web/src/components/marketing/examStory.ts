@@ -16,14 +16,13 @@ export const riskTone = (r: number) => (r >= 50 ? 'bg-danger' : r >= 25 ? 'bg-wa
 
 const START = 42 * 60 + 18;
 
-/** Current story stage and the exam clock; frozen at the first stage when motion is reduced. */
+/** Current story stage and the exam clock; the story never stops, it just runs slower when motion is reduced. */
 export function useExamStory(reduce: boolean | null) {
   const [stage, setStage] = useState(0);
   const [left, setLeft] = useState(START);
 
   useEffect(() => {
-    if (reduce) return;
-    const story = setInterval(() => setStage((s) => (s + 1) % STAGES.length), 2600);
+    const story = setInterval(() => setStage((s) => (s + 1) % STAGES.length), reduce ? 5200 : 2600);
     const clock = setInterval(() => setLeft((t) => (t > 0 ? t - 1 : START)), 1000);
     return () => { clearInterval(story); clearInterval(clock); };
   }, [reduce]);

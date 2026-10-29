@@ -281,7 +281,7 @@ function ExamsView() {
           <button type="button" disabled={filtered.length === 0} onClick={() => { exportCsv(filtered); toast.success('CSV exported', `${filtered.length} exam(s) downloaded.`) }} className="inline-flex items-center gap-2 rounded-xl border border-border bg-surface px-4 py-2.5 text-sm font-semibold text-slate-700 outline-none transition hover:bg-soft focus-visible:ring-2 focus-visible:ring-accent disabled:opacity-50">
             <Download className="h-4 w-4" aria-hidden="true" /> Export CSV
           </button>
-          <Link href="/admin/exams/new" className="inline-flex items-center gap-2 rounded-xl bg-cta px-4 py-2.5 text-sm font-semibold text-slate-900 shadow-sm outline-none transition hover:brightness-95 focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2">
+          <Link href="/organization/exams/new" className="inline-flex items-center gap-2 rounded-xl bg-cta px-4 py-2.5 text-sm font-semibold text-slate-900 shadow-sm outline-none transition hover:brightness-95 focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2">
             <Plus className="h-4 w-4" aria-hidden="true" /> Create exam
           </Link>
         </div>
@@ -344,7 +344,7 @@ function ExamsView() {
             ))}
           </div>
         ) : (data?.length ?? 0) === 0 ? (
-          <EmptyState icon={ClipboardList} title="No exams yet" message="Create your first exam to add questions, import candidates and send credentials." action={<Link href="/admin/exams/new" className="inline-flex items-center gap-2 rounded-xl bg-primary px-4 py-2.5 text-sm font-semibold text-white outline-none hover:bg-primary-600 focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2"><Plus className="h-4 w-4" aria-hidden="true" /> Create exam</Link>} />
+          <EmptyState icon={ClipboardList} title="No exams yet" message="Create your first exam to add questions, import candidates and send credentials." action={<Link href="/organization/exams/new" className="inline-flex items-center gap-2 rounded-xl bg-primary px-4 py-2.5 text-sm font-semibold text-white outline-none hover:bg-primary-600 focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2"><Plus className="h-4 w-4" aria-hidden="true" /> Create exam</Link>} />
         ) : filtered.length === 0 ? (
           <EmptyState icon={SearchX} title="No exams match your filters" message="Try a different keyword or status, or clear the filters to see everything." action={<button type="button" onClick={clearFilters} className="rounded-xl border border-border px-4 py-2 text-sm font-semibold text-slate-700 outline-none hover:bg-soft focus-visible:ring-2 focus-visible:ring-accent">Clear filters</button>} />
         ) : (
@@ -371,7 +371,7 @@ function ExamsView() {
                     <tr key={e.id} className={cx('border-t border-border transition-colors hover:bg-soft/70', isSel && 'bg-accent/5')}>
                       <td className="px-4 py-3.5"><input type="checkbox" checked={isSel} onChange={() => toggleRow(e.id)} aria-label={`Select ${e.title}`} className={checkbox} /></td>
                       <td className="max-w-[320px] px-4 py-3.5">
-                        <Link href={`/admin/exams/${e.id}`} className="rounded font-semibold text-text outline-none transition hover:text-primary focus-visible:ring-2 focus-visible:ring-accent">{e.title}</Link>
+                        <Link href={`/organization/exams/${e.id}`} className="rounded font-semibold text-text outline-none transition hover:text-primary focus-visible:ring-2 focus-visible:ring-accent">{e.title}</Link>
                         <p className="mt-1 flex items-center gap-2 text-xs text-muted">
                           <code className="rounded bg-slate-100 px-1.5 py-0.5 font-mono text-[11px]">{e.code}</code>
                           <span>{e.durationMin} min · {e.totalMarks} marks</span>
@@ -386,7 +386,7 @@ function ExamsView() {
                       <td className="px-4 py-3.5 text-right tabular-nums text-slate-700">{e.candidateCount.toLocaleString('en-IN')}</td>
                       <td className="px-4 py-3.5">
                         <div className="flex items-center justify-end gap-1">
-                          <Link href={`/admin/exams/${e.id}`} aria-label={`Open ${e.title}`} title="Open" className={iconBtn}><ExternalLink className="h-4 w-4" aria-hidden="true" /></Link>
+                          <Link href={`/organization/exams/${e.id}`} aria-label={`Open ${e.title}`} title="Open" className={iconBtn}><ExternalLink className="h-4 w-4" aria-hidden="true" /></Link>
                           <button type="button" onClick={() => duplicate(e)} disabled={duplicatingId === e.id} aria-label={`Duplicate ${e.title}`} title="Duplicate" className={iconBtn}>
                             {duplicatingId === e.id ? <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" /> : <Copy className="h-4 w-4" aria-hidden="true" />}
                           </button>

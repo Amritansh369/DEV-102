@@ -128,7 +128,7 @@ reportsRouter.get('/sessions/:id/report.pdf', handle(async (req, res) => {
   kv('Started', fmt(s.startedAt));
   kv('Submitted', fmt(s.submittedAt) || 'In progress');
   kv('Receipt', s.receiptId ?? 'n/a');
-  if (s.decision) kv('Mentor decision', String((s.decision as { outcome?: string }).outcome ?? ''));
+  if (s.decision) kv('Proctor decision', String((s.decision as { outcome?: string }).outcome ?? ''));
 
   const section = (title: string) => {
     if (doc.y > doc.page.height - 140) doc.addPage();
@@ -163,7 +163,7 @@ reportsRouter.get('/sessions/:id/report.pdf', handle(async (req, res) => {
   }
 
   if (s.warningsSent.length) {
-    section('Mentor messages');
+    section('Proctor messages');
     for (const w of s.warningsSent) doc.fillColor('#0f172a').text(`${fmt(w.at)}  ${w.message}`);
   }
   doc.moveDown(1.5).fontSize(8).fillColor('#94a3b8').text(`Generated ${fmt(new Date())}. Automated signals are reviewed by a human before any penalty is final.`);

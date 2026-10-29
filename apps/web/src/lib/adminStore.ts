@@ -23,7 +23,7 @@ interface AdminUiState {
 
 let toastSeq = 0
 
-/** Call useAdminUi.persist.rehydrate() once on the client (done in the admin layout). */
+/** Call useAdminUi.persist.rehydrate() once on the client (done in the organization layout). */
 export const useAdminUi = create<AdminUiState>()(
   persist(
     (set, get) => ({
