@@ -3,6 +3,7 @@ node_modules/
 dist/
 out/
 apps/desktop/release/
+apps/desktop/release-live/
 build/
 coverage/
 .env
@@ -16,3 +17,4 @@ __pycache__/
 .venv/
 .DS_Store
 .data/
+release-*/
