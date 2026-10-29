@@ -159,7 +159,7 @@ authRouter.post('/invites/login', limits.auth, handle(async (req) => {
     const user = inv.user && !inv.user.deletedAt ? inv.user : fail('NOT_FOUND', 'The account for this exam link no longer exists.');
     if (user.lockedUntil && user.lockedUntil > new Date()) lockedError(user.lockedUntil);
     if (!(await verifyPassword(body.password, user.passwordHash))) return registerFailure('user', user.id, user.failedLogins);
-    const updated = await prisma.user.update({ where: { id: user.id }, data: { failedLogins: 0, lockedUntil: null, lastLoginAt: new Date() } });
+    const updated = await prisma.user.update({ where: { id: user.id }, data: { failedLogins: 0, lockedUntil: null, lastLoginAt: new Date(), credentialCipher: null } });
     await prisma.auditLog.create({ data: { actorId: user.id, actorRole: user.role, action: 'auth.invite_login', target: inv.examId, ip: req.ip ?? null } });
     // examId scopes the token to this exam, and staff routes then require fresh face and OTP checks (proctorVerified in lib/auth).
     const token = signToken({ sub: user.id, role: user.role, tv: updated.tokenVersion, examId: inv.examId, deviceId: body.deviceId });
@@ -183,7 +183,7 @@ authRouter.post('/staff/login', limits.auth, handle(async (req) => {
   }
   if (user.lockedUntil && user.lockedUntil > new Date()) lockedError(user.lockedUntil);
   if (!(await verifyPassword(body.password, user.passwordHash))) return registerFailure('user', user.id, user.failedLogins);
-  const updated = await prisma.user.update({ where: { id: user.id }, data: { failedLogins: 0, lockedUntil: null, lastLoginAt: new Date() } });
+  const updated = await prisma.user.update({ where: { id: user.id }, data: { failedLogins: 0, lockedUntil: null, lastLoginAt: new Date(), credentialCipher: null } });
   await prisma.auditLog.create({ data: { actorId: user.id, actorRole: user.role, action: 'auth.login', ip: req.ip ?? null } });
   return {
     token: signToken({ sub: user.id, role: user.role, tv: updated.tokenVersion }),

@@ -184,6 +184,15 @@ candidatesRouter.post('/candidates/:id/reset-password', ...adminOnly, handle(asy
   return credentialRow(c, c.exam.code, password);
 }));
 
+/** The emailed password, while the candidate has not signed in yet (it is deleted at first sign-in). */
+candidatesRouter.post('/candidates/:id/reveal-password', ...adminOnly, handle(async (req) => {
+  const c = must(await prisma.candidate.findUnique({ where: { id: String(req.params.id) } }), 'Candidate');
+  const password = c.credentialCipher ? decrypt(c.credentialCipher, config.JWT_SECRET) : null;
+  if (!password) return fail('CONFLICT', 'This candidate has already signed in, so the original password is gone. Use Reset & copy to issue a new one.');
+  audit(req, 'candidate.reveal_password', c.id);
+  return { password };
+}));
+
 candidatesRouter.post('/candidates/:id/reset-device', ...adminOnly, handle(async (req) => {
   const r = await prisma.deviceBinding.deleteMany({ where: { candidateId: String(req.params.id) } });
   audit(req, 'candidate.reset_device', String(req.params.id));
