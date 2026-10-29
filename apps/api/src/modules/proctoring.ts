@@ -47,11 +47,14 @@ proctoringRouter.post('/events', ...candidateOnly, limits.ingest, handle(async (
   return body.events ? { results, last } : last;
 }));
 
-async function analyzeImage(kind: 'webcam' | 'screen', sessionId: string, examId: string, candidateId: string, image: string) {
+/** `capturedAt` marks a frame the desktop kept while offline: it is analysed and recorded at that time, not shown as live. */
+async function analyzeImage(kind: 'webcam' | 'screen', sessionId: string, examId: string, candidateId: string, image: string, capturedAt?: Date) {
   const img = decodeImage(image) ?? fail('VALIDATION', 'The image could not be read.');
   const b64 = img.buffer.toString('base64');
-  if (kind === 'webcam') realtime.snapshot(examId, sessionId, `data:${img.mime};base64,${b64}`);
-  else realtime.toExam(examId, 'screen:snapshot', { sessionId, image: `data:${img.mime};base64,${b64}`, at: new Date().toISOString() });
+  if (!capturedAt) {
+    if (kind === 'webcam') realtime.snapshot(examId, sessionId, `data:${img.mime};base64,${b64}`);
+    else realtime.toExam(examId, 'screen:snapshot', { sessionId, image: `data:${img.mime};base64,${b64}`, at: new Date().toISOString() });
+  }
 
   let registered: string | undefined;
   if (kind === 'webcam' && !faceRegistered.has(sessionId)) {
@@ -67,23 +70,30 @@ async function analyzeImage(kind: 'webcam' | 'screen', sessionId: string, examId
     if (!VIOLATION_CODES.includes(v.code)) continue;
     // One stored image per frame, linked to the first violation it proves (the unique key allows one link).
     const link = evidenceId ? undefined : (evidenceId = await saveEvidence(sessionId, kind, img));
-    const r = await recordViolation({ sessionId, code: v.code, severity: v.severity, message: v.message, source: 'agent', confidence: v.confidence, ...(link ? { evidenceId: link } : {}) });
+    const message = capturedAt ? `${v.message} (captured while offline)` : v.message;
+    const r = await recordViolation({ sessionId, code: v.code, severity: v.severity, message, source: 'agent', confidence: v.confidence, ...(link ? { evidenceId: link } : {}), ...(capturedAt ? { at: capturedAt } : {}) });
     recorded.push(r);
     if (r.status !== 'LIVE') break;
   }
   return { violations: result.violations, metrics: result.metrics, degraded: Boolean(result.degraded), recorded };
 }
 
+const frameSchema = z.object({ sessionId: z.string().max(64), image: z.string().min(100).max(4_000_000), capturedAt: z.string().datetime({ offset: true }).optional() });
+
+/** A capture time inside the session, or undefined for a live frame. */
+const captureTime = (capturedAt: string | undefined, startedAt: Date) =>
+  capturedAt ? new Date(Math.min(Math.max(Date.parse(capturedAt), startedAt.getTime()), Date.now())) : undefined;
+
 proctoringRouter.post('/frames', ...candidateOnly, limits.frames, handle(async (req) => {
-  const body = parse(z.object({ sessionId: z.string().max(64), image: z.string().min(100).max(4_000_000) }), req.body);
+  const body = parse(frameSchema, req.body);
   const s = await liveSession(req, body.sessionId);
-  return analyzeImage('webcam', s.id, s.examId, s.candidateId, body.image);
+  return analyzeImage('webcam', s.id, s.examId, s.candidateId, body.image, captureTime(body.capturedAt, s.startedAt));
 }));
 
 proctoringRouter.post('/screen', ...candidateOnly, limits.frames, handle(async (req) => {
-  const body = parse(z.object({ sessionId: z.string().max(64), image: z.string().min(100).max(4_000_000) }), req.body);
+  const body = parse(frameSchema, req.body);
   const s = await liveSession(req, body.sessionId);
-  return analyzeImage('screen', s.id, s.examId, s.candidateId, body.image);
+  return analyzeImage('screen', s.id, s.examId, s.candidateId, body.image, captureTime(body.capturedAt, s.startedAt));
 }));
 
 const entrySchema = z.object({
