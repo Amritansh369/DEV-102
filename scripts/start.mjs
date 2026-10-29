@@ -187,6 +187,11 @@ async function main() {
   await generatePrismaClient();
   const seeded = spawnSync(process.execPath, ['--import', 'tsx', '-e', "import('@prisma/client').then(async({PrismaClient})=>{const p=new PrismaClient();const n=await p.user.count();await p.$disconnect();process.exit(n>0?0:3)})"], { cwd: root, shell: false });
   if (seeded.status === 3 || args.has('--reseed')) step('SETUP', npx, ['tsx', 'database/prisma/seed.ts']);
+  else {
+    // The demo exam's window is relative to the seed; reopen it once it has aged out instead of reseeding everything.
+    const r = spawnSync(quote(npx), ['tsx', 'database/prisma/seed.ts', '--refresh-demo'], { cwd: root, stdio: 'inherit', shell: isWin });
+    if (r.status !== 0) log('SETUP', 'Could not refresh the demo exam window; continuing.');
+  }
 
   const venvPython = join(root, 'backend-services', '.venv', isWin ? 'Scripts/python.exe' : 'bin/python');
   if (!args.has('--no-agent')) {

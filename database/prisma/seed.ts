@@ -13,7 +13,7 @@ import {
   BROWSING_LOGS, CANDIDATES, EXAMS, QUESTIONS, SESSIONS, VIOLATIONS,
 } from './seed-data';
 import { encrypt, hashPassword } from '../../apps/api/src/lib/crypto';
-import { DEFAULT_POLICY, VIOLATION_META, defaultExtras, scoreAnswers } from '../../apps/api/src/lib/domain';
+import { DEFAULT_POLICY, VIOLATION_META, defaultExtras, readExtras, scoreAnswers } from '../../apps/api/src/lib/domain';
 
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '../..');
 loadDotenv({ path: join(ROOT, '.env') });
@@ -21,6 +21,8 @@ const prisma = new PrismaClient();
 const SECRET = process.env.JWT_SECRET ?? 'change_me';
 const EVIDENCE_DIR = resolve(ROOT, process.env.EVIDENCE_DIR ?? '.data/evidence');
 const MIN = 60_000;
+/** The live demo exam (exm_01) opens 35 minutes before seeding and stays open this long, so demos keep working for hours. */
+const DEMO_OPEN_MS = 8 * 60 * MIN;
 
 export const DEMO = {
   admin: { email: 'admin@wue.in', password: 'Admin@123', name: 'Ritu Malhotra' },
@@ -119,7 +121,7 @@ async function main(): Promise<void> {
   /* exams: the first live exam gets a long window so demos keep working for hours after seeding */
   for (const e of EXAMS) {
     const startsAt = new Date(e.startsAt);
-    const endsAt = e.id === 'exm_01' ? new Date(Date.now() + 8 * 60 * MIN) : new Date(e.endsAt);
+    const endsAt = e.id === 'exm_01' ? new Date(Date.now() + DEMO_OPEN_MS) : new Date(e.endsAt);
     await prisma.exam.create({
       data: {
         id: e.id, title: e.title, code: e.code, status: e.status === 'DRAFT' ? 'DRAFT' : 'SCHEDULED',
@@ -180,7 +182,7 @@ async function main(): Promise<void> {
     if (!exam) continue;
     const qs = questionsByExam.get(s.examId) ?? [];
     const startedAt = new Date(s.startedAt);
-    const examEnd = s.examId === 'exm_01' ? Date.now() + 8 * 60 * MIN : new Date(exam.endsAt).getTime();
+    const examEnd = s.examId === 'exm_01' ? Date.now() + DEMO_OPEN_MS : new Date(exam.endsAt).getTime();
     const deadlineAt = new Date(Math.min(startedAt.getTime() + exam.durationMin * MIN, examEnd));
     const ability = 0.35 + rnd() * 0.6;
     const answered = Math.round((qs.length * s.progress) / 100);
@@ -274,7 +276,26 @@ async function main(): Promise<void> {
   console.log(`[seed] Candidate exam ${DEMO.candidate.examCode} · user ${DEMO.candidate.userId} · password ${DEMO.candidate.password}`);
 }
 
-main()
+/**
+ * `--refresh-demo`: once the demo exam can no longer take a fresh start (late entry closed, or less than its
+ * duration left), move its window to now as if just seeded. Leaves every other row alone; never runs in production.
+ */
+async function refreshDemo(): Promise<void> {
+  if (process.env.NODE_ENV === 'production') return;
+  const exam = await prisma.exam.findUnique({ where: { id: 'exm_01' }, select: { code: true, title: true, startsAt: true, endsAt: true, durationMin: true, extras: true } });
+  if (!exam) return;
+  const now = Date.now();
+  const { lateEntryMin } = readExtras(exam.extras, exam.title);
+  const lateClosed = lateEntryMin > 0 && now > exam.startsAt.getTime() + lateEntryMin * MIN;
+  const tooShort = exam.endsAt.getTime() - now < exam.durationMin * MIN;
+  if (!lateClosed && !tooShort) return;
+  const startsAt = new Date(now - 35 * MIN);
+  const endsAt = new Date(now + DEMO_OPEN_MS);
+  await prisma.exam.update({ where: { id: 'exm_01' }, data: { startsAt, endsAt } });
+  console.log(`[seed] ${exam.code} had closed for new starts; its window now runs until ${endsAt.toLocaleTimeString()}.`);
+}
+
+(process.argv.includes('--refresh-demo') ? refreshDemo() : main())
   .catch((error: unknown) => {
     console.error('Database seed failed:', error);
     process.exitCode = 1;

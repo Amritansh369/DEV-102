@@ -184,7 +184,7 @@ npm start
 | AI agent | http://127.0.0.1:8000/health | |
 | Desktop app | opens as a window | Dev panel (Ctrl+Shift+D) → **Candidate link** or **Proctor link** copies a fresh join link and shows its password (`Demo@2026` / `Mentor@123`) |
 
-The OTP shows in a dev toast when SMTP is not configured. **Developer mode** (`npm start`, without `PROCTOR_STRICT=1`) has no native restrictions, so the full flow runs on a dev machine:
+Outside production the one-time code also shows on the identity-check screen (and in the extension), even when it is emailed. **Developer mode** (`npm start`, without `PROCTOR_STRICT=1`) has no native restrictions, so the full flow runs on a dev machine:
 - no kiosk lock, blocked shortcuts, focus-loss lock or content protection
 - no process, display, USB or clipboard guards
 - system-check failures are shown but never block Continue

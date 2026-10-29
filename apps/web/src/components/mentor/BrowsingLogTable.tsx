@@ -1,7 +1,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import { ArrowDown, ArrowUp, ArrowUpDown, Bot, ChevronLeft, ChevronRight, Download, Globe, Search, SearchX } from "lucide-react";
+import { ArrowDown, ArrowUp, ArrowUpDown, Bot, ChevronLeft, ChevronRight, CornerDownRight, Download, Globe, Search, SearchX } from "lucide-react";
 import type { BrowsingLog } from "@/lib/types";
 import { downloadCsv, formatClock } from "./meta";
 
@@ -11,11 +11,55 @@ type SortDir = "asc" | "desc";
 const PAGE_SIZES = [8, 15, 30];
 
 function hostOf(url: string): string {
+  if (url.startsWith("sandbox://search")) return "sandbox-search";
   try {
     return new URL(url).hostname.replace(/^www\./, "");
   } catch {
     return url;
   }
+}
+
+const SITE_NAMES: Record<string, string> = {
+  "chatgpt.com": "ChatGPT", "chat.openai.com": "ChatGPT", "claude.ai": "Claude", "gemini.google.com": "Gemini",
+  "aistudio.google.com": "Google AI Studio", "copilot.microsoft.com": "Microsoft Copilot", "perplexity.ai": "Perplexity",
+  "chat.deepseek.com": "DeepSeek", "poe.com": "Poe", "you.com": "You.com", "phind.com": "Phind", "meta.ai": "Meta AI",
+  "grok.com": "Grok", "chat.mistral.ai": "Mistral", "google.com": "Google", "bing.com": "Bing", "duckduckgo.com": "DuckDuckGo",
+};
+
+/** One stay on a site: when it was opened and what was typed there, in order. */
+interface SiteVisit {
+  key: string;
+  site: string;
+  host: string;
+  url: string;
+  at: string;
+  ai: boolean;
+  /** The candidate had been on this site earlier and switched back to it. */
+  returned: boolean;
+  queries: { id: string; at: string; text: string }[];
+}
+
+/**
+ * Turns the log into "ChatGPT opened → typed …" visits. A visit starts whenever the site changes, so switching
+ * tabs and coming back shows as a new visit marked `returned`. Mirrors groupVisits in the desktop monitorUtils.
+ */
+function groupVisits(logs: BrowsingLog[]): SiteVisit[] {
+  const visits: SiteVisit[] = [];
+  const seen = new Set<string>();
+  for (const l of logs.slice().sort((a, b) => Date.parse(a.at) - Date.parse(b.at))) {
+    const host = hostOf(l.url);
+    let visit = visits[visits.length - 1];
+    if (!visit || visit.host !== host) {
+      const site = host === "sandbox-search" ? "Sandbox search" : SITE_NAMES[host] ?? (l.title && !l.query ? l.title : host);
+      visit = { key: l.id, site, host, url: l.url, at: l.at, ai: false, returned: seen.has(host), queries: [] };
+      visits.push(visit);
+      seen.add(host);
+    }
+    if (l.flaggedAi) visit.ai = true;
+    // The tracker reports text after a typing pause and again on Enter, so the same message can arrive twice.
+    if (l.query && visit.queries[visit.queries.length - 1]?.text !== l.query) visit.queries.push({ id: l.id, at: l.at, text: l.query });
+  }
+  return visits;
 }
 
 function Highlight({ text, term }: { text: string; term: string }) {
@@ -42,6 +86,12 @@ export function BrowsingLogTable({ logs, candidateName }: { logs: BrowsingLog[];
   const [dir, setDir] = useState<SortDir>("asc");
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(PAGE_SIZES[0]);
+  const [view, setView] = useState<"activity" | "table">("activity");
+
+  const visits = useMemo(() => {
+    const t = term.trim().toLowerCase();
+    return groupVisits(logs).filter((v) => (!aiOnly || v.ai) && (!t || `${v.site} ${v.url} ${v.queries.map((q) => q.text).join(" ")}`.toLowerCase().includes(t)));
+  }, [logs, term, aiOnly]);
 
   const aiCount = useMemo(() => logs.filter((l) => l.flaggedAi).length, [logs]);
   const queryCount = useMemo(() => logs.filter((l) => l.query).length, [logs]);
@@ -91,6 +141,11 @@ export function BrowsingLogTable({ logs, candidateName }: { logs: BrowsingLog[];
         <button type="button" aria-pressed={aiOnly} onClick={() => { setAiOnly((v) => !v); setPage(1); }} className={`inline-flex items-center gap-1.5 rounded-xl border px-3.5 py-2.5 text-sm font-semibold transition focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-accent/30 ${aiOnly ? "border-danger bg-red-50 text-danger" : "border-border bg-white text-slate-700 hover:border-accent"}`}>
           <Bot className="h-4 w-4" aria-hidden /> AI sites only ({aiCount})
         </button>
+        <div className="flex rounded-xl border border-border bg-white p-1" role="group" aria-label="Browsing view">
+          {([["activity", "Activity"], ["table", "Table"]] as const).map(([id, label]) => (
+            <button key={id} type="button" aria-pressed={view === id} onClick={() => setView(id)} className={`rounded-lg px-3 py-1.5 text-sm font-semibold transition focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-accent/30 ${view === id ? "bg-primary text-white" : "text-slate-700 hover:bg-soft"}`}>{label}</button>
+          ))}
+        </div>
         <button type="button" onClick={exportCsv} disabled={rows.length === 0} className="inline-flex items-center gap-1.5 rounded-xl border border-border bg-white px-3.5 py-2.5 text-sm font-semibold text-slate-700 hover:border-accent disabled:opacity-50 focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-accent/30">
           <Download className="h-4 w-4" aria-hidden /> Export CSV
         </button>
@@ -99,7 +154,41 @@ export function BrowsingLogTable({ logs, candidateName }: { logs: BrowsingLog[];
         {rows.length} of {logs.length} entries · {aiCount} AI {aiCount === 1 ? "site" : "sites"} · {queryCount} typed {queryCount === 1 ? "query" : "queries"}
       </p>
 
-      {rows.length === 0 ? (
+      {view === "activity" && visits.length > 0 ? (
+        <ol className="mt-4 space-y-3" aria-label={`Sites ${candidateName} opened and what was typed on them`}>
+          {visits.map((v) => (
+            <li key={v.key} className={`rounded-2xl border bg-white p-4 ${v.ai ? "border-danger/30 border-l-4 border-l-danger bg-red-50/40" : "border-border border-l-4 border-l-transparent"}`}>
+              <div className="flex items-start gap-3">
+                <span className={`mt-0.5 grid h-9 w-9 shrink-0 place-items-center rounded-xl ${v.ai ? "bg-danger text-white" : "bg-soft text-slate-500"}`}>
+                  {v.ai ? <Bot className="h-4 w-4" aria-hidden /> : <Globe className="h-4 w-4" aria-hidden />}
+                </span>
+                <div className="min-w-0 flex-1">
+                  <p className="text-sm text-slate-900">
+                    {v.returned ? <>Switched back to <strong><Highlight text={v.site} term={term} /></strong></> : <><strong><Highlight text={v.site} term={term} /></strong> opened</>}
+                    {v.ai && <span className="ml-2 inline-flex items-center gap-1 rounded-full bg-red-50 px-2 py-0.5 text-xs font-semibold text-danger ring-1 ring-danger/20">AI site</span>}
+                  </p>
+                  <p className="truncate font-mono text-xs text-slate-500" title={v.url}>{v.url.replace(/^https?:\/\//, "")}</p>
+                </div>
+                <span className="shrink-0 font-mono text-xs text-slate-500">{formatClock(v.at)}</span>
+              </div>
+              {v.queries.length > 0 && (
+                <ul className="mt-3 space-y-2 pl-12">
+                  {v.queries.map((q) => (
+                    <li key={q.id} className="flex items-start gap-2">
+                      <CornerDownRight className={`mt-1 h-4 w-4 shrink-0 ${v.ai ? "text-danger" : "text-slate-400"}`} aria-hidden />
+                      <p className="min-w-0 flex-1 text-sm text-slate-700">
+                        <span className="text-slate-500">{v.ai ? "Typed" : "Searched"}:</span>{" "}
+                        <span className={`rounded-lg px-2 py-0.5 font-mono text-xs ${v.ai ? "bg-white text-danger ring-1 ring-danger/30" : "bg-slate-100 text-slate-700"}`}>“<Highlight text={q.text} term={term} />”</span>
+                      </p>
+                      <span className="shrink-0 font-mono text-xs text-slate-500">{formatClock(q.at)}</span>
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </li>
+          ))}
+        </ol>
+      ) : rows.length === 0 || (view === "activity" && visits.length === 0) ? (
         <div className="mt-4 flex flex-col items-center rounded-2xl border border-dashed border-border bg-soft px-6 py-12 text-center">
           {logs.length === 0 ? <Globe className="h-8 w-8 text-slate-500" aria-hidden /> : <SearchX className="h-8 w-8 text-slate-500" aria-hidden />}
           <p className="mt-3 font-heading font-semibold">{logs.length === 0 ? "No browsing recorded" : "Nothing matches your search"}</p>

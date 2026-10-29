@@ -233,8 +233,8 @@ authRouter.post('/otp/send', authenticate, limits.otp, handle(async (req) => {
     sentTo: maskEmail(who.email),
     expiresInSec: config.OTP_TTL_MIN * 60,
     resendInSec: OTP_COOLDOWN_SEC,
-    // Development only: with no SMTP configured the code is returned so the flow can be tested locally.
-    ...(sent.outbox && !config.isProd ? { devCode: code } : {}),
+    // Outside production the code is also returned, emailed or not, so the app can show it while testing.
+    ...(!config.isProd ? { devCode: code } : {}),
   };
 }));
 
