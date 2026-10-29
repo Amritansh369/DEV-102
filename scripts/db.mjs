@@ -23,18 +23,36 @@ if (!isLocal) {
 }
 
 const dataDir = join(root, '.data', 'pg');
+const port = Number(url.port || 5432);
 const fresh = !existsSync(join(dataDir, 'PG_VERSION'));
+// The server's stderr goes to onLog; keep the tail so a failed start can say why.
+const serverLog = [];
 const pg = new EmbeddedPostgres({
   databaseDir: dataDir,
   user: decodeURIComponent(url.username),
   password: decodeURIComponent(url.password),
-  port: Number(url.port || 5432),
+  port,
   persistent: true,
   initdbFlags: ['--encoding=UTF8', '--locale=C', '--auth=scram-sha-256'],
-  onLog: () => {},
+  onLog: (m) => { serverLog.push(...String(m).split(/\r?\n/).filter(Boolean)); serverLog.splice(0, serverLog.length - 20); },
   onError: (m) => { const s = String(m); if (/FATAL|PANIC/.test(s)) console.error('[db]', s.trim()); },
 });
 
+// embedded-postgres rejects start() with no value when the server exits early.
+function startFailure() {
+  const log = serverLog.join('\n');
+  const pid = log.match(/another postmaster \(PID (\d+)\)/i)?.[1];
+  if (/postmaster\.pid.*already exists/i.test(log)) {
+    return `.data/pg is already in use by another PostgreSQL process${pid ? ` (PID ${pid})` : ''}. Another "npm start" is probably still running; stop it first.`;
+  }
+  if (/could not bind|address already in use/i.test(log)) {
+    return `port ${port} is already taken by another PostgreSQL server (for example a system install). Change the port in DATABASE_URL in .env, e.g. localhost:5433.`;
+  }
+  const detail = serverLog.filter((l) => /FATAL|PANIC|ERROR/.test(l)).slice(-3).join('\n  ') || serverLog.slice(-3).join('\n  ');
+  return `the server exited during startup.${detail ? `\n  ${detail}` : ''}`;
+}
+
+let started = false;
 async function main() {
   if (fresh) {
     console.log('[db] Initialising data directory at .data/pg');
@@ -43,14 +61,9 @@ async function main() {
   try {
     await pg.start();
   } catch (err) {
-    const msg = String(err?.message ?? err);
-    if (/already|in use|lock/i.test(msg)) {
-      console.log(`[db] A Postgres server is already running on port ${url.port || 5432}; reusing it.`);
-      if (process.argv.includes('--once')) process.exit(0);
-      return new Promise(() => {});
-    }
-    throw err;
+    throw new Error(err instanceof Error ? err.message : startFailure());
   }
+  started = true;
   const dbName = url.pathname.replace(/^\//, '') || 'dev102';
   const client = pg.getPgClient();
   await client.connect();
@@ -70,6 +83,7 @@ async function main() {
 
 main().catch(async (err) => {
   console.error('[db] Failed to start embedded Postgres:', err?.message ?? err);
-  await pg.stop().catch(() => {});
+  // stop() waits for an exit event that never comes if the server already died, so only call it when running.
+  if (started) await pg.stop().catch(() => {});
   process.exit(1);
 });
