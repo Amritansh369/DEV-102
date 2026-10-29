@@ -3,7 +3,8 @@
 import { useCallback, useEffect, useState, type FormEvent } from 'react'
 import { AnimatePresence, motion } from 'framer-motion'
 import { AlertCircle, Ban, Check, Copy, Loader2, RotateCw, ShieldCheck, UserPlus } from 'lucide-react'
-import { inviteProctor, listProctors, resendInvite, revokeInvite, type ProctorInvite } from '@/lib/api'
+import { inviteProctor, listProctors, resendInvite, resetProctorPassword, revealProctorPassword, revokeInvite, type ProctorInvite } from '@/lib/api'
+import PasswordCell from './PasswordCell'
 import type { InviteStatus } from '@/lib/types'
 
 const STATUS: Record<InviteStatus, [string, string]> = {
@@ -24,6 +25,8 @@ export default function ProctorInvites({ examId }: { examId: string }) {
   const [notice, setNotice] = useState<string | null>(null)
   const [devLink, setDevLink] = useState<string | null>(null)
   const [copied, setCopied] = useState(false)
+  /** Passwords already known in this browser (just invited or reset), by invite id. */
+  const [known, setKnown] = useState<Record<string, string>>({})
 
   const load = useCallback(async () => {
     try {
@@ -58,6 +61,7 @@ export default function ProctorInvites({ examId }: { examId: string }) {
     void act('invite', async () => {
       const r = await inviteProctor(examId, { name: name.trim(), email: email.trim() })
       setDevLink(r.devLink ?? null)
+      if (r.password) setKnown((k) => ({ ...k, [r.inviteId]: r.password as string }))
       setName('')
       setEmail('')
       return r.created ? 'Proctor account created and invitation emailed with a temporary password.' : 'Invitation emailed. The proctor signs in with their existing password.'
@@ -116,12 +120,13 @@ export default function ProctorInvites({ examId }: { examId: string }) {
             <tr>
               <th scope="col" className="px-4 py-2.5 text-left">Proctor</th>
               <th scope="col" className="px-4 py-2.5 text-left">Link</th>
+              <th scope="col" className="px-4 py-2.5 text-left">Password</th>
               <th scope="col" className="px-4 py-2.5 text-right">Actions</th>
             </tr>
           </thead>
           <tbody className="divide-y divide-border">
-            {loading && <tr><td colSpan={3} className="px-4 py-6 text-center text-xs text-muted">Loading proctors…</td></tr>}
-            {!loading && rows.length === 0 && <tr><td colSpan={3} className="px-4 py-6 text-center text-xs text-muted">No proctors invited yet. Without an invitation nobody can proctor this exam from the desktop app.</td></tr>}
+            {loading && <tr><td colSpan={4} className="px-4 py-6 text-center text-xs text-muted">Loading proctors…</td></tr>}
+            {!loading && rows.length === 0 && <tr><td colSpan={4} className="px-4 py-6 text-center text-xs text-muted">No proctors invited yet. Without an invitation nobody can proctor this exam from the desktop app.</td></tr>}
             {rows.map((r) => (
               <tr key={r.inviteId}>
                 <td className="px-4 py-2.5">
@@ -133,8 +138,16 @@ export default function ProctorInvites({ examId }: { examId: string }) {
                   {r.deviceBound && <span className="ml-2 text-[11px] text-muted">device locked</span>}
                 </td>
                 <td className="px-4 py-2.5">
+                  <PasswordCell
+                    value={known[r.inviteId]}
+                    label={r.name}
+                    reveal={async () => (await revealProctorPassword(r.inviteId)).password}
+                    reset={async () => (await resetProctorPassword(r.inviteId)).password}
+                  />
+                </td>
+                <td className="px-4 py-2.5">
                   <div className="flex justify-end gap-1.5">
-                    <button type="button" disabled={busy !== null} onClick={() => void act(r.inviteId, async () => { setDevLink((await resendInvite(r.inviteId)).devLink ?? null); return `New link emailed to ${r.name}. The previous link no longer works.` })} className="inline-flex items-center gap-1 rounded-lg border border-border px-2 py-1 text-xs font-medium text-primary hover:bg-soft focus-visible:outline-2 focus-visible:outline-accent disabled:opacity-50" aria-label={`Resend link to ${r.name}`}>
+                    <button type="button" disabled={busy !== null} onClick={() => void act(r.inviteId, async () => { const sent = await resendInvite(r.inviteId); setDevLink(sent.devLink ?? null); if (sent.password) setKnown((k) => ({ ...k, [sent.inviteId]: sent.password as string })); return `New link emailed to ${r.name}. The previous link no longer works.` })} className="inline-flex items-center gap-1 rounded-lg border border-border px-2 py-1 text-xs font-medium text-primary hover:bg-soft focus-visible:outline-2 focus-visible:outline-accent disabled:opacity-50" aria-label={`Resend link to ${r.name}`}>
                       <RotateCw className="h-3 w-3" aria-hidden /> Resend
                     </button>
                     {(r.status === 'PENDING' || r.status === 'USED') && (

@@ -1,11 +1,11 @@
 'use client';
 
 import Link from 'next/link';
-import Image from 'next/image';
 import { useEffect, useState } from 'react';
 import { homeFor, useSession } from '@/lib/session';
 import { AnimatePresence, motion, useReducedMotion } from 'framer-motion';
-import { Activity, ArrowRight, Building2, Download, Eye, LockKeyhole, Menu, ShieldCheck, Sparkles, X } from 'lucide-react';
+import { Activity, ArrowRight, Building2, Download, Eye, Fingerprint, Globe, Link2, Menu, MonitorCheck, ScanFace, ShieldCheck, Sparkles, Timer, UserCheck, X } from 'lucide-react';
+import { OrgBackdrop } from '@/components/layout/OrgBackdrop';
 
 const ROLE_HOME_LABEL = { ADMIN: 'Admin panel', MENTOR: 'Live monitor', CANDIDATE: 'My exam' } as const;
 
@@ -24,12 +24,18 @@ const NAV = [
   { href: '/download', label: 'Download App' },
 ];
 
+/** The logo is blue on transparent, so it sits on a white badge to stay visible over the hero image. */
 function LogoMark() {
   const [broken, setBroken] = useState(false);
-  return broken ? (
-    <span className="grid h-10 w-10 place-items-center rounded-xl bg-white font-heading text-lg font-bold text-primary">W</span>
-  ) : (
-    <Image src="/images/logo.png" alt="Where U Elevate" width={140} height={40} className="h-10 w-auto" priority onError={() => setBroken(true)} />
+  return (
+    <span className="grid h-11 w-11 place-items-center rounded-xl bg-white shadow-lg shadow-black/20 ring-1 ring-white/60">
+      {broken ? (
+        <span className="font-heading text-lg font-bold text-primary">W</span>
+      ) : (
+        // eslint-disable-next-line @next/next/no-img-element
+        <img src="/images/logo.png" alt="Where U Elevate" className="h-9 w-9 object-contain" onError={() => setBroken(true)} />
+      )}
+    </span>
   );
 }
 
@@ -41,7 +47,10 @@ function Nav() {
       <nav aria-label="Primary" className="mx-auto flex max-w-7xl items-center justify-between px-5 py-5 lg:px-8">
         <Link href="/" className="flex items-center gap-2 rounded-lg focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-white" aria-label="Where U Elevate home">
           <LogoMark />
-          <span className="hidden font-heading text-sm font-semibold text-white sm:block">Smart Proctoring</span>
+          <span className="hidden flex-col leading-tight sm:flex">
+            <span className="font-heading text-sm font-semibold text-white">Smart Proctor</span>
+            <span className="text-[11px] font-medium text-white/70">by Where U Elevate</span>
+          </span>
         </Link>
         <ul className="hidden items-center gap-8 md:flex">
           {NAV.map((n) => (
@@ -103,7 +112,7 @@ const EDGES: [number, number][] = [
 ];
 function NetworkPattern() {
   return (
-    <svg className="pointer-events-none absolute inset-0 h-full w-full opacity-30" viewBox="0 0 1400 400" preserveAspectRatio="xMidYMid slice" aria-hidden>
+    <svg className="pointer-events-none absolute inset-0 h-full w-full opacity-15" viewBox="0 0 1400 400" preserveAspectRatio="xMidYMid slice" aria-hidden>
       {EDGES.map(([a, b]) => (
         <line key={`${a}-${b}`} x1={NODES[a]?.[0]} y1={NODES[a]?.[1]} x2={NODES[b]?.[0]} y2={NODES[b]?.[1]} stroke="white" strokeWidth="0.8" strokeOpacity="0.5" />
       ))}
@@ -114,143 +123,141 @@ function NetworkPattern() {
   );
 }
 
-/* ---------------------------------------------------------------- live proctoring card */
+/* ---------------------------------------------------------------- live exam showcase */
 
-interface Tile { name: string; initials: string; risk: number; hue: number; photo: string }
-const TILES: Tile[] = [
-  { name: 'Ananya Iyer', initials: 'AI', risk: 12, hue: 210, photo: '/images/people/women-12.jpg' },
-  { name: 'Rohan Mehta', initials: 'RM', risk: 34, hue: 190, photo: '/images/people/men-32.jpg' },
-  { name: 'Kavya Reddy', initials: 'KR', risk: 8, hue: 225, photo: '/images/people/women-24.jpg' },
-  { name: 'Arjun Singh', initials: 'AS', risk: 58, hue: 200, photo: '/images/people/men-7.jpg' },
-];
-const FEED: { who: string; text: string; tone: 'warn' | 'danger' | 'info' }[] = [
-  { who: 'Arjun Singh', text: 'Opened chatgpt.com in sandbox tab', tone: 'danger' },
-  { who: 'Rohan Mehta', text: 'Looking away from screen (6 s)', tone: 'info' },
-  { who: 'Kavya Reddy', text: 'Copy shortcut blocked', tone: 'warn' },
-  { who: 'Arjun Singh', text: 'Second face detected in frame', tone: 'danger' },
-  { who: 'Ananya Iyer', text: 'Network dropped, answers cached', tone: 'info' },
-];
-const TONE = { warn: 'bg-warning/15 text-amber-800', danger: 'bg-danger/10 text-danger', info: 'bg-accent/10 text-primary-600' } as const;
-const riskColor = (r: number) => (r >= 50 ? 'bg-danger' : r >= 25 ? 'bg-warning' : 'bg-success');
+/** The story the card plays on a loop: a calm exam, an AI query, the flag, then the human decision. */
+const STAGES = [
+  { risk: 8, tab: false, alert: false, verdict: false },
+  { risk: 14, tab: true, alert: false, verdict: false },
+  { risk: 64, tab: true, alert: true, verdict: false },
+  { risk: 64, tab: true, alert: true, verdict: true },
+] as const;
+const OPTIONS = ['O(n)', 'O(n log n)', 'O(n²)', 'O(log n)'];
+const riskTone = (r: number) => (r >= 50 ? 'bg-danger' : r >= 25 ? 'bg-warning' : 'bg-success');
 
-function LiveCard() {
+function ExamShowcase() {
   const reduce = useReducedMotion();
-  const [risks, setRisks] = useState(() => TILES.map((t) => t.risk));
-  const [feedStart, setFeedStart] = useState(0);
-  const [elapsed, setElapsed] = useState(2412);
+  const [stage, setStage] = useState(0);
+  const [left, setLeft] = useState(42 * 60 + 18);
 
   useEffect(() => {
     if (reduce) return;
-    const tick = setInterval(() => {
-      setElapsed((e) => e + 1);
-    }, 1000);
-    const drift = setInterval(() => {
-      setRisks((prev) => prev.map((r, i) => Math.max(3, Math.min(92, r + (Math.round(Math.sin(Date.now() / 4000 + i) * 4) + (i === 3 ? 1 : 0))))));
-      setFeedStart((s) => (s + 1) % FEED.length);
-    }, 2600);
-    return () => { clearInterval(tick); clearInterval(drift); };
+    const story = setInterval(() => setStage((s) => (s + 1) % STAGES.length), 2600);
+    const clock = setInterval(() => setLeft((t) => (t > 0 ? t - 1 : 42 * 60 + 18)), 1000);
+    return () => { clearInterval(story); clearInterval(clock); };
   }, [reduce]);
 
-  const mm = String(Math.floor(elapsed / 60)).padStart(2, '0');
-  const ss = String(elapsed % 60).padStart(2, '0');
-  const visible = [0, 1, 2].map((o) => FEED[(feedStart + o) % FEED.length] as (typeof FEED)[number]);
+  const s = STAGES[stage] ?? STAGES[0];
+  const mm = String(Math.floor(left / 60)).padStart(2, '0');
+  const ss = String(left % 60).padStart(2, '0');
 
   return (
     <motion.div
       initial={{ opacity: 0, y: 28 }}
       animate={{ opacity: 1, y: 0 }}
       transition={{ duration: 0.7, delay: 0.2 }}
-      className="relative w-full max-w-xl rounded-3xl bg-white p-4 shadow-[0_30px_80px_-20px_rgba(10,30,80,0.55)] ring-1 ring-black/5"
+      className="relative w-full max-w-xl"
       role="img"
-      aria-label="Illustration of a live proctoring dashboard showing four candidate webcams with risk scores and a violation feed"
+      aria-label="Illustration of the exam app: a candidate answers a question, opens ChatGPT in a sandbox tab, the typed question is flagged, the risk score rises and a proctor reviews it"
     >
-      <div className="flex items-center justify-between px-1 pb-3">
-        <div className="flex items-center gap-2">
-          <span className="relative flex h-2.5 w-2.5">
-            <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-danger opacity-60" />
-            <span className="relative inline-flex h-2.5 w-2.5 rounded-full bg-danger" />
+      <div className="overflow-hidden rounded-3xl bg-white/95 shadow-[0_30px_80px_-20px_rgba(2,8,23,0.6)] ring-1 ring-white/60 backdrop-blur-xl">
+        {/* Window bar with the sandbox tab strip */}
+        <div className="flex items-center gap-2 border-b border-border bg-soft/80 px-4 py-2.5">
+          <span className="flex gap-1.5" aria-hidden>
+            <span className="h-2.5 w-2.5 rounded-full bg-red-400" /><span className="h-2.5 w-2.5 rounded-full bg-amber-400" /><span className="h-2.5 w-2.5 rounded-full bg-emerald-400" />
           </span>
-          <span className="font-heading text-sm font-semibold text-text">Live · Campus Placement Test</span>
+          <span className="ml-2 rounded-lg bg-white px-2.5 py-1 text-[11px] font-semibold text-primary shadow-sm ring-1 ring-border">Exam · CPA-26</span>
+          <AnimatePresence>
+            {s.tab && (
+              <motion.span initial={{ opacity: 0, x: -8 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0 }} className="inline-flex items-center gap-1 rounded-lg bg-white px-2.5 py-1 text-[11px] font-medium text-ink ring-1 ring-red-200">
+                <Globe className="h-3 w-3 text-danger" aria-hidden /> chatgpt.com
+              </motion.span>
+            )}
+          </AnimatePresence>
+          <span className="ml-auto inline-flex items-center gap-1 rounded-lg bg-primary-50 px-2 py-1 font-mono text-[11px] font-semibold text-primary">
+            <Timer className="h-3 w-3" aria-hidden /> {mm}:{ss}
+          </span>
         </div>
-        <span className="rounded-lg bg-soft px-2.5 py-1 font-mono text-xs font-semibold text-primary">{mm}:{ss}</span>
-      </div>
 
-      <div className="grid grid-cols-2 gap-3">
-        {TILES.map((t, i) => {
-          const risk = risks[i] ?? t.risk;
-          return (
-            <div key={t.name} className="overflow-hidden rounded-2xl border border-border bg-soft">
-              <div className="relative grid aspect-[4/3] place-items-center" style={{ background: `linear-gradient(135deg, hsl(${t.hue} 70% 88%), hsl(${t.hue} 60% 72%))` }}>
-                {/* eslint-disable-next-line @next/next/no-img-element -- small static portrait */}
-                <img src={t.photo} alt="" className="absolute inset-0 h-full w-full object-cover" />
-                <span className="absolute inset-0 bg-gradient-to-t from-slate-950/50 via-transparent to-slate-950/10" aria-hidden />
-                {/* Face-tracking corners and a scan line, like the agent's detector overlay */}
-                <span className="absolute left-1/2 top-[16%] h-[62%] w-[44%] -translate-x-1/2" aria-hidden>
-                  {['left-0 top-0 border-l-2 border-t-2', 'right-0 top-0 border-r-2 border-t-2', 'left-0 bottom-0 border-l-2 border-b-2', 'right-0 bottom-0 border-r-2 border-b-2'].map((c) => (
-                    <span key={c} className={`absolute h-3.5 w-3.5 rounded-[3px] ${risk >= 50 ? 'border-amber-300' : 'border-emerald-300'} ${c}`} />
-                  ))}
-                </span>
-                {/* Always rendered so server and client markup match; hidden by CSS when motion is reduced. */}
-                <motion.span
-                  aria-hidden
-                  className="absolute inset-x-0 h-8 bg-gradient-to-b from-transparent via-sky-300/35 to-transparent motion-reduce:hidden"
-                  animate={reduce ? undefined : { top: ['-15%', '100%'] }}
-                  transition={{ repeat: Infinity, duration: 2.6 + i * 0.4, ease: 'linear' }}
-                />
-                <span className="absolute left-2 top-2 inline-flex items-center gap-1 rounded-md bg-black/45 px-1.5 py-0.5 text-[10px] font-medium text-white">
-                  <Eye className="h-3 w-3" aria-hidden /> Face OK
-                </span>
-                <span className={`absolute right-2 top-2 rounded-md px-1.5 py-0.5 text-[11px] font-bold ${riskColor(risk)} ${risk >= 25 && risk < 50 ? 'text-ink' : 'text-white'}`}>{risk}</span>
-              </div>
-              <div className="px-3 py-2">
-                <p className="truncate text-xs font-semibold text-ink">{t.name}</p>
-                <div className="mt-1.5 h-1.5 overflow-hidden rounded-full bg-border" aria-hidden>
-                  <motion.div className={`h-full rounded-full ${riskColor(risk)}`} animate={{ width: `${risk}%` }} transition={{ type: 'spring', stiffness: 80, damping: 18 }} />
-                </div>
+        <div className="grid gap-4 p-5 sm:grid-cols-[1fr_9.5rem]">
+          {/* Question */}
+          <div>
+            <p className="text-[11px] font-semibold uppercase tracking-wide text-muted">Question 7 of 30</p>
+            <p className="mt-1 font-heading text-[15px] font-semibold leading-snug text-ink">What is the average time complexity of binary search on a sorted array?</p>
+            <ul className="mt-3 space-y-2">
+              {OPTIONS.map((o, i) => (
+                <li key={o} className={`flex items-center gap-2.5 rounded-xl border px-3 py-2 text-sm ${i === 3 ? 'border-primary-600 bg-primary-50 text-primary' : 'border-border text-ink'}`}>
+                  <span className={`grid h-4 w-4 place-items-center rounded-full border ${i === 3 ? 'border-primary-600 bg-primary-600' : 'border-slate-300'}`} aria-hidden>
+                    {i === 3 && <span className="h-1.5 w-1.5 rounded-full bg-white" />}
+                  </span>
+                  {o}
+                </li>
+              ))}
+            </ul>
+          </div>
+
+          {/* Live signals */}
+          <div className="space-y-3">
+            <div className="rounded-2xl border border-border p-3">
+              <p className="flex items-center gap-1.5 text-[11px] font-semibold uppercase tracking-wide text-muted"><Activity className="h-3 w-3" aria-hidden /> Risk</p>
+              <p className="mt-1 font-heading text-2xl font-bold tabular-nums text-ink">{s.risk}</p>
+              <div className="mt-1.5 h-1.5 overflow-hidden rounded-full bg-border" aria-hidden>
+                <motion.div className={`h-full rounded-full ${riskTone(s.risk)}`} animate={{ width: `${s.risk}%` }} transition={{ type: 'spring', stiffness: 70, damping: 16 }} />
               </div>
             </div>
-          );
-        })}
-      </div>
+            {[
+              [ScanFace, 'Face verified'],
+              [MonitorCheck, 'Kiosk locked'],
+              [Link2, 'Link on this PC'],
+            ].map(([Icon, label]) => {
+              const I = Icon as typeof ScanFace;
+              return (
+                <p key={label as string} className="flex items-center gap-2 text-xs font-medium text-ink">
+                  <span className="grid h-6 w-6 place-items-center rounded-lg bg-success/10 text-success"><I className="h-3.5 w-3.5" aria-hidden /></span>
+                  {label as string}
+                </p>
+              );
+            })}
+          </div>
+        </div>
 
-      <div className="mt-3 rounded-2xl border border-border p-3">
-        <p className="mb-2 flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wide text-muted">
-          <Activity className="h-3.5 w-3.5" aria-hidden /> Violation feed
-        </p>
-        <ul className="space-y-2" aria-live="off">
-          <AnimatePresence initial={false} mode="popLayout">
-            {visible.map((f) => (
-              <motion.li
-                key={`${feedStart}-${f.who}-${f.text}`}
-                layout
-                initial={{ opacity: 0, x: 16 }}
-                animate={{ opacity: 1, x: 0 }}
-                exit={{ opacity: 0, x: -16 }}
-                className="flex items-center gap-2 text-xs"
-              >
-                <span className={`rounded-md px-1.5 py-0.5 font-semibold ${TONE[f.tone]}`}>{f.who.split(' ')[0]}</span>
-                <span className="truncate text-muted">{f.text}</span>
-              </motion.li>
-            ))}
+        {/* Violation and the human decision */}
+        <div className="min-h-[4.25rem] border-t border-border bg-soft/60 px-5 py-3">
+          <AnimatePresence mode="wait">
+            {!s.alert ? (
+              <motion.p key="calm" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="flex items-center gap-2 text-xs text-muted">
+                <ShieldCheck className="h-4 w-4 text-success" aria-hidden /> All signals normal. Answers autosaved.
+              </motion.p>
+            ) : (
+              <motion.div key={s.verdict ? 'verdict' : 'alert'} initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }} className="flex items-start gap-2.5 text-xs">
+                <span className={`grid h-7 w-7 shrink-0 place-items-center rounded-lg ${s.verdict ? 'bg-primary-50 text-primary' : 'bg-danger/10 text-danger'}`}>
+                  {s.verdict ? <UserCheck className="h-4 w-4" aria-hidden /> : <Sparkles className="h-4 w-4" aria-hidden />}
+                </span>
+                <span className="min-w-0">
+                  <b className="block text-ink">{s.verdict ? 'Proctor reviewing the evidence' : 'AI query detected · critical'}</b>
+                  <span className="block truncate text-muted">{s.verdict ? 'Confirm or overrule, with a reason. Overruling reinstates the candidate.' : 'Typed on chatgpt.com: "time complexity of binary search"'}</span>
+                </span>
+              </motion.div>
+            )}
           </AnimatePresence>
-        </ul>
+        </div>
       </div>
 
       <motion.div
         animate={reduce ? undefined : { y: [0, -6, 0] }}
         transition={{ repeat: Infinity, duration: 4, ease: 'easeInOut' }}
-        className="absolute -left-6 top-24 hidden items-center gap-2 rounded-2xl bg-white px-3 py-2 shadow-xl ring-1 ring-black/5 lg:flex"
+        className="absolute -left-8 -top-6 hidden items-center gap-2 rounded-2xl bg-white px-3 py-2 shadow-xl ring-1 ring-black/5 lg:flex"
       >
-        <span className="grid h-8 w-8 place-items-center rounded-full bg-success/15 text-success"><ShieldCheck className="h-4 w-4" aria-hidden /></span>
-        <span className="text-xs"><b className="block text-text">Screen locked</b><span className="text-muted">Kiosk mode active</span></span>
+        <span className="grid h-8 w-8 place-items-center rounded-full bg-success/15 text-success"><Fingerprint className="h-4 w-4" aria-hidden /></span>
+        <span className="text-xs"><b className="block text-text">Face + OTP passed</b><span className="text-muted">Before the first question</span></span>
       </motion.div>
       <motion.div
         animate={reduce ? undefined : { y: [0, 6, 0] }}
         transition={{ repeat: Infinity, duration: 5, ease: 'easeInOut' }}
-        className="absolute -right-4 -bottom-5 hidden items-center gap-2 rounded-2xl bg-white px-3 py-2 shadow-xl ring-1 ring-black/5 lg:flex"
+        className="absolute -bottom-5 -right-4 hidden items-center gap-2 rounded-2xl bg-white px-3 py-2 shadow-xl ring-1 ring-black/5 lg:flex"
       >
-        <span className="grid h-8 w-8 place-items-center rounded-full bg-danger/10 text-danger"><Sparkles className="h-4 w-4" aria-hidden /></span>
-        <span className="text-xs"><b className="block text-text">AI site flagged</b><span className="text-muted">Mentor alerted in 1.2 s</span></span>
+        <span className="grid h-8 w-8 place-items-center rounded-full bg-cta/20 text-amber-700"><Eye className="h-4 w-4" aria-hidden /></span>
+        <span className="text-xs"><b className="block text-text">Proctor sees it live</b><span className="text-muted">With the typed query</span></span>
       </motion.div>
     </motion.div>
   );
@@ -259,20 +266,17 @@ function LiveCard() {
 /* ---------------------------------------------------------------- hero */
 
 const TRUST = [
-  { icon: LockKeyhole, label: 'End-to-end encrypted sessions' },
-  { icon: Eye, label: 'AI-assisted face and gaze checks' },
-  { icon: ShieldCheck, label: 'Kiosk-mode secure browser' },
-  { icon: Activity, label: 'Realtime mentor monitoring' },
+  { icon: Link2, label: 'Personal links, one computer each' },
+  { icon: ScanFace, label: 'Face and OTP for candidates and proctors' },
+  { icon: ShieldCheck, label: 'Kiosk-mode secure exam app' },
+  { icon: Activity, label: 'Live monitoring with human review' },
 ];
 
 export default function Hero() {
   return (
-    <section
-      className="relative isolate overflow-hidden bg-[linear-gradient(135deg,#0A4DA6_0%,#0B5BD3_55%,#1E6FF0_100%)] bg-cover bg-center text-white"
-      style={{ backgroundImage: "linear-gradient(135deg, rgba(10,77,166,.55), rgba(11,91,211,.35) 55%, rgba(30,111,240,.45)), url('/images/backgrounds/data-rain.svg')" }}
-    >
+    <section className="relative isolate overflow-hidden bg-[#06142e] text-white">
+      <OrgBackdrop />
       <NetworkPattern />
-      <div className="pointer-events-none absolute -right-32 -top-32 h-96 w-96 rounded-full bg-white/10 blur-3xl" aria-hidden />
       <Nav />
 
       <div className="relative z-10 mx-auto grid max-w-7xl items-center gap-14 px-5 pb-40 pt-10 lg:grid-cols-[1.05fr_1fr] lg:px-8 lg:pb-48 lg:pt-16">
@@ -282,7 +286,7 @@ export default function Hero() {
             animate={{ opacity: 1, y: 0 }}
             className="mb-5 inline-flex items-center gap-2 rounded-full bg-white/15 px-4 py-1.5 text-xs font-semibold tracking-wide ring-1 ring-white/25 backdrop-blur"
           >
-            <Sparkles className="h-3.5 w-3.5 text-cta" aria-hidden /> Trusted by 120+ colleges and hiring teams
+            <Sparkles className="h-3.5 w-3.5 text-cta" aria-hidden /> AI proctoring with a human in the loop
           </motion.p>
           <motion.h1
             initial={{ opacity: 0, y: 20 }}
@@ -298,8 +302,8 @@ export default function Hero() {
             transition={{ delay: 0.16 }}
             className="mt-6 max-w-xl text-lg leading-relaxed text-white/85"
           >
-            A secure exam browser with AI proctoring. Candidates are verified, their screen and webcam are watched, every website and search is logged,
-            and mentors step in the moment something looks wrong.
+            Your organization picks who sits and who proctors. Each person gets a personal link for the secure exam app, proves who they are, and every
+            website and AI query is logged, so proctors step in the moment something looks wrong.
           </motion.p>
           <motion.div
             initial={{ opacity: 0, y: 20 }}
@@ -310,22 +314,22 @@ export default function Hero() {
             <Link href="/download" className="group inline-flex items-center gap-2 rounded-xl bg-cta px-6 py-3.5 text-sm font-bold text-slate-900 shadow-xl shadow-black/15 transition hover:brightness-105 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-white">
               <Download className="h-4 w-4" aria-hidden /> Download the app
             </Link>
-            <Link href="/login" className="group inline-flex items-center gap-2 rounded-xl bg-white px-6 py-3.5 text-sm font-bold text-primary shadow-lg transition hover:bg-soft focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-white">
-              Candidate login <ArrowRight className="h-4 w-4 transition group-hover:translate-x-0.5" aria-hidden />
+            <Link href="/login?role=admin" className="group inline-flex items-center gap-2 rounded-xl bg-white px-6 py-3.5 text-sm font-bold text-primary shadow-lg transition hover:bg-soft focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-white">
+              <Building2 className="h-4 w-4" aria-hidden /> For organizations <ArrowRight className="h-4 w-4 transition group-hover:translate-x-0.5" aria-hidden />
             </Link>
             <Link href="/login?role=mentor" className="rounded-xl px-2 py-3.5 text-sm font-semibold text-white/90 underline-offset-4 hover:underline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-white">
-              Mentor sign in
+              Proctor sign in
             </Link>
           </motion.div>
         </div>
-        <div className="flex justify-center lg:justify-end"><LiveCard /></div>
+        <div className="flex justify-center lg:justify-end"><ExamShowcase /></div>
       </div>
 
       <div className="relative z-10 mx-auto -mb-1 max-w-7xl px-5 pb-16 lg:px-8">
-        <ul className="grid grid-cols-2 gap-x-6 gap-y-4 lg:grid-cols-4" aria-label="Trust highlights">
+        <ul className="grid grid-cols-2 gap-x-6 gap-y-4 lg:grid-cols-4" aria-label="Highlights">
           {TRUST.map(({ icon: Icon, label }) => (
             <li key={label} className="flex items-center gap-3 text-sm font-medium text-white/90">
-              <span className="grid h-9 w-9 shrink-0 place-items-center rounded-xl bg-white/15 ring-1 ring-white/20"><Icon className="h-4 w-4" aria-hidden /></span>
+              <span className="grid h-9 w-9 shrink-0 place-items-center rounded-xl bg-white/15 ring-1 ring-white/20 backdrop-blur"><Icon className="h-4 w-4" aria-hidden /></span>
               {label}
             </li>
           ))}

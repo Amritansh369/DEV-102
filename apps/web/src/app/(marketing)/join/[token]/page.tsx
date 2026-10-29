@@ -8,6 +8,9 @@ import { AlertCircle, CalendarClock, Check, ClipboardCopy, Download, GraduationC
 import { OrgBackdrop } from '@/components/layout/OrgBackdrop'
 import { previewInvite, type InvitePreview } from '@/lib/api'
 
+/** First name for the greeting, skipping titles such as "Dr." */
+const firstName = (name: string) => name.split(/\s+/).find((p) => !/^(dr|mr|mrs|ms|miss|prof)\.?$/i.test(p)) ?? name
+
 /**
  * Where the link in the invitation email lands. The exam itself runs only in the desktop app,
  * so this page shows who the link is for and how to paste it there.
@@ -61,7 +64,7 @@ export default function JoinPage() {
               {proctor ? <ShieldCheck className="h-3.5 w-3.5" aria-hidden /> : <GraduationCap className="h-3.5 w-3.5" aria-hidden />}
               {proctor ? 'Proctor invitation' : 'Candidate invitation'}
             </span>
-            <h1 className="mt-3 font-heading text-2xl font-semibold text-ink">Hello {invite.name.split(' ')[0]}, you are invited to {invite.exam.title}</h1>
+            <h1 className="mt-3 font-heading text-2xl font-semibold text-ink">Hello {firstName(invite.name)}, you are invited to {invite.exam.title}</h1>
             <p className="mt-2 inline-flex flex-wrap items-center gap-x-2 gap-y-1 text-sm text-muted">
               <span className="font-mono text-ink">{invite.exam.code}</span>
               <span aria-hidden>·</span>

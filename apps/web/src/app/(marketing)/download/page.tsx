@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { AlertCircle, CheckCircle2, Download, HardDrive, Loader2, MonitorCheck, ShieldCheck, TriangleAlert } from "lucide-react";
 import { Faq, type FaqItem } from "@/components/marketing/Faq";
 import { CtaBanner } from "@/components/marketing/CtaBanner";
+import { OrgBackdrop } from "@/components/layout/OrgBackdrop";
 
 type OS = "Windows" | "macOS" | "Linux" | "Other";
 type CheckStatus = "ok" | "warn" | "fail";
@@ -100,8 +101,9 @@ export default function DownloadPage() {
 
   return (
     <main>
-      <section className="bg-gradient-to-b from-soft to-white px-4 pb-16 pt-20 sm:px-6">
-        <div className="mx-auto max-w-3xl text-center">
+      <section className="relative overflow-hidden px-4 pb-16 pt-20 sm:px-6">
+        <OrgBackdrop look="student" tone="light" />
+        <div className="relative mx-auto max-w-3xl text-center">
           <span className="inline-flex items-center gap-2 rounded-full bg-white px-4 py-1.5 text-sm font-medium text-primary shadow-sm ring-1 ring-border">
             <ShieldCheck className="h-4 w-4" aria-hidden /> Required for every exam
           </span>

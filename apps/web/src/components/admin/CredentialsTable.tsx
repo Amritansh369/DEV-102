@@ -2,8 +2,9 @@
 
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { motion } from 'framer-motion'
-import { AlertTriangle, ArrowDown, ArrowUp, ArrowUpDown, Ban, Check, CheckCircle2, Clock, Copy, Download, Eye, EyeOff, KeyRound, Loader2, RotateCw, Send } from 'lucide-react'
+import { AlertTriangle, ArrowDown, ArrowUp, ArrowUpDown, Ban, Check, CheckCircle2, Clock, Copy, Download, KeyRound, Loader2, RotateCw, Send } from 'lucide-react'
 import type { InviteStatus } from '@/lib/types'
+import PasswordCell from './PasswordCell'
 
 export type SendStatus = 'pending' | 'queued' | 'sending' | 'sent' | 'failed'
 
@@ -33,11 +34,14 @@ interface CredentialsTableProps {
   onResend: (row: CredentialRow) => void
   onReset: (row: CredentialRow) => void
   onRevoke?: (row: CredentialRow) => void
+  /** Stored password before the candidate's first sign-in. */
+  onRevealPassword: (row: CredentialRow) => Promise<string>
+  /** New password, without emailing it. */
+  onResetPassword: (row: CredentialRow) => Promise<string>
   onResendFailed?: () => void
 }
 
 type SortKey = 'name' | 'userId' | 'status'
-const AUTOHIDE_MS = 10_000
 const STATUS_ORDER: Record<SendStatus, number> = { failed: 0, pending: 1, queued: 2, sending: 3, sent: 4 }
 
 const BADGE: Record<SendStatus, { label: string; cls: string }> = {
@@ -88,31 +92,8 @@ const csvCell = (v: string, guard = false) => {
   return /[",\n\r]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s
 }
 
-export default function CredentialsTable({ rows, examId, busy = false, onResend, onReset, onRevoke, onResendFailed }: CredentialsTableProps) {
+export default function CredentialsTable({ rows, examId, busy = false, onResend, onReset, onRevoke, onRevealPassword, onResetPassword, onResendFailed }: CredentialsTableProps) {
   const [sort, setSort] = useState<{ key: SortKey; dir: 1 | -1 }>({ key: 'name', dir: 1 })
-  const [shown, setShown] = useState<Set<string>>(new Set())
-  const timers = useRef(new Map<string, number>())
-
-  useEffect(() => {
-    const t = timers.current
-    return () => t.forEach((id) => window.clearTimeout(id))
-  }, [])
-
-  const hide = (id: string) => {
-    window.clearTimeout(timers.current.get(id))
-    timers.current.delete(id)
-    setShown((p) => {
-      const n = new Set(p)
-      n.delete(id)
-      return n
-    })
-  }
-  const reveal = (id: string) => {
-    setShown((p) => new Set(p).add(id))
-    window.clearTimeout(timers.current.get(id))
-    timers.current.set(id, window.setTimeout(() => hide(id), AUTOHIDE_MS))
-  }
-
   const sorted = useMemo(() => {
     const out = [...rows]
     out.sort((a, b) => {
@@ -185,7 +166,6 @@ export default function CredentialsTable({ rows, examId, busy = false, onResend,
             </thead>
             <tbody className="divide-y divide-border">
               {sorted.map((r) => {
-                const visible = shown.has(r.id)
                 return (
                   <motion.tr key={r.id} layout="position" initial={{ opacity: 0 }} animate={{ opacity: 1 }}>
                     <td className="px-4 py-2.5">
@@ -202,13 +182,7 @@ export default function CredentialsTable({ rows, examId, busy = false, onResend,
                       </span>
                     </td>
                     <td className="px-4 py-2.5">
-                      <span className="inline-flex items-center gap-1 font-mono text-xs text-ink">
-                        <span className="inline-block min-w-[6.5rem]" aria-live="polite">{visible ? r.password : '••••••••••'}</span>
-                        <button type="button" onClick={() => (visible ? hide(r.id) : reveal(r.id))} aria-label={`${visible ? 'Hide' : 'Reveal'} password for ${r.name}`} aria-pressed={visible} title={visible ? 'Hide' : `Reveal (auto-hides in ${AUTOHIDE_MS / 1000}s)`} className="rounded-md p-1 text-muted hover:bg-soft hover:text-primary focus-visible:outline-2 focus-visible:outline-accent">
-                          {visible ? <EyeOff className="h-3.5 w-3.5" aria-hidden /> : <Eye className="h-3.5 w-3.5" aria-hidden />}
-                        </button>
-                        <CopyButton value={r.password} label={`password for ${r.name}`} />
-                      </span>
+                      <PasswordCell value={r.password} label={r.name} reveal={() => onRevealPassword(r)} reset={() => onResetPassword(r)} />
                     </td>
                     <td className="px-4 py-2.5">
                       <StatusBadge status={r.status} />

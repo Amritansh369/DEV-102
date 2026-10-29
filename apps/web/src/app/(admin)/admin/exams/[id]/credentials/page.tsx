@@ -8,7 +8,7 @@ import { AlertCircle, CheckCircle2, FileUp, Mail, RefreshCw, Send, UserPlus } fr
 import CredentialsTable, { type CredentialRow } from '@/components/admin/CredentialsTable'
 import EmailPreviewModal, { DEFAULT_TEMPLATE, type EmailTemplate } from '@/components/admin/EmailPreviewModal'
 import ProctorInvites from '@/components/admin/ProctorInvites'
-import { getExam, importCandidates, listCandidates, resetCandidatePassword, revokeInvite, sendCredentialEmail } from '@/lib/api'
+import { getExam, importCandidates, listCandidates, resetCandidatePassword, revealCandidatePassword, revokeInvite, sendCredentialEmail } from '@/lib/api'
 
 const CONCURRENCY = 3
 const APP_LINK = process.env.NEXT_PUBLIC_APP_DOWNLOAD_URL ?? 'http://localhost:3000/download'
@@ -170,6 +170,14 @@ export default function CandidatesPage() {
     }
   }
 
+  const keepPassword = (id: string, password: string) => {
+    setRows((prev) => prev.map((x) => (x.id === id ? { ...x, password } : x)))
+    return password
+  }
+  const revealPassword = async (row: CredentialRow) => keepPassword(row.id, (await revealCandidatePassword(row.id)).password)
+  // Reset & copy only issues the password; Resend emails it with a fresh link.
+  const resetAndCopy = async (row: CredentialRow) => keepPassword(row.id, (await resetCandidatePassword(row.id)).password)
+
   const pending = rows.filter((r) => r.status === 'pending')
   const failed = rows.filter((r) => r.status === 'failed')
   const sentCount = rows.filter((r) => r.status === 'sent').length
@@ -283,7 +291,7 @@ export default function CandidatesPage() {
         )}
       </section>
 
-      <CredentialsTable rows={rows} examId={examCode} busy={sending} onResend={(r) => void sendMany([r])} onReset={resetPassword} onRevoke={(r) => void revoke(r)} onResendFailed={() => void sendMany(failed)} />
+      <CredentialsTable rows={rows} examId={examCode} busy={sending} onResend={(r) => void sendMany([r])} onReset={resetPassword} onRevoke={(r) => void revoke(r)} onRevealPassword={revealPassword} onResetPassword={resetAndCopy} onResendFailed={() => void sendMany(failed)} />
 
       <ProctorInvites examId={routeId} />
 
