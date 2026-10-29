@@ -184,4 +184,12 @@ npm start
 | AI agent | http://127.0.0.1:8000/health | |
 | Desktop app | opens as a window | Dev panel (Ctrl+Shift+D) → **Candidate link** or **Proctor link** copies a fresh join link and shows its password (`Demo@2026` / `Mentor@123`) |
 
-The OTP shows in a dev toast when SMTP is not configured. In development builds the process scanner skips coding assistants (`claude`, `codex`, `cursor`, `copilot`, `windsurf`) so the exam can run on a dev machine; packaged builds and `PROCTOR_STRICT=1` flag them. Without SMTP, every email (with its join link) is in the website dev toolbar's outbox.
+The OTP shows in a dev toast when SMTP is not configured. **Developer mode** (`npm start`, without `PROCTOR_STRICT=1`) has no native restrictions, so the full flow runs on a dev machine:
+- no kiosk lock, blocked shortcuts, focus-loss lock or content protection
+- no process, display, USB or clipboard guards
+- system-check failures are shown but never block Continue
+- coding assistants (`claude`, `codex`, `cursor`, `copilot`, `windsurf`) are left out of the app list
+
+The AI webcam checks, browsing logs and dev-panel violation injection still work for demos. The installed app and `PROCTOR_STRICT=1` keep every restriction.
+
+The desktop app opens full screen. In developer mode the password step has **Copy** and **Fill** buttons for the pasted link's test password, and the dev panel keeps the last generated link and password with copy buttons. The website's dev toolbar has no on-screen button; open it with Ctrl+Shift+D. Without SMTP, every email (with its join link) is in the website dev toolbar's outbox.
