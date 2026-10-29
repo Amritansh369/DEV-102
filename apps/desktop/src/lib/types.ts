@@ -245,6 +245,8 @@ export interface ProctorEvent {
 /** Bridge exposed by the Electron preload script as window.proctor. */
 export interface ProctorApi {
   readonly native: boolean;
+  /** Development build: no kiosk lock, native guards or blocking system checks. */
+  readonly relaxed: boolean;
   window: {
     minimize(): Promise<void>;
     toggleMaximize(): Promise<boolean>;

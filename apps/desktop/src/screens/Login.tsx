@@ -1,10 +1,10 @@
 import { useCallback, useEffect, useState, type FormEvent } from 'react'
 import { AnimatePresence, motion } from 'framer-motion'
 import {
-  AlertCircle, ArrowLeft, ArrowRight, CalendarClock, ClipboardPaste, Clock3, Eye, EyeOff, Fingerprint, GraduationCap, Link2, Loader2,
+  AlertCircle, ArrowLeft, ArrowRight, CalendarClock, Check, ClipboardPaste, Clock3, Copy, Eye, EyeOff, Fingerprint, FlaskConical, GraduationCap, Link2, Loader2,
   Lock, MailCheck, MonitorCheck, ShieldCheck, Video, Wifi, WifiOff, type LucideIcon,
 } from 'lucide-react'
-import { api, parseInviteToken, type InvitePreview } from '../lib/api'
+import { api, devApi, parseInviteToken, type InvitePreview } from '../lib/api'
 import { HttpError } from '../lib/http'
 import { useApp } from '../lib/store'
 import { backgroundFor, getTimeTheme, type Look, type TimeTheme } from '../lib/theme'
@@ -57,6 +57,7 @@ export default function Login({ onLoggedIn }: LoginProps) {
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [bgFailed, setBgFailed] = useState(false)
+  const [testCopied, setTestCopied] = useState(false)
 
   const pingServer = useCallback(async () => setServer(await api.serverStatus()), [])
 
@@ -126,6 +127,22 @@ export default function Login({ onLoggedIn }: LoginProps) {
       setError(`${errorText(err, 'Sign-in failed.')}${typeof left === 'number' ? ` (${left} attempt${left === 1 ? '' : 's'} left)` : ''}`)
     } finally {
       setBusy(false)
+    }
+  }
+
+  /** Development only: fetch the link's password to copy or fill it, so testing needs no email. */
+  const testPassword = async (mode: 'copy' | 'fill') => {
+    if (!token) return
+    try {
+      const p = await devApi.invitePassword(token)
+      if (mode === 'fill') setPassword(p)
+      else {
+        await navigator.clipboard.writeText(p)
+        setTestCopied(true)
+        window.setTimeout(() => setTestCopied(false), 1500)
+      }
+    } catch (e) {
+      setError(errorText(e, 'Could not fetch the test password.'))
     }
   }
 
@@ -302,6 +319,16 @@ export default function Login({ onLoggedIn }: LoginProps) {
                       {showPw ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
                     </button>
                   </div>
+                  {import.meta.env.DEV && (
+                    <div className="mt-2 flex items-center gap-2 rounded-lg bg-amber-50 px-2.5 py-1.5 text-[11px] text-amber-800 ring-1 ring-amber-200">
+                      <FlaskConical className="h-3.5 w-3.5 shrink-0" aria-hidden />
+                      <span className="flex-1">Test password (developer mode)</span>
+                      <button type="button" onClick={() => void testPassword('copy')} className="inline-flex items-center gap-1 rounded-md bg-white px-2 py-0.5 font-medium ring-1 ring-amber-200 hover:bg-amber-100">
+                        {testCopied ? <Check className="h-3 w-3" aria-hidden /> : <Copy className="h-3 w-3" aria-hidden />} {testCopied ? 'Copied' : 'Copy'}
+                      </button>
+                      <button type="button" onClick={() => void testPassword('fill')} className="rounded-md bg-white px-2 py-0.5 font-medium ring-1 ring-amber-200 hover:bg-amber-100">Fill</button>
+                    </div>
+                  )}
                   {error && <ErrorNote text={error} />}
                   <button type="submit" disabled={busy || offline || !password} className={submitCls}>
                     {busy && <Loader2 className="h-4 w-4 animate-spin" aria-hidden />}

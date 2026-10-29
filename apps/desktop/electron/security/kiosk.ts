@@ -28,18 +28,18 @@ export class Kiosk {
 
   constructor(private readonly win: BrowserWindow, private readonly emit: Emit, private readonly soft: boolean) {
     win.webContents.on('before-input-event', (event, input) => {
-      if (!this.active || input.type !== 'keyDown') return;
+      if (!this.active || this.soft || input.type !== 'keyDown') return;
       const label = blockedLabel(input);
       if (!label) return;
       event.preventDefault();
       this.report('SHORTCUT_BLOCKED', `The shortcut ${label} is blocked during the exam`, label);
     });
-    win.webContents.on('context-menu', (event) => this.active && event.preventDefault());
+    win.webContents.on('context-menu', (event) => this.active && !this.soft && event.preventDefault());
     win.webContents.on('devtools-opened', () => {
       if (this.active && !this.soft) win.webContents.closeDevTools();
     });
     win.on('blur', () => {
-      if (!this.active) return;
+      if (!this.active || this.soft) return;
       this.report('WINDOW_BLUR', 'The exam window lost focus', 'blur');
       if (!this.soft) setTimeout(() => !win.isDestroyed() && win.focus(), 150);
     });
@@ -58,6 +58,8 @@ export class Kiosk {
   enter(): void {
     if (this.active) return;
     this.active = true;
+    // Development: nothing is locked, blocked or reported, so the exam can be tested on a dev machine.
+    if (this.soft) return;
     this.win.setContentProtection(true);
     if (!this.soft) {
       this.win.setKiosk(true);
@@ -80,7 +82,7 @@ export class Kiosk {
     if (!this.active) return;
     this.active = false;
     globalShortcut.unregisterAll();
-    if (this.win.isDestroyed()) return;
+    if (this.soft || this.win.isDestroyed()) return;
     this.win.setContentProtection(false);
     this.win.setKiosk(false);
     this.win.setAlwaysOnTop(false);

@@ -1,6 +1,6 @@
 import { Suspense, lazy, useEffect, useRef, useState, type ComponentType, type LazyExoticComponent } from 'react';
 import { AnimatePresence, motion, type Variants } from 'framer-motion';
-import { Bug, Eye, Link2, RotateCcw, Zap } from 'lucide-react';
+import { Bug, Check, Copy, Eye, Link2, RotateCcw, Zap } from 'lucide-react';
 import { DesktopLayout } from './components/DesktopLayout';
 import { ALL_VIOLATION_CODES, APP_STEPS, VIOLATION_META } from './lib/types';
 import type { AppStep, ViolationCode } from './lib/types';
@@ -104,6 +104,8 @@ function DevPanel() {
   const pushToast = useApp((s) => s.pushToast);
   const [code, setCode] = useState<ViolationCode>('MULTIPLE_FACES');
   const [busy, setBusy] = useState<string | null>(null);
+  const [lastLink, setLastLink] = useState<{ role: 'CANDIDATE' | 'MENTOR'; link: string; password: string } | null>(null);
+  const [copied, setCopied] = useState<string | null>(null);
 
   if (!DEV_TOOLS) return null;
 
@@ -149,8 +151,15 @@ function DevPanel() {
       const { link, password } = await devApi.inviteLink(role);
       await navigator.clipboard.writeText(link);
       useApp.getState().reset();
-      pushToast({ tone: 'success', title: `${role === 'MENTOR' ? 'Proctor' : 'Candidate'} link copied`, description: `Paste it, then use password ${password}.`, durationMs: 9000 });
+      setLastLink({ role, link, password });
+      pushToast({ tone: 'success', title: `${role === 'MENTOR' ? 'Proctor' : 'Candidate'} link copied`, description: 'Paste it, then copy the password here or on the password step.' });
     });
+
+  const copyText = async (key: string, text: string) => {
+    await navigator.clipboard.writeText(text);
+    setCopied(key);
+    window.setTimeout(() => setCopied((c) => (c === key ? null : c)), 1500);
+  };
 
   const inject = (target: ViolationCode) => {
     if (step === 'exam' && route === 'candidate') reportViolation(target);
@@ -192,6 +201,23 @@ function DevPanel() {
               <Button size="sm" variant="secondary" disabled={busy !== null} icon={<Link2 className="h-3.5 w-3.5" aria-hidden />} onClick={() => void copyInviteLink('CANDIDATE')}>Candidate link</Button>
               <Button size="sm" variant="secondary" disabled={busy !== null} icon={<Link2 className="h-3.5 w-3.5" aria-hidden />} onClick={() => void copyInviteLink('MENTOR')}>Proctor link</Button>
             </div>
+            {lastLink && (
+              <div className="mt-2 space-y-1.5 rounded-xl border border-border bg-soft p-2.5 text-[11px]">
+                <p className="font-semibold text-text">{lastLink.role === 'MENTOR' ? 'Proctor' : 'Candidate'} test sign-in</p>
+                {([
+                  ['link', 'Link', lastLink.link],
+                  ['password', 'Password', lastLink.password],
+                ] as const).map(([key, label, value]) => (
+                  <div key={key} className="flex items-center gap-2">
+                    <span className="w-14 shrink-0 text-muted">{label}</span>
+                    <code className="min-w-0 flex-1 truncate rounded bg-surface px-1.5 py-0.5">{value}</code>
+                    <button type="button" onClick={() => void copyText(key, value)} aria-label={`Copy ${label.toLowerCase()}`} className="rounded-md p-1 text-muted hover:bg-surface hover:text-primary">
+                      {copied === key ? <Check className="h-3.5 w-3.5 text-success" aria-hidden /> : <Copy className="h-3.5 w-3.5" aria-hidden />}
+                    </button>
+                  </div>
+                ))}
+              </div>
+            )}
 
             <h3 className="mt-4 text-[11px] font-semibold uppercase tracking-wide text-muted">Inject a violation</h3>
             <div className="mt-2 grid grid-cols-[1fr_auto] gap-1.5">

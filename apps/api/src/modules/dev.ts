@@ -5,7 +5,8 @@ import { ROOT_DIR, config } from '../config.js';
 import { fail, handle, logger, parse } from '../lib/core.js';
 import { prisma } from '../lib/db.js';
 import { adminOnly, auth, authenticate } from '../lib/auth.js';
-import { VIOLATION_CODES } from '../lib/domain.js';
+import { INVITE_TOKEN, VIOLATION_CODES } from '../lib/domain.js';
+import { decrypt, sha256 } from '../lib/crypto.js';
 import { agent } from '../lib/agent.js';
 import { recordViolation } from '../lib/policy.js';
 import { realtime } from '../lib/realtime.js';
@@ -111,4 +112,23 @@ devRouter.post('/invite-link', ...adminOnly, handle(async (req) => {
   if (!u) return fail('NOT_FOUND', 'Demo mentor not found. Reseed the database.');
   const { link } = await issueInvite({ examId: exam.id, endsAt: exam.endsAt, role, email: u.email, userId: u.id });
   return { link, password: DEMO.mentor.password };
+}));
+
+/**
+ * The password for a pasted join link, so the desktop sign-in can be tested without opening the email.
+ * Uses the stored copy (kept until first sign-in), then the seeded demo passwords.
+ */
+devRouter.post('/invite-password', handle(async (req) => {
+  const { token } = parse(z.object({ token: z.string().trim().toLowerCase().regex(INVITE_TOKEN) }), req.body);
+  const inv = await prisma.invite.findUnique({ where: { tokenHash: sha256(token) }, include: { candidate: true, user: true } });
+  if (!inv) return fail('NOT_FOUND', 'Unknown exam link.');
+  const cipher = inv.candidate?.credentialCipher ?? inv.user?.credentialCipher ?? null;
+  const stored = cipher ? decrypt(cipher, config.JWT_SECRET) : null;
+  // Seeded candidates use Exam@ plus the last four characters of their User ID (database/prisma/seed.ts).
+  const seeded = inv.candidate
+    ? (inv.candidate.userId === DEMO.candidate.userId || inv.candidate.userId === DEMO.candidate2.userId ? DEMO.candidate.password : `Exam@${inv.candidate.userId.slice(-4)}`)
+    : inv.user?.email === DEMO.mentor.email ? DEMO.mentor.password : null;
+  const password = stored ?? seeded;
+  if (!password) return fail('NOT_FOUND', 'This password is no longer stored. Use Reset & copy in the admin panel.');
+  return { password, source: stored ? 'stored' : 'seed' };
 }));

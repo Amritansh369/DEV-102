@@ -25,12 +25,13 @@ const PHONE_OR_STORAGE = /phone|android|iphone|ipad|mtp|mass storage|card reader
 
 /**
  * Coding assistants a developer has open while running `npm start`. Development builds skip them
- * so the exam can be tested on a dev machine; packaged builds and PROCTOR_STRICT=1 flag them.
+ * in the system check list; packaged builds and PROCTOR_STRICT=1 flag them.
  */
 const DEV_TOOLS = new Set(['claude', 'codex', 'cursor', 'copilot', 'githubcopilot', 'windsurf']);
-let ignoreDevTools = false;
-export function setIgnoreDevTools(on: boolean): void {
-  ignoreDevTools = on;
+/** Development builds without PROCTOR_STRICT=1: no native restrictions, so the exam can be tested on a dev machine. */
+let relaxed = false;
+export function setRelaxed(on: boolean): void {
+  relaxed = on;
 }
 
 export async function scanProcesses(): Promise<DetectedApp[]> {
@@ -38,7 +39,7 @@ export async function scanProcesses(): Promise<DetectedApp[]> {
   const seen = new Map<string, DetectedApp>();
   for (const p of list) {
     const key = p.name.toLowerCase().replace(/\.exe$/, '');
-    if (ignoreDevTools && DEV_TOOLS.has(key)) continue;
+    if (relaxed && DEV_TOOLS.has(key)) continue;
     const hit = BLACKLIST[key];
     if (hit && !seen.has(key)) seen.set(key, { id: `app-${key}`, name: hit.name, category: hit.category, pid: p.pid });
   }
@@ -130,6 +131,7 @@ export class GuardMonitor {
 
   async start(): Promise<void> {
     this.stop();
+    if (relaxed) return;
     clipboard.clear();
     this.usbBaseline = await usbSnapshot();
     const every = (ms: number, fn: () => Promise<void> | void) => {

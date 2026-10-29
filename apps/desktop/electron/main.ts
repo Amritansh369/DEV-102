@@ -2,7 +2,7 @@ import { app, BrowserWindow, desktopCapturer, session, shell } from 'electron';
 import { join } from 'node:path';
 import { CH, registerIpc } from './ipc';
 import { Kiosk } from './security/kiosk';
-import { setIgnoreDevTools } from './security/guards';
+import { setRelaxed } from './security/guards';
 import { SANDBOX_PARTITION, attachGuard, hardenSandbox } from './browser-sandbox/sandbox';
 
 const PROTOCOL = 'dev102';
@@ -15,7 +15,7 @@ const devUrl = process.env.ELECTRON_RENDERER_URL ?? process.env.DESKTOP_RENDERER
 const isDev = !app.isPackaged;
 // Development keeps the window debuggable unless PROCTOR_STRICT=1; packaged builds always lock down.
 const softKiosk = isDev && process.env.PROCTOR_STRICT !== '1';
-setIgnoreDevTools(softKiosk);
+setRelaxed(softKiosk);
 const rendererOrigin = () => (devUrl ? new URL(devUrl).origin : 'file://');
 
 let win: BrowserWindow | null = null;
@@ -86,6 +86,8 @@ async function createWindow(): Promise<void> {
       webviewTag: true,
       spellcheck: false,
       devTools: isDev,
+      // Read by the preload as window.proctor.relaxed.
+      additionalArguments: softKiosk ? ['--proctor-relaxed'] : [],
     },
   });
   kiosk = new Kiosk(win, emit, softKiosk);
@@ -93,9 +95,14 @@ async function createWindow(): Promise<void> {
   win.on('close', (event) => {
     if (kiosk?.active && !appIsQuitting) event.preventDefault();
   });
-  win.once('ready-to-show', () => win?.show());
-  win.on('maximize', () => win?.webContents.send(CH.evMaximize, true));
-  win.on('unmaximize', () => win?.webContents.send(CH.evMaximize, false));
+  // Opens full screen; the title bar's maximise button leaves and re-enters it.
+  win.once('ready-to-show', () => {
+    win?.setFullScreen(true);
+    win?.show();
+  });
+  for (const ev of ['maximize', 'unmaximize', 'enter-full-screen', 'leave-full-screen'] as const) {
+    win.on(ev as 'maximize', () => win?.webContents.send(CH.evMaximize, Boolean(win?.isFullScreen() || win?.isMaximized())));
+  }
   win.on('closed', () => {
     win = null;
     kiosk = null;

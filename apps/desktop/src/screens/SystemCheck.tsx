@@ -150,6 +150,9 @@ export default function SystemCheck({ onContinue, onBack }: SystemCheckProps) {
 
   const passed = ORDER.filter((id) => results[id].status === 'pass').length
   const allPass = passed === ORDER.length
+  // Development builds: failed checks are shown but never block, so the flow can be tested on any machine.
+  const relaxed = getProctor().relaxed
+  const canContinue = allPass || (relaxed && !running)
   const rowProps = (id: CheckId) => ({ status: results[id].status, detail: results[id].detail, hint: results[id].hint, progress: progress[id], onRetry: () => void runOne(id) })
   const ico = (n: ReactNode) => n
 
@@ -217,8 +220,8 @@ export default function SystemCheck({ onContinue, onBack }: SystemCheckProps) {
             </button>
           </div>
           <div className="flex items-center gap-3">
-            {!allPass && <span className="text-xs text-muted">{running ? 'Running checks…' : 'Resolve the failed checks to continue'}</span>}
-            <button type="button" onClick={onContinue} disabled={!allPass} className="rounded-xl bg-cta px-6 py-2.5 text-sm font-semibold text-ink shadow-sm hover:brightness-95 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent disabled:cursor-not-allowed disabled:opacity-50">
+            {!allPass && <span className="text-xs text-muted">{running ? 'Running checks…' : relaxed ? 'Developer mode: checks do not block' : 'Resolve the failed checks to continue'}</span>}
+            <button type="button" onClick={onContinue} disabled={!canContinue} className="rounded-xl bg-cta px-6 py-2.5 text-sm font-semibold text-ink shadow-sm hover:brightness-95 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent disabled:cursor-not-allowed disabled:opacity-50">
               Continue to face verification
             </button>
           </div>

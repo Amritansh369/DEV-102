@@ -205,6 +205,8 @@ export const devApi = {
     setToken(null);
     return r;
   },
+  /** Password for a pasted join link (stored copy or seeded demo password); development only. */
+  invitePassword: async (token: string) => (await post<{ password: string }>('/dev/invite-password', { token })).password,
   /** Marks the signed-in candidate as face- and OTP-verified so the exam can start. */
   verifyMe: () => post('/dev/verify-me'),
   simulate: (code: ViolationCode) => post<ViolationResult>('/dev/simulate-violation', { code, ...(current?.sessionId ? { sessionId: current.sessionId } : {}) }),
