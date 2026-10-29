@@ -1,6 +1,6 @@
 import { Suspense, lazy, useEffect, useRef, useState, type ComponentType, type LazyExoticComponent } from 'react';
 import { AnimatePresence, motion, type Variants } from 'framer-motion';
-import { Bug, Eye, RotateCcw, Zap } from 'lucide-react';
+import { Bug, Eye, Link2, RotateCcw, Zap } from 'lucide-react';
 import { DesktopLayout } from './components/DesktopLayout';
 import { ALL_VIOLATION_CODES, APP_STEPS, VIOLATION_META } from './lib/types';
 import type { AppStep, ViolationCode } from './lib/types';
@@ -131,6 +131,15 @@ function DevPanel() {
       useApp.getState().openMentor(await signInStaff(DEMO_MENTOR));
     });
 
+  /** Copies a fresh demo join link, then returns to the paste-link screen. */
+  const copyInviteLink = (role: 'CANDIDATE' | 'MENTOR') =>
+    run('Join link', async () => {
+      const { link, password } = await devApi.inviteLink(role);
+      await navigator.clipboard.writeText(link);
+      useApp.getState().reset();
+      pushToast({ tone: 'success', title: `${role === 'MENTOR' ? 'Proctor' : 'Candidate'} link copied`, description: `Paste it, then use password ${password}.`, durationMs: 9000 });
+    });
+
   const inject = (target: ViolationCode) => {
     if (step === 'exam' && route === 'candidate') reportViolation(target);
     else pushToast({ tone: 'info', title: 'Open the exam first', description: 'Violations are recorded against the running exam session.' });
@@ -165,6 +174,12 @@ function DevPanel() {
               </Button>
             </div>
             <p className="mt-1.5 text-[11px] text-muted">Signs in the demo candidate and marks face and OTP as verified when a screen needs it.</p>
+
+            <h3 className="mt-4 text-[11px] font-semibold uppercase tracking-wide text-muted">Join links</h3>
+            <div className="mt-2 grid grid-cols-2 gap-1.5">
+              <Button size="sm" variant="secondary" disabled={busy !== null} icon={<Link2 className="h-3.5 w-3.5" aria-hidden />} onClick={() => void copyInviteLink('CANDIDATE')}>Candidate link</Button>
+              <Button size="sm" variant="secondary" disabled={busy !== null} icon={<Link2 className="h-3.5 w-3.5" aria-hidden />} onClick={() => void copyInviteLink('MENTOR')}>Proctor link</Button>
+            </div>
 
             <h3 className="mt-4 text-[11px] font-semibold uppercase tracking-wide text-muted">Inject a violation</h3>
             <div className="mt-2 grid grid-cols-[1fr_auto] gap-1.5">
@@ -247,13 +262,22 @@ export default function App() {
     : step === 'login'
       ? { onLoggedIn: () => {
           const login = currentLogin();
-          if (login) signIn(login.auth, login.exam);
+          if (!login) return;
+          if (login.auth.role === 'MENTOR') {
+            useApp.getState().startProctorChecks(login.auth, login.exam);
+            return;
+          }
+          signIn(login.auth, login.exam);
           void go('systemCheck');
         } }
       : step === 'systemCheck'
         ? { onContinue: () => void go('faceVerify'), onBack: () => void go('login') }
         : step === 'faceVerify'
-          ? { onVerified: () => void go('consent'), onBack: () => void go('systemCheck'), notify: (message: string) => useApp.getState().pushToast({ tone: 'info', title: message }) }
+          ? {
+              // A proctor skips the system check and consent: after face and OTP the monitor opens.
+              onVerified: () => (auth?.role === 'MENTOR' ? useApp.getState().openMentor(auth) : void go('consent')),
+              onBack: () => void go(auth?.role === 'MENTOR' ? 'login' : 'systemCheck'),
+              notify: (message: string) => useApp.getState().pushToast({ tone: 'info', title: message }) }
           : step === 'consent'
             ? { onGranted: () => void go('exam'), onBack: () => void go('faceVerify'), notify: (message: string) => useApp.getState().pushToast({ tone: 'info', title: message }) }
             : step === 'exam'
