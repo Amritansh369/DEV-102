@@ -103,3 +103,21 @@ npm run db:migrate -- --name <what-changed>
 ```
 
 `npm start` applies migrations locally, and the API container applies them on deploy. A database created before migrations existed (with `prisma db push`) is detected and marked as already on the first migration.
+
+## Alternative: AWS + Neon + Vercel
+
+The same containers run on one EC2 host with Docker Compose. Caddy provides HTTPS and passes WebSockets through. Files are in `docs/deploy/aws/`.
+
+1. **Neon:** create a project in `aws-ap-southeast-1` and copy the **direct** connection string (the host without `-pooler`, ending in `?sslmode=require`). The API runs `prisma migrate deploy` on start, which needs the direct URL. Seed it once with `DATABASE_URL="<url>" npm run db:seed`.
+2. **EC2:** launch Ubuntu 24.04 on a `t3.medium` (4 GB; the agent's vision models need the memory) with a 30 GB disk. Open ports 80 and 443, and 22 for your IP only. Attach an Elastic IP. Without a domain, use `api.<ip-with-dashes>.sslip.io` as the hostname.
+3. On the host, install `docker.io docker-compose-v2 git`, clone the repo, and copy `docs/deploy/aws/.env.example` to `docs/deploy/aws/.env`. Fill it in, generating the secrets with `openssl rand -hex 32`. Then run:
+
+   ```bash
+   sudo docker compose -f docs/deploy/aws/docker-compose.yml up -d --build
+   ```
+
+   `https://<API_HOST>/health` should return ok once Caddy has its certificate.
+4. **Vercel:** follow section 3 above, with `NEXT_PUBLIC_API_URL=https://<API_HOST>`. Put the Vercel URL in `CLIENT_URL` in the `.env`, then rerun `docker compose ... up -d`.
+5. **Desktop:** follow section 4 above, with `VITE_API_URL=https://<API_HOST>`.
+
+To update, run `git pull` on the host and then the same `docker compose ... up -d --build` command.
