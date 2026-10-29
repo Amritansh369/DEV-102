@@ -98,6 +98,15 @@ export const readPolicy = (v: unknown): ViolationPolicy => {
 };
 export const readExtras = (v: unknown, title: string): ExamExtras => ({ ...defaultExtras(title), ...asObj(v) }) as ExamExtras;
 
+/**
+ * The exam clock is paused while a candidate is offline: on reconnect the deadline moves forward by the time
+ * since the last contact, but never past the end of the exam window.
+ */
+export function resumedDeadline(deadlineAt: Date, lastContactAt: Date, examEndsAt: Date, now = Date.now()): Date {
+  const pausedMs = Math.max(0, now - lastContactAt.getTime());
+  return new Date(Math.min(deadlineAt.getTime() + pausedMs, examEndsAt.getTime()));
+}
+
 /* ------------------------------------------------------------ UI shapes */
 
 export type ExamStatusView = 'DRAFT' | 'SCHEDULED' | 'LIVE' | 'COMPLETED';
