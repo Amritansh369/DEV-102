@@ -3,7 +3,7 @@ import { z } from 'zod';
 import { fail, handle, must, parse } from '../lib/core.js';
 import { prisma } from '../lib/db.js';
 import { auth, authenticate, candidateOnly } from '../lib/auth.js';
-import { examInclude, examStatus, readExtras, resumedDeadline, readOptions, readPolicy, readSettings, toExam, toQuestion, toSession } from '../lib/domain.js';
+import { PAUSE_AFTER_MS, examInclude, examStatus, readExtras, resumedDeadline, readOptions, readPolicy, readSettings, toExam, toQuestion, toSession } from '../lib/domain.js';
 import { finalizeSession } from '../lib/policy.js';
 import { realtime } from '../lib/realtime.js';
 import { sendMail, templates } from '../lib/mailer.js';
@@ -27,14 +27,15 @@ const remainingSec = (deadline: Date) => Math.max(0, Math.round((deadline.getTim
 
 type LoadedSession = Awaited<ReturnType<typeof ownSession>>;
 
-/** First contact after an outage the sweeper flagged: give the offline time back to the clock and tell staff. */
+/** First contact after an outage: give the offline time back to the clock and tell staff. */
 async function resumeIfPaused(s: LoadedSession): Promise<LoadedSession> {
-  if (s.status !== 'LIVE' || !s.networkLost || !s.lastHeartbeatAt) return s;
+  if (s.status !== 'LIVE' || !s.lastHeartbeatAt) return s;
   const now = Date.now();
+  if (!s.networkLost && now - s.lastHeartbeatAt.getTime() <= PAUSE_AFTER_MS) return s;
   const deadlineAt = resumedDeadline(s.deadlineAt, s.lastHeartbeatAt, s.exam.endsAt, now);
   const lastHeartbeatAt = new Date(now);
-  // Only the request that clears the flag credits the time, so parallel requests on reconnect can't add it twice.
-  const { count } = await prisma.examSession.updateMany({ where: { id: s.id, networkLost: true }, data: { networkLost: false, deadlineAt, lastHeartbeatAt } });
+  // Matching on the last contact time lets only one of several parallel requests on reconnect credit the pause.
+  const { count } = await prisma.examSession.updateMany({ where: { id: s.id, lastHeartbeatAt: s.lastHeartbeatAt }, data: { networkLost: false, deadlineAt, lastHeartbeatAt } });
   if (count === 0) return must(await prisma.examSession.findUnique({ where: { id: s.id }, include: { exam: true } }), 'Session');
   const pausedSec = Math.round((now - s.lastHeartbeatAt.getTime()) / 1000);
   realtime.toExam(s.examId, 'session:presence', { sessionId: s.id, online: true, pausedSec, deadlineAt: deadlineAt.toISOString() });

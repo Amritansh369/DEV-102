@@ -26,15 +26,16 @@ describe('resumedDeadline', () => {
   });
 });
 
-/** One session row that the routes read and the resume step writes; updateMany honours the networkLost guard. */
+/** One session row that the routes read and the resume step writes; updateMany honours the last-contact guard. */
 const db = vi.hoisted(() => ({ session: {} as Record<string, unknown> }));
+
 vi.mock('../src/lib/db.js', () => ({
   prisma: {
     examSession: {
       findUnique: vi.fn(async () => ({ ...db.session })),
       update: vi.fn(async ({ data }: { data: Record<string, unknown> }) => Object.assign(db.session, data)),
-      updateMany: vi.fn(async ({ where, data }: { where: { networkLost: boolean }; data: Record<string, unknown> }) => {
-        if (db.session.networkLost !== where.networkLost) return { count: 0 };
+      updateMany: vi.fn(async ({ where, data }: { where: { lastHeartbeatAt: Date }; data: Record<string, unknown> }) => {
+        if ((db.session.lastHeartbeatAt as Date).getTime() !== where.lastHeartbeatAt.getTime()) return { count: 0 };
         Object.assign(db.session, data);
         return { count: 1 };
       }),
@@ -120,8 +121,15 @@ describe('exam clock pause while offline', () => {
     expect(realtime.toExam).not.toHaveBeenCalledWith('exam-1', 'session:presence', expect.anything());
   });
 
-  it('leaves the clock alone for a session that was never flagged offline', async () => {
-    offlineSession(0, 10);
+  it('also pauses for a short drop the sweeper has not flagged yet', async () => {
+    offlineSession(25 / 60, 10);
+    db.session.networkLost = false;
+    const r = await call('POST', 'heartbeat');
+    expect(r.body.data?.remainingSec).toBeGreaterThan(10 * 60 - 5);
+  });
+
+  it('leaves the clock alone while heartbeats arrive on time', async () => {
+    offlineSession(8 / 60, 10);
     db.session.networkLost = false;
     const deadline = (db.session.deadlineAt as Date).getTime();
     await call('POST', 'heartbeat');

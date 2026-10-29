@@ -98,6 +98,9 @@ export const readPolicy = (v: unknown): ViolationPolicy => {
 };
 export const readExtras = (v: unknown, title: string): ExamExtras => ({ ...defaultExtras(title), ...asObj(v) }) as ExamExtras;
 
+/** Silence longer than two missed heartbeats (sent every 10 s) counts as offline, and the exam clock is paused for it. */
+export const PAUSE_AFTER_MS = 20_000;
+
 /**
  * The exam clock is paused while a candidate is offline: on reconnect the deadline moves forward by the time
  * since the last contact, but never past the end of the exam window.
