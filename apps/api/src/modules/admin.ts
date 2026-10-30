@@ -2,7 +2,7 @@ import { Router } from 'express';
 import { createReadStream, existsSync, readdirSync, statSync } from 'node:fs';
 import { join } from 'node:path';
 import type { Severity, ViolationCode } from '@prisma/client';
-import { ROOT_DIR } from '../config.js';
+import { ROOT_DIR, config } from '../config.js';
 import { fail, handle, must } from '../lib/core.js';
 import { prisma } from '../lib/db.js';
 import { adminOnly, auth, candidateOnly, staff } from '../lib/auth.js';
@@ -247,6 +247,7 @@ adminRouter.get('/downloads/latest', handle(async () => {
   return {
     version,
     releasedAt: exe ? statSync(join(dir, exe)).mtime.toISOString() : stable?.releasedAt ?? new Date().toISOString(),
+    extensionStores: { ...(config.EXTENSION_CHROME_URL ? { chrome: config.EXTENSION_CHROME_URL } : {}), ...(config.EXTENSION_EDGE_URL ? { edge: config.EXTENSION_EDGE_URL } : {}) },
     extension: extension ? { version: extension.version, file: extension.file, sizeMb: extension.sizeMb, url: extension.url } : null,
     // A newer test build for testers, when one is published as a GitHub pre-release.
     beta: beta ? { version: beta.version, file: beta.file, sizeMb: beta.sizeMb, url: beta.url, releasedAt: beta.releasedAt } : null,

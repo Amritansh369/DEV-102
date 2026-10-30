@@ -2,13 +2,13 @@
 
 Lets a candidate take a proctored exam in Chrome instead of the desktop app. The extension:
 
-- opens an exam tab (toolbar button) for sign-in, one-time code, face check, consent, screen share, the waiting room, the exam itself and the receipt;
+- opens an exam tab (toolbar button) where the candidate enters the exam link and password from their email, then one-time code, face check, consent, screen share, the waiting room, the exam itself and the receipt;
 - uploads a webcam frame every 2 s and a screen frame every 20 s, autosaves answers and sends heartbeats, like the desktop app;
 - reports every visited tab, search and tab switch to `/proctoring/browsing-logs`;
 - on AI sites, records what is typed and what the AI answers, using the same code as the desktop app;
 - sends `WINDOW_BLUR` with a picture when the candidate leaves the exam tab or Chrome loses focus (at most once per 10 s).
 
-It signs in with `channel: "web"`, and sessions keep the same OTP and face requirements as the desktop app.
+It signs in through `/auth/invites/login`, so the link locks to one browser, and sessions keep the same OTP and face requirements as the desktop app. Proctor links are refused.
 
 ## Release
 
@@ -27,6 +27,6 @@ The manifest's `key` fixes the extension ID to `fgfompcfejncbbpbipjokoniblfihbnm
 
 ## Limits
 
-- Candidates install it with Load unpacked; it is not on the Chrome Web Store.
+- Until it is on the Chrome Web Store and Edge Add-ons, candidates install it with Load unpacked. `docs/deploy.md` covers publishing.
 - The proctor gets webcam frames and a screen picture every 20 s, but not the desktop app's live screen video.
 - Typing is tracked on the AI sites listed in `manifest.json`. A site already open when the exam starts begins tracking after it reloads.

@@ -33,6 +33,9 @@ const schema = z.object({
   EXTENSION_IDS: z.string().default('fgfompcfejncbbpbipjokoniblfihbnm'),
   /** TURN relay for the live screen view across networks (comma-separated turn:/turns: URLs). STUN alone fails behind mobile or campus NAT. */
   /** GitHub "owner/repo" whose Releases hold the desktop installers; used when apps/desktop/release has no local build. */
+  /** Store listings of the extension. When set, the download page's Add button installs in one click. */
+  EXTENSION_CHROME_URL: z.string().url().optional(),
+  EXTENSION_EDGE_URL: z.string().url().optional(),
   DESKTOP_RELEASE_REPO: z.string().regex(/^$|^[\w.-]+\/[\w.-]+$/).default(''),
   TURN_URLS: z.string().default(''),
   TURN_USERNAME: z.string().default(''),
