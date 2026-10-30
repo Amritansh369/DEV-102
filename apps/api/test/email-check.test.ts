@@ -41,14 +41,30 @@ describe('mailDomainOk', () => {
 
   it('rejects a domain whose null MX says it takes no mail', async () => {
     dns.mx.mockResolvedValue([{ exchange: '', priority: 0 }]);
+    expect(await check('a@no-mail.example.io')).toBe(false);
+  });
+
+  it('accepts reserved test domains outside production, where mail goes to the dev outbox', async () => {
+    dns.mx.mockReset();
+    expect(await check('a@example.com')).toBe(true);
+    expect(await check('b@school.test')).toBe(true);
+    expect(dns.mx).not.toHaveBeenCalled();
+  });
+
+  it('rejects reserved test domains in production', async () => {
+    vi.stubEnv('NODE_ENV', 'production');
+    vi.stubEnv('JWT_SECRET', 'a-real-production-secret');
+    vi.stubEnv('AGENT_API_KEY', 'a-real-agent-key');
+    dns.mx.mockResolvedValue([{ exchange: '', priority: 0 }]);
     expect(await check('a@example.com')).toBe(false);
+    vi.unstubAllEnvs();
   });
 
   it('accepts a domain without MX that has an address, as mail falls back to it', async () => {
     dns.mx.mockRejectedValue(fail('ENODATA'));
     dns.a4.mockRejectedValue(fail('ENODATA'));
     dns.a6.mockResolvedValue(['2001:db8::1']);
-    expect(await check('a@small-host.example')).toBe(true);
+    expect(await check('a@small-host.example.io')).toBe(true);
   });
 
   it('still rejects a typo domain when the MX lookup times out, using the system resolver', async () => {
@@ -61,16 +77,16 @@ describe('mailDomainOk', () => {
     dns.mx.mockRejectedValue(fail('ETIMEOUT'));
     dns.os.mockResolvedValue({ address: '203.0.113.5' });
     const { mailDomainOk } = await import('../src/lib/email-check.js');
-    expect(await mailDomainOk('a@slow.example')).toBeNull();
-    dns.mx.mockResolvedValue([{ exchange: 'mx.slow.example', priority: 10 }]);
-    expect(await mailDomainOk('a@slow.example')).toBe(true);
+    expect(await mailDomainOk('a@slow.example.io')).toBeNull();
+    dns.mx.mockResolvedValue([{ exchange: 'mx.slow.example.io', priority: 10 }]);
+    expect(await mailDomainOk('a@slow.example.io')).toBe(true);
   });
 
   it('caches an answer per domain', async () => {
-    dns.mx.mockReset().mockResolvedValue([{ exchange: 'mx.cached.example', priority: 10 }]);
+    dns.mx.mockReset().mockResolvedValue([{ exchange: 'mx.cached.example.io', priority: 10 }]);
     const { mailDomainOk } = await import('../src/lib/email-check.js');
-    await mailDomainOk('a@cached.example');
-    await mailDomainOk('b@cached.example');
+    await mailDomainOk('a@cached.example.io');
+    await mailDomainOk('b@cached.example.io');
     expect(dns.mx).toHaveBeenCalledTimes(1);
   });
 

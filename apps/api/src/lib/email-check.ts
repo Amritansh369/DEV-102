@@ -1,11 +1,14 @@
 import { Resolver, lookup as osLookup } from 'node:dns/promises';
 import { createHash } from 'node:crypto';
+import { config } from '../config.js';
 import { logger } from './core.js';
 
 const resolver = new Resolver({ timeout: 3000, tries: 2 });
 const cache = new Map<string, { ok: boolean | null; until: number }>();
 const TTL_MS = 60 * 60_000;
 const GONE = new Set(['ENOTFOUND', 'ENODATA', 'NXDOMAIN']);
+// Reserved for testing (RFC 2606 / 6761). They take no mail, but outside production every email goes to the dev outbox.
+const TEST_DOMAIN = /(^|\.)(example\.(com|org|net)|test|example)$/;
 
 async function lookup(domain: string): Promise<boolean | null> {
   try {
@@ -34,6 +37,7 @@ async function lookup(domain: string): Promise<boolean | null> {
 export async function mailDomainOk(email: string): Promise<boolean | null> {
   const domain = email.trim().toLowerCase().split('@')[1];
   if (!domain) return false;
+  if (!config.isProd && TEST_DOMAIN.test(domain)) return true;
   const hit = cache.get(domain);
   if (hit && hit.until > Date.now()) return hit.ok;
   const ok = await lookup(domain);
