@@ -1,4 +1,6 @@
 import type { ExamSession, Severity, SubmitReason, ViolationCode } from '@prisma/client';
+import { config } from '../config.js';
+import { sendAlert } from './alerts.js';
 import { logger } from './core.js';
 import { prisma } from './db.js';
 import { SEVERITY_RANK, VIOLATION_META, readExtras, readPolicy, readSettings, scoreAnswers, toSession, toViolation } from './domain.js';
@@ -104,6 +106,16 @@ export async function recordViolation(input: RecordInput): Promise<RecordResult>
     violation: toViolation(v, signEvidenceUrl), session: toSession(fresh), riskScore, warnings, maxWarnings, outcome, status,
   };
   if (outcome !== 'SUPPRESSED') realtime.toExam(session.examId, 'violation:new', payload);
+  if (outcome === 'AUTO_SUBMIT' || (outcome !== 'SUPPRESSED' && severity === 'CRITICAL')) {
+    void sendAlert({
+      event: outcome === 'AUTO_SUBMIT' ? 'session.auto_submitted' : 'violation.critical',
+      examId: session.examId, examTitle: session.exam.title, sessionId: session.id,
+      candidateName: session.candidate.name, userId: session.candidate.userId,
+      code: input.code, label: VIOLATION_META[input.code].label, severity, message: v.message, outcome,
+      riskScore, warnings, maxWarnings, at: at.toISOString(),
+      sessionUrl: `${config.clientOrigins[0]}/proctor/sessions/${session.id}`,
+    });
+  }
   if (outcome === 'WARNING') {
     realtime.toSession(session.id, 'proctor:warning', { code: input.code, severity, message: v.message, warnings, maxWarnings, final: warnings >= maxWarnings });
   }
