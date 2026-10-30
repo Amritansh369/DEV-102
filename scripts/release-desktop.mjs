@@ -42,5 +42,7 @@ if (!exists) {
   const r = spawnSync('gh', ['release', 'create', tag, '--target', 'main', '--title', tag, '--notes', `Where U Elevate desktop app ${version}.`, ...(beta ? ['--prerelease'] : [])], { stdio: 'inherit', env });
   if (r.status !== 0) process.exit(r.status ?? 1);
 }
-run(['electron-builder', '--publish', 'always', `--config.publish.releaseType=${beta ? 'prerelease' : 'release'}`]);
+// A fresh output folder per version (gitignored as release-*/): Windows often keeps files of the previous build in
+// apps/desktop/release locked (Defender, indexing), which fails the build with EBUSY.
+run(['electron-builder', '--publish', 'always', `--config.publish.releaseType=${beta ? 'prerelease' : 'release'}`, `--config.directories.output=release-${version}`]);
 console.log(`[release] Published v${version}. Installed apps update on their next start or within 4 hours.`);
