@@ -70,10 +70,14 @@ export const config = {
   extensionOrigins: env.EXTENSION_IDS.split(',').map((s) => s.trim()).filter(Boolean).map((id) => `chrome-extension://${id}`),
   evidenceDir: resolve(ROOT_DIR, env.EVIDENCE_DIR),
   smtpEnabled: Boolean(env.SMTP_HOST && env.SMTP_USER && env.SMTP_PASS),
-  /** Which real mail delivery is configured: Resend, then Brevo, then SMTP; none means the dev outbox. */
-  mailProvider: env.RESEND_API_KEY ? 'resend' as const
-    : env.BREVO_API_KEY && (env.MAIL_FROM || env.SMTP_USER) ? 'brevo' as const
-    : env.SMTP_HOST && env.SMTP_USER && env.SMTP_PASS ? 'smtp' as const : null,
+  /** Every configured mail delivery in the order tried: Resend, Brevo, SMTP. Empty means the dev outbox. */
+  mailProviders: [
+    ...(env.RESEND_API_KEY ? ['resend' as const] : []),
+    ...(env.BREVO_API_KEY && (env.MAIL_FROM || env.SMTP_USER) ? ['brevo' as const] : []),
+    ...(env.SMTP_HOST && env.SMTP_USER && env.SMTP_PASS ? ['smtp' as const] : []),
+  ],
+  /** The first configured mail delivery, or null for the dev outbox. */
+  get mailProvider(): 'resend' | 'brevo' | 'smtp' | null { return this.mailProviders[0] ?? null; },
   iceServers: iceServers(env),
 };
 
