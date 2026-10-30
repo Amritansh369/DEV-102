@@ -29,4 +29,9 @@ const tar = process.platform === 'win32' ? join(process.env.SystemRoot ?? 'C:\Wi
 run(tar, ['-a', '-c', '-f', zip, '-C', join(extension, 'dist'), '.']);
 const tag = execFileSync('gh', ['release', 'view', '--json', 'tagName', '--jq', '.tagName'], { encoding: 'utf8' }).trim();
 run('gh', ['release', 'upload', tag, zip, '--clobber']);
+// The website offers the zip it finds on a release, so older versions must not stay beside the new one.
+const assets = execFileSync('gh', ['release', 'view', tag, '--json', 'assets', '--jq', '.assets[].name'], { encoding: 'utf8' }).split(/\r?\n/);
+for (const name of assets) {
+  if (/^Where-U-Elevate-Extension-/.test(name) && name !== `Where-U-Elevate-Extension-${version}.zip`) run('gh', ['release', 'delete-asset', tag, name, '--yes']);
+}
 console.log(`[release] Attached the extension ${version} to ${tag}. The website shows it within 10 minutes.`);

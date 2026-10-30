@@ -1,9 +1,10 @@
 /**
- * The exam tab: sign in → one-time code → face check → consent → screen share → waiting room → exam → receipt.
- * Uses the same API as the desktop app, with channel "web". While the exam runs it autosaves answers, sends
+ * The exam tab: exam link and password → one-time code → face check → consent → screen share → waiting room → exam → receipt.
+ * Candidates join with the exam link and password from their email, like the desktop app. While the exam runs it autosaves answers, sends
  * heartbeats, and uploads webcam and screen frames; background.ts reports browsing. Nothing warns the candidate.
  */
-import { ApiError, call, store } from './api';
+import { parseInviteToken } from '../../desktop/src/lib/invite-token';
+import { ApiError, call, deviceId, store } from './api';
 
 interface Option { id: string; text: string }
 interface Question { id: string; type: 'MCQ' | 'NUMERIC'; text: string; options: Option[]; multi: boolean; marks: number; unit?: string }
@@ -59,17 +60,21 @@ const field = (label: string, input: HTMLInputElement) => h('label', {}, label, 
 /* ---------------------------------------------------------------- steps */
 
 function login(): void {
-  const exam = h('input', { required: true, autocomplete: 'off', placeholder: 'e.g. CPA-26' });
-  const user = h('input', { required: true, autocomplete: 'username' });
-  const pass = h('input', { required: true, type: 'password', autocomplete: 'current-password' });
-  show(card('Sign in to your exam', 'Use the exam code, user ID and password from your credentials email.',
-    form([field('Exam code', exam), field('User ID', user), field('Password', pass)], 'Sign in', async () => {
-      const r = await call<{ token: string }>('POST', '/auth/login', { examId: exam.value.trim(), userId: user.value.trim(), password: pass.value, channel: 'web' });
+  const link = h('input', { required: true, autocomplete: 'off', placeholder: 'https://…/join/…' });
+  const pass = h('input', { required: true, type: 'password', autocomplete: 'off' });
+  show(card('Join your exam', 'Enter the exam link and password from your invitation email.',
+    form([field('Exam link', link), field('Password', pass)], 'Continue', async () => {
+      const invite = parseInviteToken(link.value);
+      if (!invite) throw new Error('That is not a valid exam link. Copy the whole link from your email.');
+      // Checked first, so a proctor's link is not locked to this browser by mistake.
+      const { role } = await call<{ role: string }>('GET', `/auth/invites/${invite}`);
+      if (role !== 'CANDIDATE') throw new Error('This is a proctor link. Proctors use the desktop app.');
+      const r = await call<{ token: string }>('POST', '/auth/invites/login', { token: invite, password: pass.value, deviceId: await deviceId() });
       token = r.token;
       await store.set({ token });
       await otp();
     })));
-  exam.focus();
+  link.focus();
 }
 
 async function otp(): Promise<void> {

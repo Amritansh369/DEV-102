@@ -1,9 +1,10 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { AlertCircle, CheckCircle2, Download, ExternalLink, HardDrive, Loader2, MonitorCheck, Puzzle, RefreshCw, ShieldCheck, TriangleAlert } from "lucide-react";
+import { AlertCircle, CheckCircle2, Download, ExternalLink, HardDrive, Loader2, MonitorCheck, RefreshCw, ShieldCheck, TriangleAlert } from "lucide-react";
 import { Faq, type FaqItem } from "@/components/marketing/Faq";
 import { CtaBanner } from "@/components/marketing/CtaBanner";
+import { ExtensionSection } from "@/components/marketing/ExtensionSection";
 import { OrgBackdrop } from "@/components/layout/OrgBackdrop";
 import { getDesktopDownloads, type DesktopDownloads } from "@/lib/api";
 import { API_ORIGIN } from "@/lib/http";
@@ -242,28 +243,7 @@ export default function DownloadPage() {
         </div>
       </section>
 
-      <section id="extension" className="px-4 py-14 sm:px-6">
-        <div className="mx-auto max-w-3xl rounded-2xl border border-border bg-white p-6 shadow-sm">
-          <h2 className="flex items-center gap-2 font-heading text-2xl font-semibold text-slate-900"><Puzzle className="h-6 w-6 text-primary" aria-hidden /> Chrome extension</h2>
-          <p className="mt-2 text-slate-500">Taking the exam in Chrome instead of the app? Your exam coordinator will tell you if this is allowed.</p>
-          {release?.extension ? (
-            <>
-              <a href={release.extension.url} className="mt-4 inline-flex items-center gap-2 rounded-xl bg-primary px-5 py-3 font-semibold text-white hover:bg-primary-600">
-                <Download className="h-5 w-5" aria-hidden /> Download extension
-              </a>
-              <p className="mt-2 text-sm text-slate-500">Version {release.extension.version} · {release.extension.sizeMb} MB</p>
-              <ol className="mt-4 list-decimal space-y-1 pl-5 text-sm text-slate-600">
-                <li>Unzip the file into a folder you will keep.</li>
-                <li>In Chrome, open <code className="rounded bg-slate-100 px-1">chrome://extensions</code> and turn on Developer mode.</li>
-                <li>Choose Load unpacked and pick that folder.</li>
-                <li>Click the extension&apos;s toolbar button to open your exam.</li>
-              </ol>
-            </>
-          ) : (
-            <p role="status" className="mt-4 rounded-xl bg-slate-50 px-4 py-3 text-sm text-slate-600">{releaseError ? 'Could not reach the download server. Try again in a minute.' : 'The extension is not available yet.'}</p>
-          )}
-        </div>
-      </section>
+      <ExtensionSection release={release} failed={releaseError} />
 
       <section aria-labelledby="faq-h" className="px-4 py-16 sm:px-6">
         <div className="mx-auto max-w-3xl">

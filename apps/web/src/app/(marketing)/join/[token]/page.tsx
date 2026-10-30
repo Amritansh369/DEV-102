@@ -97,7 +97,7 @@ export default function JoinPage() {
                 {copied ? <Check className="h-4 w-4" aria-hidden /> : <ClipboardCopy className="h-4 w-4" aria-hidden />} {copied ? 'Link copied' : 'Copy exam link'}
               </button>
               <Link href="/download" className="inline-flex flex-1 items-center justify-center gap-2 rounded-xl border border-border px-4 py-3 text-sm font-semibold text-primary hover:bg-soft focus-visible:outline-2 focus-visible:outline-accent">
-                <MonitorSmartphone className="h-4 w-4" aria-hidden /> Get the desktop app
+                <MonitorSmartphone className="h-4 w-4" aria-hidden /> Get the desktop app or extension
               </Link>
             </div>
             <p className="mt-4 text-center text-xs text-muted">

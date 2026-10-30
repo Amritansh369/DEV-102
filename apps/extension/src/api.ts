@@ -11,6 +11,15 @@ export interface Stored {
   examTabId?: number;
 }
 
+/** Identifies this browser to the server. An exam link locks to the first device that signs in with it, so this must outlive the session. */
+export async function deviceId(): Promise<string> {
+  const { deviceId: saved } = (await chrome.storage.local.get('deviceId')) as { deviceId?: string };
+  if (saved) return saved;
+  const id = crypto.randomUUID();
+  await chrome.storage.local.set({ deviceId: id });
+  return id;
+}
+
 export const store = {
   get: () => chrome.storage.session.get(null) as Promise<Stored>,
   set: (patch: Stored) => chrome.storage.session.set(patch),

@@ -164,7 +164,7 @@ export interface ProctorProfileLookup { profile: { name: string; email: string }
 export interface InviteSent { inviteId: string; devLink?: string; password?: string; outbox?: boolean }
 export interface DesktopBuild { os: string; label: string; file: string; sizeMb: number; url: string; available: boolean }
 /** The installer the website offers; beta is a newer test build, when one is published. */
-export interface DesktopDownloads { extension?: { version: string; file: string; sizeMb: number; url: string } | null; version: string; releasedAt: string; beta?: { version: string; file: string; sizeMb: number; url: string } | null; builds: DesktopBuild[] }
+export interface DesktopDownloads { extension?: { version: string; file: string; sizeMb: number; url: string } | null; extensionStores?: { chrome?: string; edge?: string }; version: string; releasedAt: string; beta?: { version: string; file: string; sizeMb: number; url: string } | null; builds: DesktopBuild[] }
 export const updateProfile = (name: string) => call(patch<{ name: string }>('/auth/profile', { name }))
 /** The server signs out other devices, so the new token replaces this device's. */
 export const changePassword = (current: string, next: string) =>

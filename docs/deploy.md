@@ -107,6 +107,16 @@ The installer is not code-signed, so Windows SmartScreen shows "unknown publishe
 
 For a local test build without publishing, `VITE_API_URL=https://<api> npm run build -w apps/desktop` writes the installer to `apps/desktop/release/`, and a locally running API serves it at `/api/v1/downloads/windows`.
 
+### Browser extension
+
+`API_URL=https://<api> npm run release:extension` attaches the zip to the newest GitHub release, and `/download` offers it as "Add to <browser>" with the Load unpacked steps. Bump `version` in `apps/extension/manifest.json` first.
+
+A website cannot install an extension itself, so one-click needs a store listing:
+
+1. Publish the zip on the [Chrome Web Store](https://chrome.google.com/webstore/devconsole) (one-time developer fee) and/or [Edge Add-ons](https://partner.microsoft.com/dashboard/microsoftedge) (free). Remove `key` from the manifest for the upload.
+2. Add each store's extension ID to `EXTENSION_IDS` on the API, separated by commas, because the API only accepts known extensions.
+3. Set `EXTENSION_CHROME_URL` and `EXTENSION_EDGE_URL` on the API to the listing pages. The Add button then opens the store. Brave and Opera use the Chrome listing.
+
 ## 5. Check the deployment
 
 1. `https://<api>/health` returns ok, and `https://<api>/api/v1/public/stats` returns numbers.
