@@ -16,7 +16,7 @@ describe('systemStatus', () => {
 
   it('reports an unreachable agent without failing the whole check', async () => {
     deps.agentUp = false;
-    expect(await (await load())()).toMatchObject({ ok: false, database: true, agent: false, agentLatencyMs: null });
+    expect(await (await load())()).toMatchObject({ ok: false, database: true, agent: false, agentLatencyMs: null, agentError: 'ECONNREFUSED' });
   });
 
   it('reports a database outage', async () => {

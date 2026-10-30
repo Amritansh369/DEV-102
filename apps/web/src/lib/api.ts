@@ -75,7 +75,7 @@ export async function login(input: { identifier: string; password: string; examI
 
 export interface PlatformStats { examsConducted: number; candidatesProctored: number; violationsCaught: number; uptimePct: number }
 export const getPlatformStats = () => call(get<PlatformStats>('/public/stats'))
-export interface SystemStatus { ok: boolean; database: boolean; agent: boolean; agentLatencyMs: number | null; checkedAt: string }
+export interface SystemStatus { ok: boolean; database: boolean; agent: boolean; agentLatencyMs: number | null; agentError?: string | null; checkedAt: string }
 export const getSystemStatus = () => call(get<SystemStatus>('/system/status'))
 
 /* ------------------------------------------------------------------ dashboard */
