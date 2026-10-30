@@ -48,6 +48,10 @@ class Settings:
     # watch- and button-sized misreads that score as high.
     phone_min_score: float = _f("PHONE_MIN_SCORE", 0.35)
     phone_min_area: float = _f("PHONE_MIN_AREA", 0.02)
+    # A confident hit counts even when small: a phone in the hand or on the desk is often under 1% of
+    # the frame, while misreads on phone-free test portraits never scored above 0.4.
+    phone_strong_score: float = _f("PHONE_STRONG_SCORE", 0.5)
+    phone_strong_min_area: float = _f("PHONE_STRONG_MIN_AREA", 0.004)
     phone_frames: int = int(_f("PHONE_FRAMES", 1))
     notes_min_score: float = _f("NOTES_MIN_SCORE", 0.4)
     notes_frames: int = int(_f("NOTES_FRAMES", 2))

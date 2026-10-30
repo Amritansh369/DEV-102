@@ -18,6 +18,9 @@ WEAK_PHONE = DetectedObject(label="cell phone", score=0.3, area=0.05)
 # Scores seen on real test frames: a phone held to the camera at 0.41, a wristwatch misread at 0.37.
 HELD_PHONE = DetectedObject(label="cell phone", score=0.41, area=0.11)
 WATCH = DetectedObject(label="cell phone", score=0.37, area=0.01)
+# A real phone in the hand, far from the camera: confident but under 1% of the frame.
+SMALL_PHONE = DetectedObject(label="cell phone", score=0.55, area=0.006)
+SPECK = DetectedObject(label="cell phone", score=0.6, area=0.002)
 BIG_BOOK = DetectedObject(label="book", score=0.7, area=0.12)
 SHELF_BOOK = DetectedObject(label="book", score=0.9, area=0.01)
 
@@ -62,6 +65,14 @@ def test_a_phone_held_to_the_camera_at_a_modest_score_is_caught(frames):
 
 def test_a_tiny_phone_shaped_misread_is_ignored(frames):
     assert frames([WATCH], [WATCH], [WATCH]) == [[], [], []]
+
+
+def test_a_small_phone_is_caught_when_the_detector_is_confident(frames):
+    assert frames([SMALL_PHONE]) == [["PHONE_DETECTED"]]
+
+
+def test_a_confident_hit_smaller_than_any_phone_is_ignored(frames):
+    assert frames([SPECK], [SPECK], [SPECK]) == [[], [], []]
 
 
 def test_low_confidence_phones_are_ignored(frames):
