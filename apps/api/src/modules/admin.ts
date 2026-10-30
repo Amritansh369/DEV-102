@@ -9,6 +9,7 @@ import { adminOnly, auth, candidateOnly, staff } from '../lib/auth.js';
 import { SEVERITIES, VIOLATION_META, examInclude, examStatus, readExtras, toCandidate, toExam, toSession, toViolation } from '../lib/domain.js';
 import { evidencePath, signEvidenceUrl, verifyEvidenceSignature, verifyPhotoSignature } from '../lib/evidence.js';
 import { BLOCK_MESSAGE, loadResult } from '../lib/results.js';
+import { desktopReleases } from '../lib/releases.js';
 
 const MIN = 60_000;
 const HOUR = 60 * MIN;
@@ -227,16 +228,25 @@ adminRouter.get('/net/speed', (req, res) => {
   pump();
 });
 
+/** A locally built installer (npm run build -w apps/desktop) wins; otherwise the newest one on GitHub Releases. */
+function localInstaller(): string | undefined {
+  const dir = join(ROOT_DIR, 'apps', 'desktop', 'release');
+  return existsSync(dir) ? readdirSync(dir).find((f) => f.endsWith('.exe')) : undefined;
+}
+
 adminRouter.get('/downloads/latest', handle(async () => {
   const dir = join(ROOT_DIR, 'apps', 'desktop', 'release');
-  const exe = existsSync(dir) ? readdirSync(dir).find((f) => f.endsWith('.exe')) : undefined;
-  const size = exe ? Math.round((statSync(join(dir, exe)).size / 1_048_576) * 10) / 10 : 0;
-  const version = exe?.match(/(\d+\.\d+\.\d+)/)?.[1] ?? '0.1.0';
+  const exe = localInstaller();
+  const { stable, beta } = exe ? { stable: null, beta: null } : await desktopReleases();
+  const size = exe ? Math.round((statSync(join(dir, exe)).size / 1_048_576) * 10) / 10 : stable?.sizeMb ?? 0;
+  const version = exe?.match(/(\d+\.\d+\.\d+(?:-[a-z]+(?:\.\d+)?)?)/)?.[1] ?? stable?.version ?? '0.1.0';
   return {
     version,
-    releasedAt: exe ? statSync(join(dir, exe)).mtime.toISOString() : new Date().toISOString(),
+    releasedAt: exe ? statSync(join(dir, exe)).mtime.toISOString() : stable?.releasedAt ?? new Date().toISOString(),
+    // A newer test build for testers, when one is published as a GitHub pre-release.
+    beta: beta ? { version: beta.version, file: beta.file, sizeMb: beta.sizeMb, url: beta.url, releasedAt: beta.releasedAt } : null,
     builds: [
-      { os: 'windows', label: 'Windows 10 / 11 (64-bit)', file: exe ?? 'Where-U-Elevate-Setup.exe', sizeMb: size, url: '/api/v1/downloads/windows', available: Boolean(exe) },
+      { os: 'windows', label: 'Windows 10 / 11 (64-bit)', file: exe ?? stable?.file ?? 'Where-U-Elevate-Setup.exe', sizeMb: size, url: exe ? '/api/v1/downloads/windows' : stable?.url ?? '/api/v1/downloads/windows', available: Boolean(exe ?? stable) },
       { os: 'macos', label: 'macOS 12+ (Apple silicon & Intel)', file: `Where-U-Elevate-${version}.dmg`, sizeMb: 0, url: '', available: false },
       { os: 'linux', label: 'Ubuntu 22.04+ (AppImage)', file: `Where-U-Elevate-${version}.AppImage`, sizeMb: 0, url: '', available: false },
     ],
@@ -244,11 +254,14 @@ adminRouter.get('/downloads/latest', handle(async () => {
   };
 }));
 
-adminRouter.get('/downloads/windows', (_req, res, next) => {
-  const dir = join(ROOT_DIR, 'apps', 'desktop', 'release');
-  const exe = existsSync(dir) ? readdirSync(dir).find((f) => f.endsWith('.exe')) : undefined;
-  if (!exe) return next(fail('NOT_FOUND', 'The Windows installer has not been built yet. Run npm run build -w apps/desktop.'));
-  res.download(join(dir, exe), exe);
+adminRouter.get('/downloads/windows', (req, res, next) => {
+  const exe = localInstaller();
+  if (exe) return res.download(join(ROOT_DIR, 'apps', 'desktop', 'release', exe), exe);
+  void desktopReleases().then(({ stable, beta }) => {
+    const build = req.query.channel === 'beta' ? beta ?? stable : stable;
+    if (!build) return next(fail('NOT_FOUND', 'The Windows installer has not been built yet. Run npm run build -w apps/desktop, or publish a release.'));
+    res.redirect(302, build.url);
+  }, next);
 });
 
 adminRouter.get('/candidate/lobby', ...candidateOnly, handle(async (req) => {

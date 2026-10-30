@@ -163,6 +163,10 @@ export interface ProctorInvite { inviteId: string; userId: string | null; name: 
 export interface ProctorProfileLookup { profile: { name: string; email: string } | null; alreadyInvited: boolean; emailUnavailable: boolean }
 /** devLink is returned only in development when no SMTP server is configured. */
 export interface InviteSent { inviteId: string; devLink?: string; password?: string; outbox?: boolean }
+export interface DesktopBuild { os: string; label: string; file: string; sizeMb: number; url: string; available: boolean }
+/** The installer the website offers; beta is a newer test build, when one is published. */
+export interface DesktopDownloads { version: string; releasedAt: string; beta?: { version: string; file: string; sizeMb: number; url: string } | null; builds: DesktopBuild[] }
+export const getDesktopDownloads = () => call(get<DesktopDownloads>('/downloads/latest'))
 export const listProctors = (examId: string) => call(get<ProctorInvite[]>(`/exams/${examId}/proctors`))
 export const lookupProctorEmail = (examId: string, email: string) => call(get<ProctorProfileLookup>(`/exams/${examId}/proctors/lookup?email=${encodeURIComponent(email)}`))
 export const inviteProctor = (examId: string, input: { name: string; email: string }) =>

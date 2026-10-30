@@ -29,6 +29,8 @@ const schema = z.object({
   /** Chrome extension IDs allowed to call the API; the default is the ID fixed by apps/extension/manifest.json's key. */
   EXTENSION_IDS: z.string().default('fgfompcfejncbbpbipjokoniblfihbnm'),
   /** TURN relay for the live screen view across networks (comma-separated turn:/turns: URLs). STUN alone fails behind mobile or campus NAT. */
+  /** GitHub "owner/repo" whose Releases hold the desktop installers; used when apps/desktop/release has no local build. */
+  DESKTOP_RELEASE_REPO: z.string().regex(/^$|^[\w.-]+\/[\w.-]+$/).default(''),
   TURN_URLS: z.string().default(''),
   TURN_USERNAME: z.string().default(''),
   TURN_CREDENTIAL: z.string().default(''),

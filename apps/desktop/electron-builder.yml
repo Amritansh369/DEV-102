@@ -13,6 +13,11 @@ win:
   target: nsis
   icon: public/images/logo.png
   requestedExecutionLevel: asInvoker
+  artifactName: Where-U-Elevate-Setup-${version}.${ext}
+publish:
+  provider: github
+  owner: Amritansh369
+  repo: DEV-102
 nsis:
   oneClick: false
   perMachine: false

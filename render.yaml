@@ -43,6 +43,8 @@ services:
         sync: false
       - key: ALERT_WEBHOOK_KEY
         sync: false
+      - key: DESKTOP_RELEASE_REPO
+        value: Amritansh369/DEV-102
       - key: TURN_URLS
         sync: false
       - key: TURN_USERNAME
