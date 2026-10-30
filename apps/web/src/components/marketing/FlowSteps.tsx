@@ -28,8 +28,8 @@ const STEPS: Step[] = [
   },
   {
     id: 'check', title: 'System check', short: 'System', icon: MonitorCheck,
-    detail: 'The app tests the camera, microphone level and network speed, closes blacklisted apps, and rejects virtual machines, remote desktops and extra displays.',
-    bullets: ['Camera, mic and bandwidth test', 'Blacklisted apps found and closed', 'One display, no mirroring'],
+    detail: 'The app tests the camera, microphone level and network speed. Other apps, virtual machines, remote desktops and extra displays are reported to the proctor during the exam.',
+    bullets: ['Camera, mic and bandwidth test', 'Face and email verification', 'Entire screen shared with consent'],
   },
   {
     id: 'verify', title: 'Face and OTP verification', short: 'Verify', icon: ScanFace,
