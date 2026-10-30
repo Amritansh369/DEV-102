@@ -111,7 +111,7 @@ export default function BrowserTabs({ allowedSites, onLog, onAiSite, onAiQuery }
     }
     const url = `sandbox://search?q=${encodeURIComponent(parsed.query)}`
     patch(tabId, { kind: 'search', url, title: `Search: ${parsed.query.slice(0, 24)}`, query: parsed.query, host: undefined, loading: true })
-    onLog({ at, url, title: 'Sandbox search', query: parsed.query, flaggedAi: flagged })
+    onLog({ at, url, title: 'Search', query: parsed.query, flaggedAi: flagged })
     if (flagged) onAiQuery(parsed.query)
     settle(tabId, 450)
   }

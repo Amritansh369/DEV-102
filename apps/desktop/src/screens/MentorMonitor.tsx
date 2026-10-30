@@ -4,7 +4,8 @@ import { AlertTriangle, CheckCircle2, Info, Loader2, MonitorX, RefreshCw, Search
 import type { Exam, Severity } from '../lib/types'
 import { monitorApi, type FeedViolation, type MonitorSession } from '../lib/api'
 import { watchExam } from '../lib/live'
-import { STATUS_LABEL, formatClock, useNow } from '../lib/monitorUtils'
+import { STATUS_LABEL, formatClock as clockTime, useNow } from '../lib/monitorUtils'
+import { formatClock } from '../components/Timer'
 import { riskLevel, SEVERITY_STYLES } from '../components/RiskBadge'
 import { StatsStrip } from '../components/StatsStrip'
 import { StudentTile } from '../components/StudentTile'
@@ -37,7 +38,7 @@ const TOAST_ICON = { success: CheckCircle2, error: AlertTriangle, info: Info }
 const TOAST_TONE = { success: 'text-success', error: 'text-danger', info: 'text-accent' }
 
 export default function MentorMonitor({ notify, onExit }: MentorMonitorProps) {
-  const now = useNow(3000)
+  const now = useNow(1000)
   const [exams, setExams] = useState<Exam[]>([])
   const [examsState, setExamsState] = useState<LoadState>('loading')
   const [examId, setExamId] = useState('')
@@ -214,13 +215,14 @@ export default function MentorMonitor({ notify, onExit }: MentorMonitorProps) {
 
   const loading = loadState === 'loading'
   const minsLeft = exam ? Math.max(0, Math.round((Date.parse(exam.endsAt) - now) / 60000)) : 0
+  const opensIn = exam ? Math.ceil((Date.parse(exam.startsAt) - now) / 1000) : 0
 
   return (
     <div className="flex h-full min-h-0 flex-col bg-soft">
       <header className="flex flex-wrap items-center gap-4 border-b border-border bg-white px-6 py-4">
         <div className="min-w-0 flex-1">
           <h1 className="font-heading text-xl font-semibold text-text">Live monitoring</h1>
-          {examsState === 'loading' ? <div className="mt-2 h-4 w-64 animate-pulse rounded bg-soft" /> : exam && <p className="truncate text-sm text-muted">{exam.code} · {exam.candidateCount} candidates · {minsLeft} min left · ends {formatClock(exam.endsAt).slice(0, 5)}</p>}
+          {examsState === 'loading' ? <div className="mt-2 h-4 w-64 animate-pulse rounded bg-soft" /> : exam && <p className="truncate text-sm text-muted">{opensIn > 0 && <span className="mr-2 rounded-full bg-blue-50 px-2 py-0.5 font-semibold tabular-nums text-primary">Starts in {formatClock(opensIn)}</span>}{exam.code} · {exam.candidateCount} candidates · {minsLeft} min left · ends {clockTime(exam.endsAt).slice(0, 5)}</p>}
         </div>
         <label className="flex items-center gap-2 text-sm font-medium text-text">
           <span className="sr-only sm:not-sr-only">Exam</span>
@@ -290,7 +292,7 @@ export default function MentorMonitor({ notify, onExit }: MentorMonitorProps) {
               <span aria-live="polite">{loading ? 'Loading candidates…' : `${visible.length} of ${sessions.length} candidates`}</span>
               <span className="flex items-center gap-3">
                 {!loading && visible.some((s) => s.status === 'LIVE') && <button onClick={() => setSelected(new Set(visible.filter((s) => s.status === 'LIVE').map((s) => s.id)))} className="rounded font-semibold text-accent hover:underline focus:outline-none focus-visible:ring-2 focus-visible:ring-accent">Select all live</button>}
-                {updatedAt > 0 && <span>Updated {formatClock(new Date(updatedAt).toISOString())}</span>}
+                {updatedAt > 0 && <span>Updated {clockTime(new Date(updatedAt).toISOString())}</span>}
               </span>
             </div>
             {loadState === 'error' ? (

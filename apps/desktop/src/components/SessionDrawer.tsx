@@ -347,7 +347,7 @@ function DrawerBody({ session, liveImage, detailTick, onClose, onSendWarning, on
               {live ? (
                 <LiveScreen sessionId={session.id} candidateName={session.candidateName} />
               ) : (
-                <p className="grid aspect-video place-items-center rounded-xl bg-slate-900 text-sm text-slate-300">The exam has ended, so the live screen is off.</p>
+                <p className="grid aspect-video place-items-center rounded-xl bg-slate-900 text-sm text-slate-300">{session.status === 'WAITING' ? 'The candidate is in the waiting room. The live screen starts with the exam.' : 'The exam has ended, so the live screen is off.'}</p>
               )}
               {proofs.length > 0 && (
                 <section aria-label="Proof of flagged events">

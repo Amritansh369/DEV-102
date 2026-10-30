@@ -33,7 +33,7 @@ export const monitoredItems = (audioMonitoring: boolean, liveAudio = false): Con
 
 export const NOT_MONITORED_ITEMS: ConsentItem[] = [
   { id: 'files', title: 'Your files and documents', summary: 'Nothing on your disk is read or uploaded.', detail: 'The app does not scan, copy or upload your personal files, photos or downloads. It only sees what appears on your shared screen.', Icon: FileText },
-  { id: 'passwords', title: 'Passwords and other browser profiles', summary: 'Saved logins and personal browsing stay private.', detail: 'Exam tabs run in an isolated sandbox with no access to your regular browser history, cookies or saved passwords.', Icon: KeyRound },
+  { id: 'passwords', title: 'Passwords and other browser profiles', summary: 'Saved logins and personal browsing stay private.', detail: 'Exam tabs are kept separate, with no access to your regular browser history, cookies or saved passwords.', Icon: KeyRound },
   { id: 'keys', title: 'Keystrokes in other apps', summary: 'No keystroke logging outside the exam browser.', detail: 'We do not log what you type in other programs. It is only seen if it appears on your shared screen. Text typed into the exam browser tabs is recorded, as listed above.', Icon: Keyboard },
   { id: 'after', title: 'Anything after you submit', summary: 'Camera and screen sharing stop at submission.', detail: 'When you submit, or your session ends, the webcam and screen share are shut down and the app stops monitoring.', Icon: ShieldOff },
   { id: 'other', title: 'Other devices on your network', summary: 'Your phone, TV or router are not scanned.', detail: 'We check only the computer running the exam, plus connected displays and external devices that are attached to it.', Icon: MonitorSmartphone },

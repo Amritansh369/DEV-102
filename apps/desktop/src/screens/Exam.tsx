@@ -3,12 +3,13 @@ import { create } from 'zustand'
 import { AnimatePresence, motion } from 'framer-motion'
 import { AlertTriangle, ArrowLeft, ArrowRight, Check, CheckCircle2, CloudOff, Eraser, Flag, Globe, Keyboard, Loader2, Monitor, RefreshCw, Send, WifiOff, X } from 'lucide-react'
 import { api, type ExamPaper, type ViolationResult } from '../lib/api'
+import { HttpError } from '../lib/http'
 import { proofShot, startLive } from '../lib/live'
 import { watchAway } from '../lib/away'
 import { getProctor } from '../lib/proctorMock'
 import type { BrowsingLog, Question, Severity, ViolationCode } from '../lib/types'
 import QuestionPalette, { type PaletteItem } from '../components/QuestionPalette'
-import Timer from '../components/Timer'
+import Timer, { formatClock } from '../components/Timer'
 import BrowserTabs from '../components/BrowserTabs'
 import WarningModal, { type WarningInfo, type WarningKind } from '../components/WarningModal'
 import WebcamThumb, { type FaceStatus, type LinkQuality } from '../components/WebcamThumb'
@@ -21,7 +22,7 @@ const VIOLATION_META: Record<ViolationCode, { severity: Severity; message: strin
   NO_FACE: { severity: 'MEDIUM', message: 'No face was detected. Stay visible to the camera.' },
   GAZE_AWAY: { severity: 'LOW', message: 'You appear to be looking away from the screen.' },
   FACE_MISMATCH: { severity: 'HIGH', message: 'The person on camera does not match your verified face.' },
-  AI_SITE_OPENED: { severity: 'HIGH', message: 'An AI assistant website was opened in the sandbox browser.' },
+  AI_SITE_OPENED: { severity: 'HIGH', message: 'An AI assistant website was opened.' },
   AI_QUERY_DETECTED: { severity: 'HIGH', message: 'A search that looks like an AI prompt or answer lookup was detected.' },
   BLACKLISTED_APP: { severity: 'HIGH', message: 'A blacklisted application was started during the exam.' },
   SCREEN_MIRRORING: { severity: 'HIGH', message: 'Screen mirroring or casting was detected.' },
@@ -192,13 +193,15 @@ interface ExamProps {
   onSubmitted: (summary: SubmitSummary) => void
 }
 
-type Phase = 'loading' | 'error' | 'active'
+type Phase = 'loading' | 'waiting' | 'error' | 'active'
 interface Toast { id: string; text: string; tone: 'info' | 'ok' | 'warn' }
 
 export default function Exam({ examId, userId, onSubmitted }: ExamProps) {
   const [phase, setPhase] = useState<Phase>('loading')
   const [loadError, setLoadError] = useState<string | null>(null)
   const [paper, setPaper] = useState<ExamPaper | null>(null)
+  /** When the exam opens, in this computer's clock. */
+  const [opensAt, setOpensAt] = useState(0)
   const [view, setView] = useState<'exam' | 'browser'>('exam')
   const [submitOpen, setSubmitOpen] = useState(false)
   const [forcedReason, setForcedReason] = useState<string | null>(null)
@@ -244,8 +247,8 @@ export default function Exam({ examId, userId, onSubmitted }: ExamProps) {
     window.setTimeout(() => setToasts((t) => t.filter((x) => x.id !== id)), 4500)
   }, [])
 
-  const load = useCallback(async () => {
-    setPhase('loading')
+  const load = useCallback(async (quiet = false) => {
+    if (!quiet) setPhase('loading')
     setLoadError(null)
     try {
       const p = await api.getExamPaper(examId)
@@ -253,6 +256,12 @@ export default function Exam({ examId, userId, onSubmitted }: ExamProps) {
       setPaper(p)
       setPhase('active')
     } catch (e) {
+      if (e instanceof HttpError && e.details?.waiting) {
+        // The server's clock decides: the countdown is its time left, whatever this computer's clock says.
+        setOpensAt(Date.now() + Date.parse(String(e.details.startsAt)) - Date.parse(String(e.details.serverTime)))
+        setPhase('waiting')
+        return
+      }
       setLoadError(e instanceof Error ? e.message : 'Could not load the exam paper.')
       setPhase('error')
     }
@@ -332,9 +341,16 @@ export default function Exam({ examId, userId, onSubmitted }: ExamProps) {
       const s = useExamStore.getState()
       const flaggedIds = s.questions.filter((q) => s.flagged[q.id]).map((q) => q.id)
       const answered = s.questions.filter((q) => isAnswered(q, s.answers, s.numeric)).length
+      const send = () => api.submitExam({ examId: p.exam.id, answers: s.answers, values: valuesOf(s.questions, s.numeric), flagged: flaggedIds, auto, reason, browsing: s.log })
       try {
         while (!navigator.onLine) await wait(1000)
-        const res = await api.submitExam({ examId: p.exam.id, answers: s.answers, values: valuesOf(s.questions, s.numeric), flagged: flaggedIds, auto, reason, browsing: s.log })
+        // An automatic submit has nobody to press Retry, so it keeps trying through a network drop.
+        let res = await send().catch((e: unknown) => e as Error)
+        for (let tries = 0; auto && res instanceof HttpError && res.code === 'NETWORK' && tries < 40; tries++) {
+          await wait(3000)
+          res = await send().catch((e: unknown) => e as Error)
+        }
+        if (res instanceof Error) throw res
         const isDisqualified = disqualified || res.status === 'TERMINATED'
         void getProctor().exam.stop().catch(() => undefined)
         onSubmitted({ answered, total: s.questions.length, flagged: flaggedIds.length, autoSubmitted: auto, disqualified: isDisqualified, reason, receiptId: res.receiptId, submittedAt: res.submittedAt })
@@ -549,6 +565,7 @@ export default function Exam({ examId, userId, onSubmitted }: ExamProps) {
   }
 
   if (phase === 'loading') return <ExamSkeleton />
+  if (phase === 'waiting') return <WaitingRoom opensAt={opensAt} onCheck={() => load(true)} />
   if (phase === 'error' || !paper) {
     return (
       <div className="flex h-full flex-col items-center justify-center gap-3 bg-soft p-8 text-center" role="alert">
@@ -791,6 +808,41 @@ function SaveIndicator({ status, at }: { status: SaveStatus; at: number | null }
   }
   const s = map[status]
   return <span role="status" className={`hidden items-center gap-1.5 text-xs font-medium xl:inline-flex ${s.cls}`}>{s.icon}{s.text}</span>
+}
+
+/** Everything is checked and the screen is shared; the exam opens by itself when the countdown ends. */
+function WaitingRoom({ opensAt, onCheck }: { opensAt: number; onCheck: () => Promise<void> }) {
+  const [now, setNow] = useState(() => Date.now())
+  const check = useRef(onCheck)
+  check.current = onCheck
+
+  useEffect(() => {
+    const tick = window.setInterval(() => setNow(Date.now()), 1000)
+    // A regular look at the server picks up a changed start time.
+    const look = window.setInterval(() => void check.current(), 30_000)
+    return () => {
+      window.clearInterval(tick)
+      window.clearInterval(look)
+    }
+  }, [])
+
+  const left = Math.max(0, Math.ceil((opensAt - now) / 1000))
+  useEffect(() => {
+    if (left > 0) return
+    // A small random delay so a full room does not reach the server in the same instant.
+    const id = window.setTimeout(() => void check.current(), 500 + Math.random() * 2000)
+    return () => window.clearTimeout(id)
+  }, [left])
+
+  return (
+    <div className="flex h-full min-h-[700px] flex-col items-center justify-center gap-4 bg-soft p-8 text-center">
+      <span className="inline-flex items-center gap-1.5 rounded-full bg-green-50 px-3 py-1 text-xs font-medium text-success"><Monitor className="h-3.5 w-3.5" aria-hidden /><span className="h-1.5 w-1.5 animate-pulse rounded-full bg-success" aria-hidden /> Screen shared</span>
+      <h1 className="font-heading text-2xl font-semibold text-ink">You are in the waiting room</h1>
+      <p className="max-w-md text-sm text-muted">Stay here. Your exam starts by itself when the timer ends.</p>
+      <p role="timer" aria-live="off" className="rounded-2xl border border-border bg-white px-10 py-6 font-heading text-6xl font-semibold tabular-nums text-primary shadow-sm">{left > 0 ? formatClock(left) : 'Starting…'}</p>
+      <p className="text-xs text-muted">Opens at {new Date(opensAt).toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' })}</p>
+    </div>
+  )
 }
 
 function ExamSkeleton() {

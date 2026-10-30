@@ -14,7 +14,7 @@ const FEATURES: Feature[] = [
   { icon: ScanFace, title: 'Face verification', body: 'Candidates are matched to their registered photo before the exam and re-checked continuously.' },
   { icon: Camera, title: 'Webcam and gaze tracking', body: 'Detects missing faces, extra people and sustained looking-away, with a snapshot as evidence.' },
   { icon: MonitorSmartphone, title: 'Entire-screen capture', body: 'Proctors see live screens. Stopping the share, mirroring or adding a monitor raises an alert at once.' },
-  { icon: Globe2, title: 'Sandboxed research tabs', body: 'Every URL, search and chat query inside the exam browser is logged for later review.' },
+  { icon: Globe2, title: 'Tracked research tabs', body: 'Every URL, search and chat query inside the exam browser is logged for later review.' },
   { icon: Bot, title: 'AI-site detection', body: 'ChatGPT, Gemini, Claude and other assistants are flagged the moment they are opened or queried.' },
   { icon: TriangleAlert, title: 'Marks by policy', body: 'Each confirmed flag deducts the marks your organization set. Risk scores and proof are in front of the proctor.' },
   { icon: LayoutGrid, title: 'Live proctor dashboard', body: 'A grid of candidates with risk scores, a violation feed, instant warnings and one-click termination.' },

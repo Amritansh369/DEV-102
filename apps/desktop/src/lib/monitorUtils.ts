@@ -86,7 +86,7 @@ export function groupVisits(logs: BrowsingLog[]): SiteVisit[] {
     const host = hostOf(l.url)
     let visit = visits[visits.length - 1]
     if (!visit || visit.host !== host) {
-      const site = host === 'sandbox-search' ? 'Sandbox search' : SITE_NAMES[host] ?? (l.title && !l.query ? l.title : host)
+      const site = host === 'sandbox-search' ? 'Search' : SITE_NAMES[host] ?? (l.title && !l.query ? l.title : host)
       visit = { key: l.id, site, host, url: l.url, at: l.at, ai: false, returned: seen.has(host), queries: [] }
       visits.push(visit)
       seen.add(host)

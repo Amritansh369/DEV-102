@@ -171,11 +171,15 @@ const hue = (id: string) => [...id].reduce((h, c) => (h * 31 + c.charCodeAt(0)) 
 
 /** A proctor signed in through a join link sees only the exam the link was for. */
 const scopedExam = (req: Parameters<typeof auth>[0]) => auth(req).examId;
+/** The longest check-in an exam can set (extras.checkInMin). */
+const ROOM_OPENS_MS = 240 * 60_000;
 
 mentorRouter.get('/monitor/exams', handle(async (req) => {
   const now = new Date();
   const only = scopedExam(req);
-  const exams = await prisma.exam.findMany({ where: { deletedAt: null, status: { not: 'DRAFT' }, startsAt: { lte: now }, endsAt: { gt: now }, ...(only ? { id: only } : {}) }, include: examInclude, orderBy: { startsAt: 'asc' } });
+  // Proctors open the room before the exam starts, so candidates in check-in are visible.
+  const soon = new Date(now.getTime() + ROOM_OPENS_MS);
+  const exams = await prisma.exam.findMany({ where: { deletedAt: null, status: { not: 'DRAFT' }, startsAt: { lte: soon }, endsAt: { gt: now }, ...(only ? { id: only } : {}) }, include: examInclude, orderBy: { startsAt: 'asc' } });
   return exams.map(toExam);
 }));
 

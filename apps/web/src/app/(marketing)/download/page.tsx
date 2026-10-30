@@ -51,7 +51,7 @@ const FAQS: FaqItem[] = [
   { id: "cam", q: "Why does the app need my camera and microphone?", a: "The camera verifies your identity and detects multiple people. The microphone only measures sound level. The consent screen lists everything before the exam begins." },
   { id: "apps", q: "Which apps will be closed automatically?", a: "Screen recorders, remote desktop tools, messaging apps, VPNs and virtual machines. You will see the exact list during the system check and can close them yourself first." },
   { id: "net", q: "What if my internet drops during the exam?", a: "Your timer keeps running and answers are saved on your device. They sync when you reconnect. Long outages are reported to the proctor." },
-  { id: "second", q: "Can I use an external monitor?", a: "No. Only one display is allowed and mirroring is blocked. Disconnect extra monitors and projectors before you start." },
+  { id: "second", q: "Can I use an external monitor?", a: "Yes. Your proctor sees every connected display, and an extra monitor is flagged." },
   { id: "uninstall", q: "How do I remove the app after the exam?", a: "Open Settings, then Apps, and uninstall DEV102 Proctor. No background service is left behind." },
 ];
 

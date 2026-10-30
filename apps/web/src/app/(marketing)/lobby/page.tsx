@@ -48,7 +48,7 @@ const INITIAL_CHECKS: Check[] = [
   { id: 'camera', label: 'Webcam', icon: Camera, state: 'idle', detail: 'Needed for identity and proctoring' },
   { id: 'mic', label: 'Microphone', icon: Mic, state: 'idle', detail: 'Needed for audio monitoring' },
   { id: 'network', label: 'Connection to exam server', icon: Wifi, state: 'idle', detail: 'Latency under 400 ms' },
-  { id: 'display', label: 'Single display', icon: Monitor, state: 'idle', detail: 'Extra monitors are not allowed' },
+  { id: 'display', label: 'Screen share', icon: Monitor, state: 'idle', detail: 'Your entire screen is shared with your proctor' },
   { id: 'cpu', label: 'Processor and memory', icon: Cpu, state: 'idle', detail: '4 logical cores recommended' },
 ]
 
@@ -175,7 +175,7 @@ const CHECK_STYLE: Record<CheckState, { icon: LucideIcon; cls: string }> = {
 
 const JOURNEY: { icon: LucideIcon; title: string; body: string }[] = [
   { icon: Download, title: 'Install the exam app', body: 'One-time install of the Smart Proctor desktop app.' },
-  { icon: ListChecks, title: 'System check', body: 'Camera, microphone, network, displays and blocked apps.' },
+  { icon: ListChecks, title: 'System check', body: 'Camera, microphone and network.' },
   { icon: ScanFace, title: 'Verify identity', body: 'Face match plus a one-time code sent to your email.' },
   { icon: FileCheck2, title: 'Consent and screen share', body: 'Review exactly what is monitored, then share your screen.' },
   { icon: Lock, title: 'Take the exam', body: 'Full-screen exam with autosave and a server-synced timer.' },

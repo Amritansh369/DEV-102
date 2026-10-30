@@ -91,7 +91,7 @@ function SearchPanel() {
     { t: "10:44:30", u: "chat.openai.com", ai: true },
   ];
   return (
-    <Panel title="Browsing log · Sandbox tabs">
+    <Panel title="Browsing log · Exam browser">
       <ul className="space-y-2">
         {rows.map((r) => (
           <li key={r.t} className={`flex items-center gap-3 rounded-lg border px-3 py-2 text-xs ${r.ai ? "border-danger/30 bg-red-50" : "border-border"}`}>
@@ -176,7 +176,7 @@ interface Feature {
 const FEATURES: Feature[] = [
   { id: "ai-proctoring", icon: ScanFace, title: "AI proctoring that watches the room, not the person", body: "MediaPipe-based analysis runs on the candidate's webcam stream and raises graded events instead of blunt pass or fail verdicts.", points: ["Multiple faces, no face, face mismatch and gaze away", "Risk score recalculated every few seconds", "Evidence snapshots attached to each event"], panel: <ProctorPanel /> },
   { id: "exam", icon: Eye, title: "Monitored exam browser", body: "Candidates share their entire screen and work freely. Nothing is blocked or interrupted: every tab, search and AI chat goes to the proctor with a picture as proof.", points: ["Which AI was used, what was asked and what it replied", "Tab switches, other apps and extra monitors flagged at once", "No warnings on screen, marks deducted after proctor review"], panel: <ExamPanel /> },
-  { id: "search", icon: Globe, title: "Search and browsing tracking", body: "Candidates can use only the sites you allow, inside sandboxed tabs. Every address and every search or chat query is recorded.", points: ["Allow-list per exam", "AI sites flagged instantly", "Full log available to proctors during and after the exam"], panel: <SearchPanel /> },
+  { id: "search", icon: Globe, title: "Search and browsing tracking", body: "Candidates can open any site. Every address, search, chat question and AI answer is recorded.", points: ["Any site opens, nothing is blocked", "AI sites flagged instantly", "Full log available to proctors during and after the exam"], panel: <SearchPanel /> },
   { id: "warnings", icon: AlertTriangle, title: "Warnings and disqualification", body: "A clear, configurable policy so candidates know where they stand and proctors do not have to improvise.", points: ["Default: two warnings, then auto-submit", "Critical events can submit immediately", "Proctors can send manual warnings or terminate"], panel: <WarningPanel /> },
   { id: "offline", icon: WifiOff, title: "Offline mode for unstable networks", body: "A dropped connection should not ruin an exam. Answers autosave locally and sync once the network returns.", points: ["Network loss logged as a low-severity event", "Timer stays authoritative", "Sync status always visible"], panel: <OfflinePanel /> },
   { id: "reports", icon: BarChart3, title: "Reports organizations can act on", body: "Scores, question analysis and a per-candidate violation timeline, ready to export for the placement cell or the institute.", points: ["Result and violation reports", "Review and overrule penalties with evidence", "CSV and PDF export"], panel: <ReportPanel /> },

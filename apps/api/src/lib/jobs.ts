@@ -2,7 +2,7 @@ import { logger } from './core.js';
 import { prisma } from './db.js';
 import { finalizeSession, recordViolation } from './policy.js';
 import { runRetention } from './evidence.js';
-import { PAUSE_AFTER_MS } from './domain.js';
+import { PAUSE_AFTER_MS, SUBMIT_GRACE_MS } from './domain.js';
 
 const HEARTBEAT_TIMEOUT_MS = 30_000;
 const timers: NodeJS.Timeout[] = [];
@@ -19,7 +19,7 @@ async function sweep(): Promise<void> {
     const now = new Date();
     const expired = await prisma.examSession.findMany({
       where: {
-        status: 'LIVE', deadlineAt: { lt: now },
+        status: 'LIVE', deadlineAt: { lt: new Date(now.getTime() - SUBMIT_GRACE_MS) },
         OR: [{ lastHeartbeatAt: null }, { lastHeartbeatAt: { gte: new Date(now.getTime() - PAUSE_AFTER_MS) } }, { exam: { endsAt: { lt: now } } }],
       },
       select: { id: true }, take: 200,
