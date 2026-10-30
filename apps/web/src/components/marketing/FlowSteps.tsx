@@ -43,7 +43,7 @@ const STEPS: Step[] = [
   },
   {
     id: 'exam', title: 'Monitored exam', short: 'Exam', icon: Camera,
-    detail: 'The exam runs with a timer, question palette, mark-for-review and autosave. The entire screen stays shared, and every URL, search and AI chat in the exam browser is logged.',
+    detail: 'The exam runs with a timer, question palette, mark-for-review and autosave. The entire screen stays shared, and AI tools and searches are logged from window titles.',
     bullets: ['AI sites flagged on open', 'Flags reach the proctor with a picture as proof', 'Proctors watch live and can intervene'],
   },
   {
@@ -101,7 +101,7 @@ function StepVisual({ id }: { id: string }) {
       return (
         <div className="rounded-2xl border border-border bg-white p-4 text-xs shadow-sm">
           <p className="mb-2 font-semibold text-text">We will monitor</p>
-          {['Webcam video and face', 'Your entire screen', 'Websites and searches in the exam browser', 'Running apps and connected devices'].map((t) => (
+          {['Webcam video and face', 'Your entire screen', 'AI tools and searches, from window titles', 'Running apps and connected devices'].map((t) => (
             <p key={t} className="flex items-center gap-2 py-1 text-muted"><CheckCircle2 className="h-3.5 w-3.5 text-accent" aria-hidden /> {t}</p>
           ))}
           <span className="mt-2 inline-flex items-center gap-1.5 rounded-lg bg-primary px-3 py-1.5 font-semibold text-white"><MonitorUp className="h-3.5 w-3.5" aria-hidden /> Share entire screen</span>

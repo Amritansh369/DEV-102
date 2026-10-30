@@ -19,8 +19,7 @@ export default defineConfig({
     build: {
       rollupOptions: {
         input: {
-          preload: resolve(__dirname, "electron/preload.ts"),
-          tracker: resolve(__dirname, "electron/browser-sandbox/tracker.ts")
+          preload: resolve(__dirname, "electron/preload.ts")
         }
       }
     },

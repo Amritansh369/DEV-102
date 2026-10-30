@@ -103,7 +103,7 @@ function drawConsole(g: CanvasRenderingContext2D, s: Stage, clock: string, t: nu
     g.fillStyle = scan; g.fillRect(tx + 12, scanY - 16, tw - 24, 32);
     if (flagged) {
       rr(g, tx + 22, ty + 22, 168, 40, 10, alert ? C.red : 'rgba(255,176,32,.9)');
-      text(alert ? 'AI QUERY' : 'chatgpt.com', tx + 106, ty + 43, 22, '#fff', 700, 'center');
+      text(alert ? 'AI TOOL' : 'chatgpt.com', tx + 106, ty + 43, 22, '#fff', 700, 'center');
     }
 
     // Name, risk badge and bar
@@ -120,7 +120,7 @@ function drawConsole(g: CanvasRenderingContext2D, s: Stage, clock: string, t: nu
   rr(g, px, 116, pw, 446, 22, C.panel, C.line);
   text('Violation feed', px + 26, 156, 28, C.text, 700);
   const feed: [string, string, string][] = [];
-  if (s.alert) feed.push(['Arjun S.', s.verdict ? 'Proctor reviewing' : 'AI query typed', s.verdict ? C.sky : C.red]);
+  if (s.alert) feed.push(['Arjun S.', s.verdict ? 'Proctor reviewing' : 'AI tool open', s.verdict ? C.sky : C.red]);
   if (s.tab) feed.push(['Arjun S.', 'Opened chatgpt.com', C.amber]);
   for (const f of FEED_CALM) if (feed.length < 5) feed.push([f[0], f[1], f[2]]);
   feed.forEach(([who, what, color], i) => {
@@ -151,7 +151,7 @@ function drawConsole(g: CanvasRenderingContext2D, s: Stage, clock: string, t: nu
   // Bottom banner
   if (s.alert) {
     rr(g, 28, 870, W - 56, 70, 18, s.verdict ? 'rgba(30,111,240,.25)' : `rgba(239,68,68,${0.22 + 0.12 * pulse})`, s.verdict ? C.blue : C.red);
-    text(s.verdict ? 'Proctor review · confirm or overrule with a reason' : 'CRITICAL · AI query detected · "time complexity of binary search" typed on chatgpt.com', 60, 906, 27, '#fff', 700);
+    text(s.verdict ? 'Proctor review · confirm or overrule with a reason' : 'HIGH · AI tool detected · "time complexity of binary search" typed on chatgpt.com', 60, 906, 27, '#fff', 700);
   } else {
     rr(g, 28, 870, W - 56, 70, 18, 'rgba(34,197,94,.12)', 'rgba(34,197,94,.4)');
     text('All candidates verified · screens shared · answers autosaving', 60, 906, 27, '#bbf7d0', 600);

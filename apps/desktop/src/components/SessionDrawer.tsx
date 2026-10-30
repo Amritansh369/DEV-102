@@ -431,7 +431,7 @@ function DrawerBody({ session, liveImage, detailTick, onClose, onSendWarning, on
             </div>
             {logView === 'activity' ? (
               visits.length === 0 ? (
-                <div className="grid place-items-center rounded-xl border border-dashed border-border bg-white py-16 text-center text-sm text-muted">{detail.logs.length === 0 ? 'This candidate has not opened any exam tabs yet.' : 'No entries match your filters.'}</div>
+                <div className="grid place-items-center rounded-xl border border-dashed border-border bg-white py-16 text-center text-sm text-muted">{detail.logs.length === 0 ? 'No sites or searches recorded yet.' : 'No entries match your filters.'}</div>
               ) : (
                 <ol className="space-y-2" aria-label="Sites opened and what was typed on them">
                   {visits.map((v) => (
@@ -463,7 +463,7 @@ function DrawerBody({ session, liveImage, detailTick, onClose, onSendWarning, on
                 </ol>
               )
             ) : logs.length === 0 ? (
-              <div className="grid place-items-center rounded-xl border border-dashed border-border bg-white py-16 text-center text-sm text-muted">{detail.logs.length === 0 ? 'This candidate has not opened any exam tabs yet.' : 'No entries match your filters.'}</div>
+              <div className="grid place-items-center rounded-xl border border-dashed border-border bg-white py-16 text-center text-sm text-muted">{detail.logs.length === 0 ? 'No sites or searches recorded yet.' : 'No entries match your filters.'}</div>
             ) : (
               <ul className="divide-y divide-border overflow-hidden rounded-xl bg-white ring-1 ring-border">
                 {logs.map((l) => (

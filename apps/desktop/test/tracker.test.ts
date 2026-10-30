@@ -1,7 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
-const sendToHost = vi.hoisted(() => vi.fn())
-vi.mock('electron', () => ({ ipcRenderer: { sendToHost } }))
+const typed = vi.fn()
+const reply = vi.fn()
 
 type Listener = (e: { key?: string; shiftKey?: boolean }) => void
 
@@ -27,13 +27,15 @@ function fakePage(hostname: string) {
   return { box, answers, body, fire }
 }
 
-const replies = () => sendToHost.mock.calls.filter(([channel]) => channel === 'sandbox:reply').map(([, p]) => p as { prompt: string; text: string })
+const replies = () => reply.mock.calls.map(([prompt, text]) => ({ prompt: prompt as string, text: text as string }))
+const start = async () => (await import('../../extension/src/page-tracker')).trackPage({ typed, reply })
 
 describe('AI reply capture', () => {
   beforeEach(() => {
     vi.useFakeTimers()
     vi.resetModules()
-    sendToHost.mockClear()
+    typed.mockClear()
+    reply.mockClear()
   })
   afterEach(() => {
     vi.useRealTimers()
@@ -42,7 +44,7 @@ describe('AI reply capture', () => {
 
   it('reports the answer to a question sent with Enter once it stops changing, then again if it grows', async () => {
     const page = fakePage('chatgpt.com')
-    await import('../electron/browser-sandbox/tracker')
+    await start()
     page.box.value = 'what is 2+2'
     page.fire('keydown', { key: 'Enter' })
 
@@ -61,7 +63,7 @@ describe('AI reply capture', () => {
 
   it('catches a question sent with the send button, when the box empties', async () => {
     const page = fakePage('claude.ai')
-    await import('../electron/browser-sandbox/tracker')
+    await start()
     page.box.value = 'what is 2+2'
     page.fire('input')
     await vi.advanceTimersByTimeAsync(900)
@@ -75,7 +77,7 @@ describe('AI reply capture', () => {
 
   it('falls back to the new text on the page when an answer element cannot be found', async () => {
     const page = fakePage('perplexity.ai')
-    await import('../electron/browser-sandbox/tracker')
+    await start()
     page.body.innerText = 'Ask anything'
     page.box.value = 'what is 2+2'
     page.fire('keydown', { key: 'Enter' })
@@ -86,12 +88,12 @@ describe('AI reply capture', () => {
 
   it('does not read pages on ordinary sites, but still reports what was typed', async () => {
     const page = fakePage('en.wikipedia.org')
-    await import('../electron/browser-sandbox/tracker')
+    await start()
     page.box.value = 'prime numbers'
     page.fire('keydown', { key: 'Enter' })
     page.answers.push({ innerText: 'Not an AI answer.' })
     await vi.advanceTimersByTimeAsync(5000)
     expect(replies()).toEqual([])
-    expect(sendToHost).toHaveBeenCalledWith('sandbox:typed', expect.objectContaining({ text: 'prime numbers', trigger: 'submit' }))
+    expect(typed).toHaveBeenCalledWith('prime numbers', 'submit')
   })
 })

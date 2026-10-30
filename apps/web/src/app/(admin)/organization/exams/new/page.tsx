@@ -4,7 +4,7 @@ import { useEffect, useMemo, useRef, useState, type FormEvent, type ReactNode } 
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { AnimatePresence, motion } from 'framer-motion'
-import { AlertCircle, ArrowLeft, ArrowRight, CalendarClock, Check, ClipboardCheck, Globe, Loader2, Pencil, Plus, Save, Send, Settings2, ShieldAlert, X, type LucideIcon } from 'lucide-react'
+import { AlertCircle, ArrowLeft, ArrowRight, CalendarClock, Check, ClipboardCheck, Loader2, Pencil, Save, Send, Settings2, ShieldAlert, type LucideIcon } from 'lucide-react'
 import { z } from 'zod'
 import { Field, Segmented, Toggle, btnCta, btnGhost, btnPrimary, cardCls, describedBy, inputCls, inputState } from '@/components/admin/FormControls'
 import { PolicyEditor } from '@/components/admin/PolicyEditor'
@@ -20,12 +20,11 @@ type Errors = Record<string, string>
 const STEPS: { key: StepKey; label: string; hint: string; icon: LucideIcon }[] = [
   { key: 'basics', label: 'Basics', hint: 'Title, code, instructions', icon: ClipboardCheck },
   { key: 'schedule', label: 'Schedule', hint: 'Date, time, duration', icon: CalendarClock },
-  { key: 'settings', label: 'Settings', hint: 'Marking and suggested sites', icon: Settings2 },
+  { key: 'settings', label: 'Settings', hint: 'Marking and monitoring', icon: Settings2 },
   { key: 'policy', label: 'Violation policy', hint: 'Warnings and auto-submit', icon: ShieldAlert },
   { key: 'review', label: 'Review', hint: 'Check and publish', icon: Send },
 ]
 const CATEGORIES = ['Engineering entrance', 'Medical entrance', 'Campus placement', 'Banking and SSC', 'University or board', 'Civil services', 'Other']
-const SITE_SUGGESTIONS = ['developer.mozilla.org', 'docs.python.org', 'w3schools.com']
 const PENALTIES = [{ value: '0.25', label: '¼' }, { value: '0.33', label: '⅓' }, { value: '0.5', label: '½' }, { value: '1', label: '1' }] as const
 const DEFAULT_INSTRUCTIONS = 'Read every question carefully. Keep your webcam on and your face visible for the entire exam. Do not switch windows or open other applications. Your screen, webcam and browsing activity are recorded and reviewed.'
 const DRAFT_KEY = 'dev102-exam-wizard-draft'
@@ -194,7 +193,6 @@ export default function NewExamPage() {
   const [savedAt, setSavedAt] = useState<string | null>(null)
   const [restore, setRestore] = useState<StoredDraft | null>(null)
   const [ready, setReady] = useState(false)
-  const [siteInput, setSiteInput] = useState('')
   const headingRef = useRef<HTMLHeadingElement>(null)
   const key = STEPS[step].key
 
@@ -262,14 +260,6 @@ export default function NewExamPage() {
     if (key !== 'review' && !checking) void next()
   }
 
-  const addSite = (raw: string) => {
-    const site = raw.trim().toLowerCase().replace(/^https?:\/\//, '').replace(/\/.*$/, '')
-    if (!site) return
-    if (!DOMAIN.test(site)) return setErrors((e) => ({ ...e, allowedSites: 'Enter a valid domain such as docs.python.org' }))
-    if (form.allowedSites.includes(site)) return setSiteInput('')
-    set('allowedSites', [...form.allowedSites, site])
-    setSiteInput('')
-  }
 
   const submit = async (status: 'DRAFT' | 'SCHEDULED') => {
     for (let i = 0; i < 4; i++) {
@@ -459,22 +449,6 @@ export default function NewExamPage() {
                     <Toggle checked={form.oneWay} onChange={(v) => set('oneWay', v)} label="One-way questions" description="Questions are answered in order; a candidate cannot go back after Next." />
                     <Toggle checked={form.liveAudio} onChange={(v) => set('liveAudio', v)} label="Live microphone to proctors" description="Proctors watching the screen can also listen live. Nothing is recorded; candidates are told on the consent screen." />
                   </div>
-                  <div className="rounded-xl border border-border p-5">
-                    <p className="flex items-center gap-2 text-sm font-semibold text-text"><Globe className="h-4 w-4 text-accent" aria-hidden="true" /> Suggested websites in the exam browser</p>
-                    <p className="mt-1 text-xs text-muted">Shown on the new-tab page. Candidates can open any other site too: every URL, search and AI chat is logged, and AI sites are always flagged.</p>
-                    <div className="mt-3 flex gap-2">
-                      <input value={siteInput} onChange={(ev) => setSiteInput(ev.target.value)} onKeyDown={(ev) => { if (ev.key === 'Enter') { ev.preventDefault(); addSite(siteInput) } }} aria-label="Add an allowed website" aria-invalid={Boolean(e.allowedSites)} placeholder="docs.python.org" className={cx(inputCls, inputState(e.allowedSites))} />
-                      <button type="button" onClick={() => addSite(siteInput)} className={btnGhost}><Plus className="h-4 w-4" aria-hidden="true" /> Add</button>
-                    </div>
-                    {e.allowedSites && <p role="alert" className="mt-1.5 text-xs font-medium text-danger">{e.allowedSites}</p>}
-                    <div className="mt-3 flex flex-wrap gap-2">
-                      {form.allowedSites.length === 0 && <span className="text-xs text-muted">No extra sites. Candidates can only use the exam page.</span>}
-                      {form.allowedSites.map((s) => (
-                        <span key={s} className="inline-flex items-center gap-1.5 rounded-full bg-primary/10 px-3 py-1 text-xs font-semibold text-primary">{s}<button type="button" aria-label={`Remove ${s}`} onClick={() => set('allowedSites', form.allowedSites.filter((x) => x !== s))} className="rounded-full outline-none hover:text-danger focus-visible:ring-2 focus-visible:ring-accent"><X className="h-3 w-3" aria-hidden="true" /></button></span>
-                      ))}
-                    </div>
-                    <div className="mt-3 flex flex-wrap gap-1.5">{SITE_SUGGESTIONS.filter((s) => !form.allowedSites.includes(s)).map((s) => <button key={s} type="button" onClick={() => addSite(s)} className="rounded-full border border-border px-2.5 py-0.5 text-xs text-slate-600 outline-none hover:bg-soft focus-visible:ring-2 focus-visible:ring-accent">+ {s}</button>)}</div>
-                  </div>
                   <div>
                     <p className="mb-1.5 text-sm font-medium text-slate-700">Release results</p>
                     <Segmented label="Release results" value={form.releaseResults} onChange={(v) => set('releaseResults', v)} options={[{ value: 'IMMEDIATE', label: 'Immediately' }, { value: 'AFTER_REVIEW', label: 'After violation review' }, { value: 'MANUAL', label: 'Manually' }]} />
@@ -503,7 +477,7 @@ export default function NewExamPage() {
                     </ReviewBlock>
                     <ReviewBlock title="Settings" step={2} onEdit={goTo}>
                       <Row k="Shuffle" v={form.shuffle ? 'On' : 'Off'} /><Row k="Negative marking" v={form.negativeMarking ? `−${form.negativeValue}` : 'Off'} />
-                      <Row k="Suggested sites" v={form.allowedSites.length ? form.allowedSites.join(', ') : 'None'} /><Row k="Audio monitoring" v={form.audioMonitoring ? 'On' : 'Off'} /><Row k="Results" v={{ IMMEDIATE: 'Immediately', AFTER_REVIEW: 'After violation review', MANUAL: 'Manually' }[form.releaseResults]} />
+                      <Row k="Audio monitoring" v={form.audioMonitoring ? 'On' : 'Off'} /><Row k="Results" v={{ IMMEDIATE: 'Immediately', AFTER_REVIEW: 'After violation review', MANUAL: 'Manually' }[form.releaseResults]} />
                     </ReviewBlock>
                     <ReviewBlock title="Violation policy" step={3} onEdit={goTo}>
                       <div className="sm:col-span-2"><ul className="space-y-1 text-xs text-slate-600">{describePolicy(form.policy).map((l) => <li key={l}>• {l}</li>)}</ul></div>

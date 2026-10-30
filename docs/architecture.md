@@ -2,9 +2,9 @@
 
 ```
  Desktop app (Electron)                 Website (Next.js)
- ├─ renderer: exam UI, sandbox tabs     ├─ organization + proctor consoles
+ ├─ renderer: exam UI                   ├─ organization + proctor consoles
  ├─ preload: window.proctor bridge      └─ candidate lobby, landing pages
- └─ main: lock, guards, webview policy          │ REST + Socket.IO /monitor
+ └─ main: guards, screen capture                │ REST + Socket.IO /monitor
             │ REST + Socket.IO                    │
             └──────────────► API (Express) ◄──────┘
                              ├─ policy engine, session sweeper, retention job
@@ -24,7 +24,7 @@
 | Jobs | `apps/api/src/lib/jobs.ts` | auto-submit at deadline (5 s sweep), NETWORK_LOST after 30 s without heartbeat, retention |
 | Modules | `apps/api/src/modules/*` | auth, exams+questions, candidates, sessions, proctoring, mentor, admin, reports, dev |
 | Agent | `backend-services/` | `vision.py` (YuNet, SFace, Face Landmarker), `agents/*` (face, screen, browsing, risk, orchestrator) |
-| Native layer | `apps/desktop/electron/` | `security/exam-window.ts`, `security/guards.ts`, `browser-sandbox/*`, `secure-store.ts`, `ipc.ts` |
+| Native layer | `apps/desktop/electron/` | `security/exam-window.ts`, `security/guards.ts`, `secure-store.ts`, `ipc.ts` |
 | Desktop client | `apps/desktop/src/lib/` | `http.ts`, `api.ts` (real or mock), `live.ts` (socket, heartbeat, frames, activity, offline queue) |
 | Web client | `apps/web/src/lib/` | `http.ts`, `realtime.ts`, adapters `api.ts`, `adminApi.ts`, `examApi.ts`, `mentorApi.ts` |
 
