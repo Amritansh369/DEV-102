@@ -139,7 +139,7 @@ app.whenReady().then(() => {
   const link = process.argv.find((a) => a.startsWith(`${PROTOCOL}://`));
   if (link) pendingDeepLink = link;
   void createWindow();
-  startAutoUpdates();
+  startAutoUpdates(() => win, () => Boolean(kiosk?.active));
 });
 
 app.on('web-contents-created', (_e, contents) => {

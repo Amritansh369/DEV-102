@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { AlertCircle, CheckCircle2, Download, HardDrive, Loader2, MonitorCheck, ShieldCheck, TriangleAlert } from "lucide-react";
+import { AlertCircle, CheckCircle2, Download, ExternalLink, HardDrive, Loader2, MonitorCheck, ShieldCheck, TriangleAlert } from "lucide-react";
 import { Faq, type FaqItem } from "@/components/marketing/Faq";
 import { CtaBanner } from "@/components/marketing/CtaBanner";
 import { OrgBackdrop } from "@/components/layout/OrgBackdrop";
@@ -22,6 +22,11 @@ interface NavigatorExtras extends Navigator {
   deviceMemory?: number;
   connection?: { downlink?: number; effectiveType?: string };
 }
+
+/** Registered by the installer (electron-builder.yml `protocols`); opening it launches or focuses the installed app. */
+const APP_LINK = "dev102://open";
+/** Set once this browser downloaded the installer or opened the app, so the page leads with "Open the app" next time. */
+const INSTALLED_KEY = "dev102.appInstalled";
 
 /** API-relative installer links (a local build) go to the API; GitHub Releases links are absolute. */
 const absolute = (url: string) => (url.startsWith("/") ? `${API_ORIGIN}${url}` : url);
@@ -70,6 +75,15 @@ export default function DownloadPage() {
     return () => { alive = false; };
   }, []);
   const windows = release?.builds.find((b) => b.os === "windows");
+  // Browsers cannot tell a page whether an app is installed (on Windows an unknown app link even opens a system
+  // dialog), so the page remembers, per browser, that the app was downloaded or opened before.
+  const [installed, setInstalled] = useState(false);
+  useEffect(() => {
+    try { setInstalled(window.localStorage.getItem(INSTALLED_KEY) === "1"); } catch { /* storage blocked: lead with download */ }
+  }, []);
+  const rememberInstalled = () => {
+    try { window.localStorage.setItem(INSTALLED_KEY, "1"); } catch { /* storage blocked */ }
+  };
 
   useEffect(() => {
     document.title = "Download the Exam App | DEV102 Smart Proctoring";
@@ -128,9 +142,26 @@ export default function DownloadPage() {
             ) : (
               <>
                 {windows?.available ? (
-                  <a href={absolute(windows.url)} className="inline-flex w-full items-center justify-center gap-2 rounded-xl bg-cta px-6 py-3.5 font-semibold text-slate-900 shadow-md transition hover:-translate-y-0.5 hover:brightness-105 focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-cta/40">
-                    <Download className="h-5 w-5" aria-hidden /> Download for Windows
-                  </a>
+                  installed ? (
+                    <>
+                      <a href={APP_LINK} className="inline-flex w-full items-center justify-center gap-2 rounded-xl bg-cta px-6 py-3.5 font-semibold text-slate-900 shadow-md transition hover:-translate-y-0.5 hover:brightness-105 focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-cta/40">
+                        <ExternalLink className="h-5 w-5" aria-hidden /> Open the app
+                      </a>
+                      <p className="mt-2 text-sm text-slate-500">The app checks for updates when it opens and offers to restart when one is ready.</p>
+                      <a href={absolute(windows.url)} className="mt-1 inline-flex items-center gap-1.5 text-sm font-medium text-primary underline-offset-2 hover:underline">
+                        <Download className="h-4 w-4" aria-hidden /> Not opening? Download the installer again
+                      </a>
+                    </>
+                  ) : (
+                    <>
+                      <a href={absolute(windows.url)} onClick={rememberInstalled} className="inline-flex w-full items-center justify-center gap-2 rounded-xl bg-cta px-6 py-3.5 font-semibold text-slate-900 shadow-md transition hover:-translate-y-0.5 hover:brightness-105 focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-cta/40">
+                        <Download className="h-5 w-5" aria-hidden /> Download for Windows
+                      </a>
+                      <a href={APP_LINK} onClick={() => { rememberInstalled(); setInstalled(true); }} className="mt-3 inline-flex items-center gap-1.5 text-sm font-medium text-primary underline-offset-2 hover:underline">
+                        <ExternalLink className="h-4 w-4" aria-hidden /> Already installed? Open the app
+                      </a>
+                    </>
+                  )
                 ) : (
                   <p role="status" className="flex items-center justify-center gap-2 rounded-xl bg-slate-50 px-4 py-3.5 text-sm text-slate-600">
                     {release || releaseError ? <><TriangleAlert className="h-4 w-4 text-warning" aria-hidden /> {releaseError ? "Could not reach the download server. Try again in a minute." : "The installer is not published yet. Ask your exam coordinator for the link."}</> : <><Loader2 className="h-4 w-4 animate-spin" aria-hidden /> Finding the latest version…</>}
