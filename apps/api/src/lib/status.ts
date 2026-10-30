@@ -8,6 +8,8 @@ export interface SystemStatus {
   agent: boolean;
   /** Round trip to the agent's /health, or null when it did not answer. */
   agentLatencyMs: number | null;
+  /** Why the agent check failed, e.g. "connect ECONNREFUSED 127.0.0.1:8000" when AGENT_URL is not set. Null when up. */
+  agentError: string | null;
   checkedAt: string;
 }
 
@@ -20,7 +22,9 @@ async function check(): Promise<SystemStatus> {
   const health = await agent.health();
   return {
     ok: database && health.ok, database, agent: health.ok,
-    agentLatencyMs: health.ok ? Date.now() - started : null, checkedAt: new Date().toISOString(),
+    agentLatencyMs: health.ok ? Date.now() - started : null,
+    agentError: health.ok ? null : String(health.detail ?? 'no answer').slice(0, 160),
+    checkedAt: new Date().toISOString(),
   };
 }
 
