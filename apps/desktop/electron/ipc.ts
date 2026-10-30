@@ -5,13 +5,14 @@ import type { Kiosk } from './security/kiosk';
 import { setPolicy } from './browser-sandbox/sandbox';
 import { storeDel, storeGet, storeSet } from './secure-store';
 import { CH } from './channels';
+import { isAppPage } from './trust';
 
 export { CH };
 
 
 const KEY_RE = /^[\w-]{1,64}$/;
 
-export function registerIpc(getWin: () => BrowserWindow | null, getKiosk: () => Kiosk | null, rendererOrigin: () => string): (e: ProctorEvent) => void {
+export function registerIpc(getWin: () => BrowserWindow | null, getKiosk: () => Kiosk | null, rendererBase: () => string): (e: ProctorEvent) => void {
   const emit = (e: ProctorEvent) => getWin()?.webContents.send(CH.evViolation, e);
   const guards = new GuardMonitor(emit);
 
@@ -19,11 +20,7 @@ export function registerIpc(getWin: () => BrowserWindow | null, getKiosk: () => 
   const trusted = (event: IpcMainInvokeEvent): boolean => {
     const win = getWin();
     if (!win || event.sender.id !== win.webContents.id || !event.senderFrame) return false;
-    try {
-      return event.senderFrame.parent === null && new URL(event.senderFrame.url).origin === rendererOrigin();
-    } catch {
-      return rendererOrigin() === 'file://' && event.senderFrame.url.startsWith('file://');
-    }
+    return event.senderFrame.parent === null && isAppPage(event.senderFrame.url, rendererBase());
   };
   const handle = <A extends unknown[], R>(channel: string, fn: (...args: A) => R | Promise<R>) =>
     ipcMain.handle(channel, (event, ...args) => {
