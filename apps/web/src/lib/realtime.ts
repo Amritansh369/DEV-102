@@ -1,7 +1,7 @@
 'use client'
 
 import { io, type Socket } from 'socket.io-client'
-import { API_ORIGIN, getToken } from './http'
+import { API_ORIGIN, get, getToken } from './http'
 import type { BrowsingLog, Session, Violation } from './types'
 
 export interface ViolationEvent {
@@ -76,7 +76,11 @@ export function takeBuffered(sessionId?: string): ViolationEvent | null {
 }
 
 export type ScreenState = 'connecting' | 'live' | 'unavailable' | 'ended'
-const ICE_SERVERS: RTCIceServer[] = [{ urls: 'stun:stun.l.google.com:19302' }]
+const STUN: RTCIceServer[] = [{ urls: 'stun:stun.l.google.com:19302' }]
+let ice: Promise<RTCIceServer[]> | null = null
+/** STUN plus the API's TURN relay, loaded once. Falls back to STUN alone, which works on the same network. */
+const iceServers = (): Promise<RTCIceServer[]> =>
+  (ice ??= get<{ iceServers: RTCIceServer[] }>('/auth/ice-servers').then((r) => r.iceServers, () => { ice = null; return STUN }))
 type RtcMessage = { sessionId: string; from?: string; payload?: { type?: string; sdp?: string; candidate?: string } & RTCIceCandidateInit }
 
 /**
@@ -86,7 +90,7 @@ type RtcMessage = { sessionId: string; from?: string; payload?: { type?: string;
 export function watchScreen(sessionId: string, onStream: (stream: MediaStream) => void, onState: (state: ScreenState) => void): () => void {
   const s = connect()
   refs++
-  const pc = new RTCPeerConnection({ iceServers: ICE_SERVERS })
+  const pc = new RTCPeerConnection({ iceServers: STUN })
   let answered: (() => void) | null = null
   const remoteSet = new Promise<void>((resolve) => { answered = resolve })
   let stopped = false
@@ -116,6 +120,7 @@ export function watchScreen(sessionId: string, onStream: (stream: MediaStream) =
 
   onState('connecting')
   const offer = async () => {
+    pc.setConfiguration({ ...pc.getConfiguration(), iceServers: await iceServers() })
     const desc = await pc.createOffer()
     await pc.setLocalDescription(desc)
     s.emit('rtc:offer', { sessionId, payload: { type: desc.type, sdp: desc.sdp } })

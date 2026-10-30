@@ -201,6 +201,9 @@ authRouter.get('/me', authenticate, handle(async (req) => {
   return { id: u.id, name: u.name, email: u.email, role: u.role };
 }));
 
+/** ICE servers for the live screen view; signed-in only, because the TURN credential lets anyone relay traffic. */
+authRouter.get('/ice-servers', authenticate, handle(async () => ({ iceServers: config.iceServers })));
+
 authRouter.post('/logout', authenticate, handle(async (req) => {
   const a = auth(req);
   if (a.role === 'CANDIDATE') await prisma.candidate.update({ where: { id: a.sub }, data: { tokenVersion: { increment: 1 } } });
