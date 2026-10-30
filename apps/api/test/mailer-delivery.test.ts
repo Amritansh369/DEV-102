@@ -2,7 +2,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 /** Mail delivery choice and the Brevo HTTPS path, with the email log and network faked. */
 const cfg = vi.hoisted(() => ({
-  isProd: true, mailProvider: 'brevo' as 'resend' | 'brevo' | 'smtp' | null, BREVO_API_KEY: 'bk', RESEND_API_KEY: 're_key', MAIL_FROM: 'Smart Proctor <proctor@gmail.com>',
+  isProd: true, mailProviders: ['brevo'] as Array<'resend' | 'brevo' | 'smtp'>, BREVO_API_KEY: 'bk', RESEND_API_KEY: 're_key', MAIL_FROM: 'Smart Proctor <proctor@gmail.com>',
   MAIL_FROM_NAME: 'Where U Elevate', SMTP_USER: '', SMTP_HOST: '', SMTP_PORT: 587, SMTP_PASS: '',
 }));
 const logs = vi.hoisted(() => [] as Array<Record<string, unknown>>);
@@ -22,7 +22,7 @@ const mail = { to: 'cand@gmail.com', subject: 'Your exam link', html: '<p>Hi</p>
 
 beforeEach(() => {
   logs.length = 0;
-  Object.assign(cfg, { isProd: true, mailProvider: 'brevo', MAIL_FROM: 'Smart Proctor <proctor@gmail.com>' });
+  Object.assign(cfg, { isProd: true, mailProviders: ['brevo'], MAIL_FROM: 'Smart Proctor <proctor@gmail.com>' });
   vi.spyOn(globalThis, 'setTimeout').mockImplementation(((fn: () => void) => { fn(); return 0; }) as unknown as typeof setTimeout);
 });
 afterEach(() => { vi.unstubAllGlobals(); vi.restoreAllMocks(); });
@@ -63,7 +63,7 @@ describe('sendMail through Brevo', () => {
 
 describe('sendMail through Resend', () => {
   it('sends from the Resend test sender until MAIL_FROM is set', async () => {
-    Object.assign(cfg, { mailProvider: 'resend', MAIL_FROM: '' });
+    Object.assign(cfg, { mailProviders: ['resend'], MAIL_FROM: '' });
     const fetchMock = vi.fn(async () => new Response(JSON.stringify({ id: 'r1' }), { status: 200 }));
     vi.stubGlobal('fetch', fetchMock);
     expect(await sendMail(mail)).toEqual({ ok: true });
@@ -76,7 +76,7 @@ describe('sendMail through Resend', () => {
   });
 
   it('sends from MAIL_FROM on a verified domain, and reports the error message from Resend', async () => {
-    Object.assign(cfg, { mailProvider: 'resend', MAIL_FROM: 'Smart Proctor <exams@techknights.dev>' });
+    Object.assign(cfg, { mailProviders: ['resend'], MAIL_FROM: 'Smart Proctor <exams@techknights.dev>' });
     const fetchMock = vi.fn(async () => new Response(JSON.stringify({ message: 'You can only send testing emails to your own email address' }), { status: 403 }));
     vi.stubGlobal('fetch', fetchMock);
     const r = await sendMail(mail);
@@ -85,16 +85,36 @@ describe('sendMail through Resend', () => {
   });
 });
 
+describe('sendMail with several providers', () => {
+  it('falls through to Brevo when Resend refuses, so any address gets its email', async () => {
+    Object.assign(cfg, { mailProviders: ['resend', 'brevo'], MAIL_FROM: 'Smart Proctor <proctor@gmail.com>' });
+    const fetchMock = vi.fn(async (url: string) => (url.includes('resend')
+      ? new Response(JSON.stringify({ message: 'You can only send testing emails to your own email address' }), { status: 403 })
+      : new Response(JSON.stringify({ messageId: '<m1>' }), { status: 201 })));
+    vi.stubGlobal('fetch', fetchMock);
+    expect(await sendMail(mail)).toEqual({ ok: true });
+    expect(fetchMock.mock.calls.map((c) => c[0])).toEqual(['https://api.resend.com/emails', 'https://api.brevo.com/v3/smtp/email']);
+    expect(logs[0]).toMatchObject({ status: 'SENT', attempts: 1 });
+  });
+
+  it('reports the reason from every provider when all of them refuse', async () => {
+    Object.assign(cfg, { mailProviders: ['resend', 'brevo'] });
+    vi.stubGlobal('fetch', vi.fn(async (url: string) => new Response(JSON.stringify({ message: url.includes('resend') ? 'test mode' : 'Sender not verified' }), { status: 400 })));
+    const r = await sendMail(mail);
+    expect(r).toEqual({ ok: false, error: 'Resend 400: test mode · Brevo 400: Sender not verified' });
+  });
+});
+
 describe('sendMail without a provider', () => {
   it('fails in production with a message naming the settings to add', async () => {
-    cfg.mailProvider = null;
+    cfg.mailProviders = [];
     const r = await sendMail(mail);
     expect(r.ok).toBe(false);
     expect(r.error).toContain('RESEND_API_KEY');
   });
 
   it('writes to the dev outbox outside production', async () => {
-    Object.assign(cfg, { mailProvider: null, isProd: false });
+    Object.assign(cfg, { mailProviders: [], isProd: false });
     expect(await sendMail(mail)).toEqual({ ok: true, outbox: true });
   });
 });

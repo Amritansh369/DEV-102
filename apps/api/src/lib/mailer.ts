@@ -45,10 +45,7 @@ const resend: Delivery = async (m) => {
 };
 
 let transport: Transporter | null = null;
-function getDelivery(): Delivery | null {
-  if (config.mailProvider === 'resend') return resend;
-  if (config.mailProvider === 'brevo') return brevo;
-  if (config.mailProvider !== 'smtp') return null;
+function smtp(): Delivery {
   transport ??= nodemailer.createTransport({
     host: config.SMTP_HOST,
     port: config.SMTP_PORT,
@@ -59,6 +56,26 @@ function getDelivery(): Delivery | null {
   });
   const t = transport;
   return async (m) => { await t.sendMail({ from: config.MAIL_FROM || config.SMTP_USER, ...m }); };
+}
+
+/**
+ * Tries each configured provider in order until one accepts the message, so a refusal from one (for example
+ * Resend in test mode, which only mails the account owner) falls through to the next (for example Brevo).
+ */
+function getDelivery(): Delivery | null {
+  if (config.mailProviders.length === 0) return null;
+  return async (m) => {
+    const errors: string[] = [];
+    for (const name of config.mailProviders) {
+      try {
+        await (name === 'resend' ? resend : name === 'brevo' ? brevo : smtp())(m);
+        return;
+      } catch (err) {
+        errors.push((err as Error).message);
+      }
+    }
+    throw new Error(errors.join(' · '));
+  };
 }
 
 const esc = (s: string) => s.replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c] as string);
