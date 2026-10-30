@@ -111,6 +111,9 @@ export const readPolicy = (v: unknown): ViolationPolicy => {
 };
 export const readExtras = (v: unknown, title: string): ExamExtras => ({ ...defaultExtras(title), ...asObj(v) }) as ExamExtras;
 
+/** Answers still count this long after the deadline, so the app's final save beats the server's auto-submit. */
+export const SUBMIT_GRACE_MS = 15_000;
+
 /** Silence longer than two missed heartbeats (sent every 10 s) counts as offline, and the exam clock is paused for it. */
 export const PAUSE_AFTER_MS = 20_000;
 

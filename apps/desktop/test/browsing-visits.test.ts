@@ -35,9 +35,9 @@ describe('groupVisits', () => {
   it('names search engines and the sandbox search, keeping the searched text', () => {
     const visits = groupVisits([
       entry(1, 'https://www.google.com/search?q=binary+search', { title: 'Google Search', query: 'binary search' }),
-      entry(2, 'sandbox://search?q=sorting', { title: 'Sandbox search', query: 'sorting' }),
+      entry(2, 'sandbox://search?q=sorting', { title: 'Search', query: 'sorting' }),
     ])
-    expect(visits.map((v) => [v.site, v.queries[0]?.text, v.ai])).toEqual([['Google', 'binary search', false], ['Sandbox search', 'sorting', false]])
+    expect(visits.map((v) => [v.site, v.queries[0]?.text, v.ai])).toEqual([['Google', 'binary search', false], ['Search', 'sorting', false]])
   })
 
   it('puts an AI reply under its question and keeps the newest version of a growing answer', () => {

@@ -31,7 +31,7 @@ const FEATURES: Record<Look, [LucideIcon, string][]> = {
   student: [
     [ShieldCheck, 'Encrypted, tamper-aware exam browser'],
     [Video, 'Webcam and screen monitoring during the test'],
-    [Lock, 'Only approved sites open inside the sandbox'],
+    [Lock, 'Face and email verification before the exam'],
   ],
   proctor: [
     [MonitorCheck, 'Live grid of every candidate in your exam'],

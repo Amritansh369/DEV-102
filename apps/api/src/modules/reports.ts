@@ -153,7 +153,7 @@ reportsRouter.get('/sessions/:id/report.pdf', handle(async (req, res) => {
   }
 
   section(`Browsing and search log (${s.browsing.length})`);
-  if (!s.browsing.length) doc.text('No sandbox browsing was recorded.');
+  if (!s.browsing.length) doc.text('No browsing was recorded.');
   for (const b of s.browsing) {
     if (doc.y > doc.page.height - 80) doc.addPage();
     doc.fillColor(b.flaggedAi ? '#b91c1c' : '#0f172a').font(b.flaggedAi ? 'Helvetica-Bold' : 'Helvetica')

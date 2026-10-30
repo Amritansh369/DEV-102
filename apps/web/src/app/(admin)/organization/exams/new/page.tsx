@@ -20,7 +20,7 @@ type Errors = Record<string, string>
 const STEPS: { key: StepKey; label: string; hint: string; icon: LucideIcon }[] = [
   { key: 'basics', label: 'Basics', hint: 'Title, code, instructions', icon: ClipboardCheck },
   { key: 'schedule', label: 'Schedule', hint: 'Date, time, duration', icon: CalendarClock },
-  { key: 'settings', label: 'Settings', hint: 'Marking and allowed sites', icon: Settings2 },
+  { key: 'settings', label: 'Settings', hint: 'Marking and suggested sites', icon: Settings2 },
   { key: 'policy', label: 'Violation policy', hint: 'Warnings and auto-submit', icon: ShieldAlert },
   { key: 'review', label: 'Review', hint: 'Check and publish', icon: Send },
 ]
@@ -140,7 +140,7 @@ function Summary({ f, title }: { f: WizardForm; title: string }) {
   const rules = [
     f.shuffle && 'Questions and options shuffled',
     f.negativeMarking ? `Negative marking −${f.negativeValue} per wrong answer` : 'No negative marking',
-    f.allowedSites.length ? `${f.allowedSites.length} allowed site${f.allowedSites.length > 1 ? 's' : ''}` : 'Only the exam page is allowed',
+    f.allowedSites.length ? `${f.allowedSites.length} suggested site${f.allowedSites.length > 1 ? 's' : ''}` : 'No suggested sites',
     f.allowCalculator && 'On-screen calculator enabled',
   ].filter((r): r is string => Boolean(r))
   return (
@@ -503,7 +503,7 @@ export default function NewExamPage() {
                     </ReviewBlock>
                     <ReviewBlock title="Settings" step={2} onEdit={goTo}>
                       <Row k="Shuffle" v={form.shuffle ? 'On' : 'Off'} /><Row k="Negative marking" v={form.negativeMarking ? `−${form.negativeValue}` : 'Off'} />
-                      <Row k="Allowed sites" v={form.allowedSites.length ? form.allowedSites.join(', ') : 'None'} /><Row k="Audio monitoring" v={form.audioMonitoring ? 'On' : 'Off'} /><Row k="Results" v={{ IMMEDIATE: 'Immediately', AFTER_REVIEW: 'After violation review', MANUAL: 'Manually' }[form.releaseResults]} />
+                      <Row k="Suggested sites" v={form.allowedSites.length ? form.allowedSites.join(', ') : 'None'} /><Row k="Audio monitoring" v={form.audioMonitoring ? 'On' : 'Off'} /><Row k="Results" v={{ IMMEDIATE: 'Immediately', AFTER_REVIEW: 'After violation review', MANUAL: 'Manually' }[form.releaseResults]} />
                     </ReviewBlock>
                     <ReviewBlock title="Violation policy" step={3} onEdit={goTo}>
                       <div className="sm:col-span-2"><ul className="space-y-1 text-xs text-slate-600">{describePolicy(form.policy).map((l) => <li key={l}>• {l}</li>)}</ul></div>
