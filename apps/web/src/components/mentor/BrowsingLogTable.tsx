@@ -36,7 +36,7 @@ interface SiteVisit {
   ai: boolean;
   /** The candidate had been on this site earlier and switched back to it. */
   returned: boolean;
-  queries: { id: string; at: string; text: string }[];
+  queries: { id: string; at: string; text: string; reply?: string }[];
 }
 
 /**
@@ -50,14 +50,17 @@ function groupVisits(logs: BrowsingLog[]): SiteVisit[] {
     const host = hostOf(l.url);
     let visit = visits[visits.length - 1];
     if (!visit || visit.host !== host) {
-      const site = host === "sandbox-search" ? "Sandbox search" : SITE_NAMES[host] ?? (l.title && !l.query ? l.title : host);
+      const site = host === "sandbox-search" ? "Search" : SITE_NAMES[host] ?? (l.title && !l.query ? l.title : host);
       visit = { key: l.id, site, host, url: l.url, at: l.at, ai: false, returned: seen.has(host), queries: [] };
       visits.push(visit);
       seen.add(host);
     }
     if (l.flaggedAi) visit.ai = true;
     // The tracker reports text after a typing pause and again on Enter, so the same message can arrive twice.
-    if (l.query && visit.queries[visit.queries.length - 1]?.text !== l.query) visit.queries.push({ id: l.id, at: l.at, text: l.query });
+    // A reply arrives as its own entry, and a long one again as it grows: the newest text belongs to its question.
+    const asked = l.query ? visit.queries.find((q) => q.text === l.query) : undefined;
+    if (asked && l.reply) asked.reply = l.reply;
+    else if (l.query && visit.queries[visit.queries.length - 1]?.text !== l.query) visit.queries.push({ id: l.id, at: l.at, text: l.query, ...(l.reply ? { reply: l.reply } : {}) });
   }
   return visits;
 }
@@ -100,7 +103,7 @@ export function BrowsingLogTable({ logs, candidateName }: { logs: BrowsingLog[];
     const t = term.trim().toLowerCase();
     const list = logs.filter((l) => {
       if (aiOnly && !l.flaggedAi) return false;
-      return !t || `${l.url} ${l.title} ${l.query ?? ""}`.toLowerCase().includes(t);
+      return !t || `${l.url} ${l.title} ${l.query ?? ""} ${l.reply ?? ""}`.toLowerCase().includes(t);
     });
     const sign = dir === "asc" ? 1 : -1;
     return list.sort((a, b) => (sortKey === "at" ? (Date.parse(a.at) - Date.parse(b.at)) * sign : hostOf(a.url).localeCompare(hostOf(b.url)) * sign));
@@ -120,8 +123,8 @@ export function BrowsingLogTable({ logs, candidateName }: { logs: BrowsingLog[];
 
   const exportCsv = () =>
     downloadCsv(`browsing-log-${candidateName.toLowerCase().replace(/\s+/g, "-")}.csv`, [
-      ["Time", "URL", "Title", "Query", "AI site"],
-      ...rows.map((l) => [l.at, l.url, l.title, l.query ?? "", l.flaggedAi ? "Yes" : "No"]),
+      ["Time", "URL", "Title", "Query", "AI site", "AI reply"],
+      ...rows.map((l) => [l.at, l.url, l.title, l.query ?? "", l.flaggedAi ? "Yes" : "No", l.reply ?? ""]),
     ]);
 
   const SortIcon = ({ k }: { k: SortKey }) => {
@@ -174,13 +177,14 @@ export function BrowsingLogTable({ logs, candidateName }: { logs: BrowsingLog[];
               {v.queries.length > 0 && (
                 <ul className="mt-3 space-y-2 pl-12">
                   {v.queries.map((q) => (
-                    <li key={q.id} className="flex items-start gap-2">
+                    <li key={q.id} className="flex flex-wrap items-start gap-2">
                       <CornerDownRight className={`mt-1 h-4 w-4 shrink-0 ${v.ai ? "text-danger" : "text-slate-400"}`} aria-hidden />
                       <p className="min-w-0 flex-1 text-sm text-slate-700">
-                        <span className="text-slate-500">{v.ai ? "Typed" : "Searched"}:</span>{" "}
+                        <span className="text-slate-500">{v.ai ? "Asked" : "Searched"}:</span>{" "}
                         <span className={`rounded-lg px-2 py-0.5 font-mono text-xs ${v.ai ? "bg-white text-danger ring-1 ring-danger/30" : "bg-slate-100 text-slate-700"}`}>“<Highlight text={q.text} term={term} />”</span>
                       </p>
                       <span className="shrink-0 font-mono text-xs text-slate-500">{formatClock(q.at)}</span>
+                      {q.reply && <p className="w-full max-h-48 overflow-y-auto whitespace-pre-wrap rounded-xl bg-white p-3 text-sm text-slate-700 ring-1 ring-border"><strong>{v.site} replied:</strong> <Highlight text={q.reply} term={term} /></p>}
                     </li>
                   ))}
                 </ul>
@@ -192,7 +196,7 @@ export function BrowsingLogTable({ logs, candidateName }: { logs: BrowsingLog[];
         <div className="mt-4 flex flex-col items-center rounded-2xl border border-dashed border-border bg-soft px-6 py-12 text-center">
           {logs.length === 0 ? <Globe className="h-8 w-8 text-slate-500" aria-hidden /> : <SearchX className="h-8 w-8 text-slate-500" aria-hidden />}
           <p className="mt-3 font-heading font-semibold">{logs.length === 0 ? "No browsing recorded" : "Nothing matches your search"}</p>
-          <p className="mt-1 text-sm text-slate-500">{logs.length === 0 ? "The candidate has not opened a sandbox tab." : "Try another keyword or switch off the AI filter."}</p>
+          <p className="mt-1 text-sm text-slate-500">{logs.length === 0 ? "The candidate has not opened a website." : "Try another keyword or switch off the AI filter."}</p>
         </div>
       ) : (
         <>
@@ -224,7 +228,11 @@ export function BrowsingLogTable({ logs, candidateName }: { logs: BrowsingLog[];
                         <p className={`max-w-xs rounded-lg px-2.5 py-1.5 font-mono text-xs ${l.flaggedAi ? "bg-white text-danger ring-1 ring-danger/30" : "bg-slate-100 text-slate-700"}`}>
                           “<Highlight text={l.query} term={term} />”
                         </p>
-                      ) : (
+                      ) : null}
+                      {l.reply ? (
+                        <p className="mt-1 max-h-32 max-w-xs overflow-y-auto whitespace-pre-wrap text-xs text-slate-600">Reply: <Highlight text={l.reply} term={term} /></p>
+                      ) : null}
+                      {l.query ? null : (
                         <span className="text-slate-500" aria-label="No query">—</span>
                       )}
                     </td>
@@ -232,7 +240,7 @@ export function BrowsingLogTable({ logs, candidateName }: { logs: BrowsingLog[];
                       {l.flaggedAi ? (
                         <span className="inline-flex items-center gap-1 rounded-full bg-red-50 px-2.5 py-1 text-xs font-semibold text-danger ring-1 ring-danger/20"><Bot className="h-3.5 w-3.5" aria-hidden /> AI site</span>
                       ) : (
-                        <span className="text-xs text-slate-500">Allowed</span>
+                        <span className="text-xs text-slate-500">Logged</span>
                       )}
                     </td>
                   </tr>

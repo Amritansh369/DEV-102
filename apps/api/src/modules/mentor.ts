@@ -6,7 +6,7 @@ import { prisma } from '../lib/db.js';
 import { audit, auth, staff } from '../lib/auth.js';
 import { VIOLATION_META, examInclude, readPolicy, toBrowsing, toCandidate, toExam, toSession, toViolation } from '../lib/domain.js';
 import { signEvidenceUrl } from '../lib/evidence.js';
-import { finalizeSession, maybeReinstate, recomputeRisk } from '../lib/policy.js';
+import { applyPenalties, finalizeSession, maybeReinstate, recomputeRisk } from '../lib/policy.js';
 import { realtime } from '../lib/realtime.js';
 import { notifyResultReady } from '../lib/results.js';
 
@@ -46,7 +46,7 @@ mentorRouter.get('/sessions/:id/detail', handle(async (req) => {
     violations: s.violations.map((v) => toViolation(v, sign)), browsing: s.browsing.map(toBrowsing),
     warningsSent: s.warningsSent.map((w) => ({ sessionId: s.id, message: w.message, at: w.at.toISOString() })),
     riskHistory: s.riskPoints.map((p) => ({ at: p.at.toISOString(), score: p.score })),
-    reviews,
+    reviews, penalties: readPolicy(s.exam.policy).penalties,
     submitReason: s.submitReason, score: s.score, receiptId: s.receiptId,
     ...(s.decision ? { decision: { sessionId: s.id, ...(s.decision as Record<string, unknown>) } } : {}),
   };
@@ -95,25 +95,31 @@ mentorRouter.post('/sessions/:id/terminate', handle(async (req) => {
 }));
 
 mentorRouter.post('/violations/:id/review', handle(async (req) => {
-  const body = parse(z.object({ verdict: z.enum(['CONFIRMED', 'OVERRULED']).nullable(), reason: z.string().trim().max(500).default('') }), req.body);
+  const body = parse(z.object({
+    verdict: z.enum(['CONFIRMED', 'OVERRULED']).nullable(), reason: z.string().trim().max(500).default(''),
+    /** Marks to take off for this flag; the exam policy's amount for its severity when left out. */
+    marks: z.number().min(0).max(1000).optional(),
+  }), req.body);
   if (body.verdict === 'OVERRULED' && body.reason.length < 3) fail('VALIDATION', 'Give a short reason when overruling a penalty.');
-  const v = must(await prisma.violation.findUnique({ where: { id: String(req.params.id) } }), 'Violation');
+  const v = must(await prisma.violation.findUnique({ where: { id: String(req.params.id) }, include: { session: { select: { exam: { select: { policy: true } } } } } }), 'Violation');
+  const penaltyMarks = body.verdict === 'CONFIRMED' ? body.marks ?? readPolicy(v.session.exam.policy).penalties[v.severity] : null;
   const updated = await prisma.violation.update({
     where: { id: v.id },
     data: body.verdict
-      ? { reviewed: body.verdict, reviewReason: body.reason || null, reviewedById: auth(req).sub, reviewedAt: new Date() }
-      : { reviewed: null, reviewReason: null, reviewedById: null, reviewedAt: null },
+      ? { reviewed: body.verdict, reviewReason: body.reason || null, reviewedById: auth(req).sub, reviewedAt: new Date(), penaltyMarks }
+      : { reviewed: null, reviewReason: null, reviewedById: null, reviewedAt: null, penaltyMarks },
   });
   const riskScore = await recomputeRisk(v.sessionId);
+  await applyPenalties(v.sessionId);
   const reinstated = body.verdict === 'OVERRULED' ? await maybeReinstate(v.sessionId) : false;
   const session = await prisma.examSession.findUniqueOrThrow({ where: { id: v.sessionId } });
   realtime.toExam(session.examId, 'violation:reviewed', { violation: toViolation(updated, sign), riskScore, reinstated });
-  audit(req, 'violation.review', v.id, { verdict: body.verdict, reinstated });
+  audit(req, 'violation.review', v.id, { verdict: body.verdict, reinstated, penaltyMarks });
   // Reviewing the last flagged event can release an "after review" result.
   if (body.verdict) void notifyResultReady(v.sessionId);
   return {
     violation: toViolation(updated, sign), riskScore, reinstated, session: toSession(session),
-    record: { violationId: v.id, verdict: body.verdict, reason: body.reason, at: new Date().toISOString() },
+    record: { violationId: v.id, verdict: body.verdict, reason: body.reason, at: new Date().toISOString(), ...(penaltyMarks !== null ? { marks: penaltyMarks } : {}) },
   };
 }));
 
@@ -165,11 +171,15 @@ const hue = (id: string) => [...id].reduce((h, c) => (h * 31 + c.charCodeAt(0)) 
 
 /** A proctor signed in through a join link sees only the exam the link was for. */
 const scopedExam = (req: Parameters<typeof auth>[0]) => auth(req).examId;
+/** The longest check-in an exam can set (extras.checkInMin). */
+const ROOM_OPENS_MS = 240 * 60_000;
 
 mentorRouter.get('/monitor/exams', handle(async (req) => {
   const now = new Date();
   const only = scopedExam(req);
-  const exams = await prisma.exam.findMany({ where: { deletedAt: null, status: { not: 'DRAFT' }, startsAt: { lte: now }, endsAt: { gt: now }, ...(only ? { id: only } : {}) }, include: examInclude, orderBy: { startsAt: 'asc' } });
+  // Proctors open the room before the exam starts, so candidates in check-in are visible.
+  const soon = new Date(now.getTime() + ROOM_OPENS_MS);
+  const exams = await prisma.exam.findMany({ where: { deletedAt: null, status: { not: 'DRAFT' }, startsAt: { lte: soon }, endsAt: { gt: now }, ...(only ? { id: only } : {}) }, include: examInclude, orderBy: { startsAt: 'asc' } });
   return exams.map(toExam);
 }));
 
@@ -200,11 +210,12 @@ mentorRouter.get('/monitor/sessions/:id', handle(async (req) => {
   const id = String(req.params.id);
   const only = scopedExam(req);
   if (only && !(await prisma.examSession.findFirst({ where: { id, examId: only }, select: { id: true } }))) fail('FORBIDDEN', 'You are not assigned to proctor this exam.');
-  const [violations, logs] = await Promise.all([
+  const [violations, logs, s] = await Promise.all([
     prisma.violation.findMany({ where: { sessionId: id }, orderBy: { at: 'asc' } }),
     prisma.browsingLog.findMany({ where: { sessionId: id }, orderBy: { at: 'asc' } }),
+    prisma.examSession.findUnique({ where: { id }, select: { penaltyMarks: true, exam: { select: { policy: true } } } }),
   ]);
-  return { violations: violations.map((v) => toViolation(v, sign)), logs: logs.map(toBrowsing) };
+  return { violations: violations.map((v) => toViolation(v, sign)), logs: logs.map(toBrowsing), penaltyMarks: s?.penaltyMarks ?? 0, penalties: readPolicy(s?.exam.policy).penalties };
 }));
 
 /* ---------------------------------------------------------------- violation list */

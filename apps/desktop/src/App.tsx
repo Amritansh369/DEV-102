@@ -41,18 +41,13 @@ const transition: Variants = {
   exit: (dir: number) => ({ opacity: 0, x: dir * -24, transition: { duration: 0.18, ease: 'easeIn' } }),
 };
 
-/** During the exam: a lost-focus lock overlay, and screen-share stops reported through the exam screen. */
+/** During the exam: screen-share stops are reported through the exam screen. */
 function useProctorBridge(active: boolean): void {
   useEffect(() => {
     if (!active) return undefined;
     const proctor = getProctor();
-    const offViolation = proctor.events.onViolation((event) => {
-      // Proctor-only exams show the candidate nothing; the event still reaches the proctor.
-      if (event.code === 'WINDOW_BLUR' && !useApp.getState().exam?.settings.proctorOnly) useApp.getState().setLock(event.message ?? 'The exam window lost focus.');
-    });
     const offScreen = proctor.screen.onEnded(() => reportViolation('SCREEN_SHARE_STOPPED'));
     return () => {
-      offViolation();
       offScreen();
       void proctor.screen.stop();
     };

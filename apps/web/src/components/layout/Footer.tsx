@@ -2,10 +2,11 @@
 
 import Link from 'next/link';
 import { useState, type FormEvent } from 'react';
-import { ArrowRight, Instagram, Linkedin, Mail, Twitter, Youtube, type LucideIcon } from 'lucide-react';
+import { ArrowRight, Github, Instagram, Linkedin, Mail, Twitter, Youtube, type LucideIcon } from 'lucide-react';
 import { z } from 'zod';
-import { Button, Input, useToast } from '@/components/ui/primitives';
+import { Avatar, Button, Input, useToast } from '@/components/ui/primitives';
 import { BrandMark } from '@/components/layout/BrandMark';
+import { STATUS_DOT, useSystemStatus } from '@/components/layout/SystemStatus';
 
 const emailSchema = z.string().trim().min(1, 'Please enter your email').email('Enter a valid email address');
 
@@ -51,6 +52,12 @@ const COLUMNS: FooterColumn[] = [
       { href: '/privacy#retention', label: 'Data retention' },
     ],
   },
+];
+
+/** The team that built the platform, shown as "Powered by Tech Knights" with each member's GitHub photo. */
+const TEAM = [
+  { name: 'Mallavarapu Krishna Koushik Reddy', github: 'KKPRO2007' },
+  { name: 'Amritansh Rai', github: 'Amritansh369' },
 ];
 
 const SOCIALS: { label: string; href: string; icon: LucideIcon }[] = [
@@ -118,6 +125,7 @@ function Newsletter() {
 }
 
 export function Footer() {
+  const status = useSystemStatus();
   return (
     <footer className="mt-24 border-t border-border bg-surface">
       <div className="mx-auto max-w-7xl px-4 py-14 sm:px-6 lg:px-8">
@@ -157,9 +165,9 @@ export function Footer() {
         <div className="mt-14 flex flex-col items-start justify-between gap-5 border-t border-border pt-8 md:flex-row md:items-center">
           <div className="flex flex-col gap-2 text-sm text-muted sm:flex-row sm:items-center sm:gap-5">
             <p>&copy; {new Date().getFullYear()} Where U Elevate. All rights reserved.</p>
-            <p className="inline-flex items-center gap-2">
-              <span className="h-2 w-2 animate-pulse-dot rounded-full bg-success" aria-hidden />
-              All systems operational
+            <p className="inline-flex items-center gap-2" role="status" title={status.detail}>
+              <span className={`h-2 w-2 rounded-full ${STATUS_DOT[status.tone]} ${status.tone === 'ok' ? 'animate-pulse-dot' : ''}`} aria-hidden />
+              {status.title}
             </p>
           </div>
           <ul className="flex items-center gap-2" aria-label="Social media">
@@ -173,6 +181,29 @@ export function Footer() {
                   className="flex h-10 w-10 items-center justify-center rounded-xl border border-border text-muted transition hover:border-accent hover:bg-primary-50 hover:text-primary focus-ring"
                 >
                   <Icon className="h-4 w-4" aria-hidden />
+                </a>
+              </li>
+            ))}
+          </ul>
+        </div>
+
+        <div className="mt-6 flex flex-wrap items-center gap-3 text-sm text-muted">
+          <span>
+            Powered by <span className="font-heading font-semibold text-ink">Tech Knights</span>
+          </span>
+          <ul className="flex items-center gap-2" aria-label="Tech Knights team">
+            {TEAM.map(({ name, github }) => (
+              <li key={github}>
+                <a
+                  href={`https://github.com/${github}`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  title={`${name} on GitHub`}
+                  className="inline-flex items-center gap-2 rounded-full border border-border py-1 pl-1 pr-3 transition hover:border-accent hover:bg-primary-50 hover:text-primary focus-ring"
+                >
+                  <Avatar name={name} size="sm" src={`https://github.com/${github}.png?size=64`} />
+                  <Github className="h-3.5 w-3.5" aria-hidden />
+                  <span className="text-xs font-medium">{github}</span>
                 </a>
               </li>
             ))}

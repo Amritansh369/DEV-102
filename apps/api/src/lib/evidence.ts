@@ -1,4 +1,4 @@
-import { mkdir, readdir, rm, stat, writeFile } from 'node:fs/promises';
+import { readFile, readdir, rm, stat } from 'node:fs/promises';
 import { join } from 'node:path';
 import { randomUUID } from 'node:crypto';
 import { config } from '../config.js';
@@ -48,12 +48,22 @@ export function decodeImage(dataUrlOrBase64: string): { buffer: Buffer; mime: st
 }
 
 export async function saveEvidence(sessionId: string, kind: 'webcam' | 'screen', image: { buffer: Buffer; mime: string }): Promise<string> {
-  await mkdir(config.evidenceDir, { recursive: true });
   const id = randomUUID().replace(/-/g, '');
-  const file = `${id}.${MIMES[image.mime] ?? 'jpg'}`;
-  await writeFile(join(config.evidenceDir, file), image.buffer, { mode: 0o600 });
-  await prisma.evidence.create({ data: { id, sessionId, kind, path: file, mime: image.mime } });
+  await prisma.evidence.create({ data: { id, sessionId, kind, path: `${id}.${MIMES[image.mime] ?? 'jpg'}`, mime: image.mime, data: new Uint8Array(image.buffer) } });
   return id;
+}
+
+/** Stores a reference face photo; returns the value kept in photoPath. */
+export async function saveFacePhoto(ownerId: string, buffer: Buffer): Promise<string> {
+  await prisma.facePhoto.upsert({ where: { ownerId }, create: { ownerId, data: new Uint8Array(buffer) }, update: { data: new Uint8Array(buffer) } });
+  return `face_${ownerId}.jpg`;
+}
+
+/** A reference face photo: from the database, or the file of an older or seeded one. Null when it is gone. */
+export async function readFacePhoto(ownerId: string, photoPath: string | null): Promise<Buffer | null> {
+  if (!photoPath) return null;
+  const row = await prisma.facePhoto.findUnique({ where: { ownerId }, select: { data: true } });
+  return row ? Buffer.from(row.data) : readFile(evidencePath(photoPath)).catch(() => null);
 }
 
 export const evidencePath = (file: string): string => join(config.evidenceDir, file.replace(/[\\/]/g, ''));
@@ -63,8 +73,9 @@ export async function runRetention(): Promise<void> {
   const cutoff = new Date(Date.now() - config.RETENTION_DAYS * 86_400_000);
   const old = await prisma.evidence.findMany({ where: { createdAt: { lt: cutoff } }, select: { id: true, path: true } });
   for (const e of old) await rm(evidencePath(e.path), { force: true });
-  const [ev, act, otp] = await Promise.all([
+  const [ev, , act, otp] = await Promise.all([
     prisma.evidence.deleteMany({ where: { id: { in: old.map((e) => e.id) } } }),
+    prisma.facePhoto.deleteMany({ where: { createdAt: { lt: cutoff } } }),
     prisma.activityLog.deleteMany({ where: { at: { lt: cutoff } } }),
     prisma.otpCode.deleteMany({ where: { createdAt: { lt: new Date(Date.now() - 86_400_000) } } }),
   ]);

@@ -6,6 +6,7 @@ import { AlertTriangle, ArrowDown, ArrowUp, ArrowUpDown, Ban, Check, CheckCircle
 import type { InviteStatus } from '@/lib/types'
 import { getInviteLink } from '@/lib/api'
 import PasswordCell from './PasswordCell'
+import { Avatar } from '@/components/ui/primitives'
 
 export type SendStatus = 'pending' | 'queued' | 'sending' | 'sent' | 'failed'
 
@@ -20,6 +21,7 @@ export interface CredentialRow {
   inviteLink?: string
   outbox?: boolean
   invite?: { id: string; status: InviteStatus; deviceBound: boolean }
+  avatarUrl?: string
 }
 
 const LINK_LABEL: Record<InviteStatus, [string, string]> = {
@@ -191,11 +193,16 @@ export default function CredentialsTable({ rows, examId, busy = false, onResend,
                 return (
                   <motion.tr key={r.id} layout="position" initial={{ opacity: 0 }} animate={{ opacity: 1 }}>
                     <td className="px-4 py-2.5">
-                      <p className="font-medium text-ink">{r.name}</p>
-                      <p className="flex items-center gap-1 text-xs text-muted">
-                        {r.email}
-                        <CopyButton value={r.email} label={`${r.name}'s email`} />
-                      </p>
+                      <div className="flex items-center gap-3">
+                        <Avatar name={r.name} size="sm" src={r.avatarUrl} />
+                        <div className="min-w-0">
+                          <p className="font-medium text-ink">{r.name}</p>
+                          <p className="flex items-center gap-1 text-xs text-muted">
+                            {r.email}
+                            <CopyButton value={r.email} label={`${r.name}'s email`} />
+                          </p>
+                        </div>
+                      </div>
                     </td>
                     <td className="px-4 py-2.5">
                       <span className="inline-flex items-center gap-1 font-mono text-xs text-ink">

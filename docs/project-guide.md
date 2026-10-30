@@ -103,7 +103,7 @@ What runs during the exam:
 | Webcam frame | every 1 s | agent `face_agent.py`, `vision.py` | `NO_FACE`, `MULTIPLE_FACES`, `CAMERA_BLOCKED`, `GAZE_AWAY`, `FACE_MISMATCH`, `PHONE_DETECTED`, `NOTES_DETECTED` |
 | Screen frame | every 20 s | agent `screen_agent.py` (LLM optional) | AI chat or messaging on screen |
 | Sandbox tabs | every navigation and typed query | `electron/browser-sandbox/tracker.ts`, agent `browsing_agent.py` | `AI_SITE_OPENED`, `AI_QUERY_DETECTED` (typed question), match against exam questions |
-| Native guards | continuous | `electron/security/guards.ts`, `kiosk.ts` | `WINDOW_BLUR`, `SHORTCUT_BLOCKED`, `CLIPBOARD_USE`, `EXTERNAL_DEVICE`, `MULTI_MONITOR`, `SCREEN_MIRRORING`, `VM_DETECTED`, `REMOTE_DESKTOP`, `SCREEN_SHARE_STOPPED`, `BLACKLISTED_APP` |
+| Native guards | continuous | `electron/security/guards.ts`, `exam-window.ts` | `WINDOW_BLUR`, `SHORTCUT_BLOCKED`, `CLIPBOARD_USE`, `EXTERNAL_DEVICE`, `MULTI_MONITOR`, `SCREEN_MIRRORING`, `VM_DETECTED`, `REMOTE_DESKTOP`, `SCREEN_SHARE_STOPPED`, `BLACKLISTED_APP` |
 | Microphone (per exam, opt-in) | continuous, on device | `src/lib/audio.ts` | `VOICE_DETECTED`, `MIC_BLOCKED`. Sound is never recorded or sent |
 | Heartbeat | every 10 s | API `jobs.ts` | `NETWORK_LOST` after 30 s silent |
 | Sign-in | on every login | API `auth.ts` | `MULTI_LOGIN` when a second device tries during a live session |

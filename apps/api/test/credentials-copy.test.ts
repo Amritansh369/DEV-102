@@ -3,7 +3,7 @@ import express, { type RequestHandler } from 'express';
 import type { AddressInfo } from 'node:net';
 import type { Server } from 'node:http';
 
-/** Sending a candidate's link also emails a copy to the organization and the exam's proctors. */
+/** Sending a candidate's link also emails a copy to the organization, and never to proctors. */
 const db = vi.hoisted(() => ({ proctors: [] as Array<{ user: { email: string; name: string; deletedAt: Date | null } | null }>, creator: null as { email: string; name: string } | null }));
 const sent = vi.hoisted(() => [] as Array<{ to: string; kind: string; html: string }>);
 
@@ -69,10 +69,10 @@ beforeEach(() => {
 const send = () => fetch(`${base}/candidates/c-1/send-credentials`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: '{}' });
 
 describe('copies of a candidate link', () => {
-  it('go to the exam creator and every active proctor, with the link and password', async () => {
+  it('go to the exam creator only, never to a proctor, with the link and password', async () => {
     expect((await send()).status).toBe(200);
     const copies = sent.filter((m) => m.kind === 'credentials_copy');
-    expect(copies.map((m) => m.to).sort()).toEqual(['org@example.com', 'proctor@example.com']);
+    expect(copies.map((m) => m.to).sort()).toEqual(['org@example.com']);
     for (const m of copies) {
       expect(m.html).toContain('Exam#1000');
       expect(m.html).toContain('/join/');
@@ -87,6 +87,6 @@ describe('copies of a candidate link', () => {
   it('go to every admin when the exam has no creator', async () => {
     db.creator = null;
     await send();
-    expect(sent.filter((m) => m.kind === 'credentials_copy').map((m) => m.to).sort()).toEqual(['other.admin@example.com', 'proctor@example.com']);
+    expect(sent.filter((m) => m.kind === 'credentials_copy').map((m) => m.to).sort()).toEqual(['other.admin@example.com']);
   });
 });

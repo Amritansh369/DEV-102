@@ -8,6 +8,7 @@ import { adminOnly, audit } from '../lib/auth.js';
 import { decrypt, encrypt, hashPassword, randomPassword, randomToken, sha256 } from '../lib/crypto.js';
 import { inviteStatus } from '../lib/domain.js';
 import { sendMail, templates } from '../lib/mailer.js';
+import { gravatarUrl, mailDomainOk } from '../lib/email-check.js';
 
 export const inviteLink = (token: string): string => `${config.clientOrigins[0] ?? 'http://localhost:3000'}/join/${token}`;
 
@@ -29,6 +30,7 @@ export async function issueInvite(input: { examId: string; endsAt: Date; role: E
 const toProctorRow = (inv: Invite & { user: { name: string } | null }) => ({
   inviteId: inv.id, userId: inv.userId, name: inv.user?.name ?? '', email: inv.email, status: inviteStatus(inv),
   usedAt: inv.usedAt?.toISOString() ?? null, deviceBound: Boolean(inv.deviceId), createdAt: inv.createdAt.toISOString(),
+  avatarUrl: gravatarUrl(inv.email),
 });
 
 async function sendProctorInvite(inviteExamId: string, user: { id: string; name: string; email: string }, password: string | null) {
@@ -61,10 +63,11 @@ invitesRouter.get('/exams/:id/proctors', ...adminOnly, handle(async (req) => {
 invitesRouter.get('/exams/:id/proctors/lookup', ...adminOnly, handle(async (req) => {
   const { email } = parse(z.object({ email: z.string().trim().toLowerCase().email().max(200) }), req.query);
   const user = await prisma.user.findUnique({ where: { email }, select: { id: true, email: true, name: true, role: true, deletedAt: true } });
-  if (!user) return { profile: null, alreadyInvited: false, emailUnavailable: false };
-  if (user.deletedAt || user.role !== 'MENTOR') return { profile: null, alreadyInvited: false, emailUnavailable: true };
+  const mail = { mailDomainOk: await mailDomainOk(email), avatarUrl: gravatarUrl(email) };
+  if (!user) return { profile: null, alreadyInvited: false, emailUnavailable: false, ...mail };
+  if (user.deletedAt || user.role !== 'MENTOR') return { profile: null, alreadyInvited: false, emailUnavailable: true, ...mail };
   const activeInvite = await prisma.invite.findFirst({ where: { examId: String(req.params.id), role: 'MENTOR', userId: user.id, revokedAt: null } });
-  return { profile: { name: user.name, email: user.email }, alreadyInvited: Boolean(activeInvite), emailUnavailable: false };
+  return { profile: { name: user.name, email: user.email }, alreadyInvited: Boolean(activeInvite), emailUnavailable: false, ...mail };
 }));
 
 invitesRouter.get('/invites/:id/link', ...adminOnly, handle(async (req) => {
@@ -80,6 +83,7 @@ invitesRouter.get('/invites/:id/link', ...adminOnly, handle(async (req) => {
 invitesRouter.post('/exams/:id/proctors', ...adminOnly, handle(async (req) => {
   const body = parse(z.object({ name: z.string().trim().min(2).max(120), email: z.string().trim().toLowerCase().email().max(200) }), req.body);
   const examId = String(req.params.id);
+  if ((await mailDomainOk(body.email)) === false) fail('VALIDATION', `${body.email} cannot receive email: its domain does not exist or accepts no mail.`);
   let user = await prisma.user.findUnique({ where: { email: body.email } });
   if (user && (user.deletedAt || user.role !== 'MENTOR')) fail('CONFLICT', 'This email belongs to an account that cannot proctor. Use a different email.');
   if (user && await prisma.invite.findFirst({ where: { examId, role: 'MENTOR', userId: user.id, revokedAt: null } })) {

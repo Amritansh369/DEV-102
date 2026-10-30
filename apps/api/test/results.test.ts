@@ -83,8 +83,13 @@ const OFF = { enabled: false, value: 0 };
 const QUARTER = { enabled: true, value: 0.25 };
 
 describe('summarize', () => {
+  it('takes deducted marks off the score and the percent', () => {
+    expect(summarize(ORDER, Q, ANSWERS, OFF, new Map(), 1)).toMatchObject({ score: 1, penaltyMarks: 1, percent: 14.29 });
+    expect(summarize(ORDER, Q, ANSWERS, OFF, new Map(), 9)).toMatchObject({ score: 0, percent: 0 });
+  });
+
   it('scores in marks and percent with counts', () => {
-    expect(summarize(ORDER, Q, ANSWERS, OFF)).toEqual({ score: 2, totalMarks: 7, percent: 28.57, correct: 1, wrong: 1, unanswered: 1, negativeMarking: OFF });
+    expect(summarize(ORDER, Q, ANSWERS, OFF)).toEqual({ penaltyMarks: 0, score: 2, totalMarks: 7, percent: 28.57, correct: 1, wrong: 1, unanswered: 1, negativeMarking: OFF });
   });
 
   it('applies negative marking to wrong answers', () => {

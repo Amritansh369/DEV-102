@@ -33,6 +33,13 @@ def _record(hits: deque[bool], hit: bool) -> int:
     return sum(hits)
 
 
+def _is_phone(o: vision.DetectedObject) -> bool:
+    if o.label != "cell phone":
+        return False
+    min_area = settings.phone_strong_min_area if o.score >= settings.phone_strong_score else settings.phone_min_area
+    return o.score >= settings.phone_min_score and o.area >= min_area
+
+
 def _emit(state: FaceState, out: list[Violation], code: str, severity: str, confidence: float, message: str) -> None:
     now = time.monotonic()
     if now - state.last_emit.get(code, -1e9) < settings.repeat_cooldown_sec:
@@ -93,10 +100,7 @@ def analyze_frame(state: FaceState, img: np.ndarray) -> tuple[list[Violation], d
                 _emit(state, out, "FACE_MISMATCH", "CRITICAL", 1 - max(0.0, similarity), f"The face on camera does not match the verified photo (similarity {similarity:.2f}, threshold {settings.match_threshold:.2f}).")
 
     # Objects must be seen in enough recent frames, so one misread frame never counts and one missed frame never resets.
-    phone = max(
-        (o.score for o in facts.objects if o.label == "cell phone" and o.score >= settings.phone_min_score and o.area >= settings.phone_min_area),
-        default=None,
-    )
+    phone = max((o.score for o in facts.objects if _is_phone(o)), default=None)
     seen = _record(state.phone_hits, phone is not None)
     if phone is not None and seen >= settings.phone_frames:
         _emit(state, out, "PHONE_DETECTED", "HIGH", phone, f"A phone was visible on camera in {seen} of the last {len(state.phone_hits)} frames (confidence {phone:.2f}).")
@@ -126,16 +130,17 @@ def verify(image_b64: str, registered_b64: str | None) -> FaceVerifyResult:
     faces = len(facts.faces)
     # Basic liveness: a lit, textured frame with a detected face and landmarks, not a flat image.
     liveness = faces == 1 and not facts.blocked and facts.contrast > 18 and (facts.yaw is not None)
+    eyes = facts.eyes_open
     if faces != 1:
-        return FaceVerifyResult(match=False, similarity=0, faces=faces, liveness=liveness)
+        return FaceVerifyResult(match=False, similarity=0, faces=faces, liveness=liveness, eyesOpen=eyes)
     if not registered_b64:
-        return FaceVerifyResult(match=True, similarity=1.0, faces=1, liveness=liveness)
+        return FaceVerifyResult(match=True, similarity=1.0, faces=1, liveness=liveness, eyesOpen=eyes)
     ref_img = vision.decode(registered_b64)
     ref_faces = vision.detect_faces(ref_img) if ref_img is not None else []
     if not ref_faces or ref_img is None:
-        return FaceVerifyResult(match=True, similarity=1.0, faces=1, liveness=liveness)
+        return FaceVerifyResult(match=True, similarity=1.0, faces=1, liveness=liveness, eyesOpen=eyes)
     a, b = vision.embedding(ref_img, ref_faces[0]), vision.embedding(img, facts.faces[0])
     if a is None or b is None:
-        return FaceVerifyResult(match=True, similarity=0.0, faces=1, liveness=liveness)
+        return FaceVerifyResult(match=True, similarity=0.0, faces=1, liveness=liveness, eyesOpen=eyes)
     sim = vision.similarity(a, b)
-    return FaceVerifyResult(match=sim >= settings.match_threshold, similarity=round(sim, 3), faces=1, liveness=liveness)
+    return FaceVerifyResult(match=sim >= settings.match_threshold, similarity=round(sim, 3), faces=1, liveness=liveness, eyesOpen=eyes)

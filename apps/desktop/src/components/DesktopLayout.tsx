@@ -1,6 +1,5 @@
 import { useEffect, useState, type ReactNode } from 'react';
-import { AnimatePresence, motion } from 'framer-motion';
-import { Camera, Clock, Lock, Mic, Monitor } from 'lucide-react';
+import { Camera, Clock, Mic, Monitor } from 'lucide-react';
 import { AppHeader } from './AppHeader';
 import { ReconnectBanner, useConnectivity } from './ReconnectBanner';
 
@@ -10,7 +9,7 @@ function ConnectivityNotice() {
 }
 import { useApp } from '../lib/store';
 import { getProctor } from '../lib/proctorMock';
-import { Button, cn } from '../lib/ui';
+import { cn } from '../lib/ui';
 import { api } from '../lib/api';
 
 /** Tracks connectivity and measures real latency to the API every 15 seconds. */
@@ -71,7 +70,7 @@ function StatusBar() {
   return (
     <footer className="flex h-8 shrink-0 items-center justify-between gap-4 border-t border-border bg-surface px-4 text-[11px] text-muted">
       <div className="flex items-center gap-3">
-        <span className="font-medium text-primary">v0.1.0</span>
+        <span className="font-medium text-primary">v{__APP_VERSION__}</span>
         {!getProctor().native && <span className="rounded bg-amber-50 px-1.5 py-0.5 text-amber-700">Browser preview (no native guards)</span>}
         {auth && <span className="hidden lg:inline">{auth.name}</span>}
       </div>
@@ -88,31 +87,6 @@ function StatusBar() {
   );
 }
 
-function KioskLock() {
-  const lock = useApp((s) => s.lock);
-  const clearLock = useApp((s) => s.clearLock);
-  return (
-    <AnimatePresence>
-      {lock.active && (
-        <motion.div className="kiosk-lock" role="alertdialog" aria-modal="true" aria-labelledby="kiosk-lock-title" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}>
-          <div className="max-w-md rounded-2xl border border-border bg-surface p-8 text-center shadow-pop">
-            <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-2xl bg-amber-50 text-warning">
-              <Lock className="h-7 w-7" aria-hidden />
-            </div>
-            <h2 id="kiosk-lock-title" className="mt-4 text-xl font-semibold">
-              Exam paused
-            </h2>
-            <p className="mt-2 text-sm text-muted">{lock.reason ?? 'The exam window lost focus.'} This event has been recorded and your proctor can see it.</p>
-            <Button autoFocus className="mt-6" size="lg" onClick={clearLock}>
-              Return to exam
-            </Button>
-          </div>
-        </motion.div>
-      )}
-    </AnimatePresence>
-  );
-}
-
 export function DesktopLayout({ children }: { children: ReactNode }) {
   useNetworkMonitor();
   return (
@@ -121,7 +95,6 @@ export function DesktopLayout({ children }: { children: ReactNode }) {
       <ConnectivityNotice />
       <main className="dot-pattern relative min-h-0 flex-1 overflow-hidden">{children}</main>
       <StatusBar />
-      <KioskLock />
     </div>
   );
 }

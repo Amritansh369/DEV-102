@@ -54,16 +54,16 @@ function Nav() {
             <span className="text-[11px] font-medium text-white/70">by Where U Elevate</span>
           </span>
         </Link>
-        <ul className="hidden items-center gap-8 md:flex">
+        <ul className="hidden items-center gap-8 lg:flex">
           {NAV.map((n) => (
             <li key={n.href}>
-              <Link href={n.href} className="rounded-md text-sm font-medium text-white/85 transition hover:text-white focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-white">
+              <Link href={n.href} className="whitespace-nowrap rounded-md text-sm font-medium text-white/85 transition hover:text-white focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-white">
                 {n.label}
               </Link>
             </li>
           ))}
         </ul>
-        <div className="hidden items-center gap-3 md:flex">
+        <div className="hidden items-center gap-3 lg:flex">
           <Link href={account.href} className="rounded-xl px-4 py-2 text-sm font-semibold text-white ring-1 ring-white/40 transition hover:bg-white/10 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-white">
             {account.label}
           </Link>
@@ -73,7 +73,7 @@ function Nav() {
         </div>
         <button
           type="button"
-          className="grid h-11 w-11 place-items-center rounded-xl text-white ring-1 ring-white/30 md:hidden focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-white"
+          className="grid h-11 w-11 place-items-center rounded-xl text-white ring-1 ring-white/30 lg:hidden focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-white"
           aria-expanded={open}
           aria-controls="mobile-menu"
           aria-label={open ? 'Close menu' : 'Open menu'}
@@ -89,7 +89,7 @@ function Nav() {
             initial={{ opacity: 0, y: -8 }}
             animate={{ opacity: 1, y: 0 }}
             exit={{ opacity: 0, y: -8 }}
-            className="mx-5 rounded-2xl bg-white p-3 shadow-2xl md:hidden"
+            className="mx-5 rounded-2xl bg-white p-3 shadow-2xl lg:hidden"
           >
             {[...NAV, account].map((n) => (
               <Link key={n.href} href={n.href} onClick={() => setOpen(false)} className="block rounded-xl px-4 py-3 text-sm font-medium text-text hover:bg-soft">
@@ -139,7 +139,7 @@ function ExamShowcase() {
       transition={{ duration: 0.7, delay: 0.2 }}
       className="relative w-full max-w-xl"
       role="img"
-      aria-label="Illustration of the exam app: a candidate answers a question, opens ChatGPT in a sandbox tab, the typed question is flagged, the risk score rises and a proctor reviews it"
+      aria-label="Illustration of the exam app: a candidate answers a question, opens ChatGPT in a tab, the typed question is flagged, the risk score rises and a proctor reviews it"
     >
       <div className="overflow-hidden rounded-3xl bg-white/95 shadow-[0_30px_80px_-20px_rgba(2,8,23,0.6)] ring-1 ring-white/60 backdrop-blur-xl">
         {/* Window bar with the sandbox tab strip */}
@@ -188,7 +188,7 @@ function ExamShowcase() {
             </div>
             {[
               [ScanFace, 'Face verified'],
-              [MonitorCheck, 'Kiosk locked'],
+              [MonitorCheck, 'Screen shared'],
               [Link2, 'Link on this PC'],
             ].map(([Icon, label]) => {
               const I = Icon as typeof ScanFace;
@@ -293,7 +293,7 @@ function HeroVisual() {
 const TRUST = [
   { icon: Link2, label: 'Personal links, one computer each' },
   { icon: ScanFace, label: 'Face and OTP for candidates and proctors' },
-  { icon: ShieldCheck, label: 'Kiosk-mode secure exam app' },
+  { icon: ShieldCheck, label: 'Monitored secure exam app' },
   { icon: Activity, label: 'Live monitoring with human review' },
 ];
 

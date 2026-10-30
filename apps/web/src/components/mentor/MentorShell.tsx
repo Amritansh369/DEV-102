@@ -97,9 +97,10 @@ export function MentorShell({ children }: { children: ReactNode }) {
 const AVATAR_SIZE = { sm: "h-8 w-8 text-xs", md: "h-10 w-10 text-sm", lg: "h-16 w-16 text-xl" };
 
 export function Avatar({ name, size = "md", src }: { name: string; size?: keyof typeof AVATAR_SIZE; src?: string }) {
-  if (src) {
+  const [failed, setFailed] = useState<string | null>(null);
+  if (src && src !== failed) {
     // eslint-disable-next-line @next/next/no-img-element -- signed, short-lived API URL
-    return <img src={src} alt="" className={`shrink-0 rounded-full object-cover ring-2 ring-white shadow-sm ${AVATAR_SIZE[size]}`} />;
+    return <img src={src} alt="" onError={() => setFailed(src)} className={`shrink-0 rounded-full object-cover ring-2 ring-white shadow-sm ${AVATAR_SIZE[size]}`} />;
   }
   return (
     <span aria-hidden className={`inline-flex shrink-0 items-center justify-center rounded-full font-heading font-semibold ${AVATAR_SIZE[size]} ${avatarTone(name)}`}>

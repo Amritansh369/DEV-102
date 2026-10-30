@@ -27,11 +27,11 @@ const STATUS_OPTIONS: Array<{ value: StatusFilter; label: string }> = [
   { value: "OVERRULED", label: "Overruled" },
 ];
 
-function VerdictBadge({ verdict }: { verdict?: Verdict }) {
+function VerdictBadge({ verdict, marks }: { verdict?: Verdict; marks?: number }) {
   if (verdict === "CONFIRMED") {
     return (
       <span className="inline-flex items-center gap-1 rounded-full bg-red-50 px-2 py-0.5 text-xs font-semibold text-danger">
-        <CheckCircle2 className="h-3.5 w-3.5" aria-hidden /> Penalty confirmed
+        <CheckCircle2 className="h-3.5 w-3.5" aria-hidden /> {marks ? `Confirmed, −${marks} marks` : "Penalty confirmed"}
       </span>
     );
   }
@@ -131,7 +131,7 @@ export function ViolationTimeline({ violations, startedAt, verdictOf, reviews, h
                   <div className="flex flex-wrap items-center gap-2">
                     <h4 className="font-heading text-sm font-semibold text-slate-900">{label}</h4>
                     <SeverityChip severity={v.severity} />
-                    <VerdictBadge verdict={verdict} />
+                    <VerdictBadge verdict={verdict} marks={v.penaltyMarks} />
                     <span className="ml-auto inline-flex items-center gap-1 text-xs text-slate-500">
                       <Clock className="h-3.5 w-3.5" aria-hidden />
                       <time dateTime={v.at} className="font-mono">{formatClock(v.at)}</time>

@@ -105,7 +105,7 @@ check('voice event recorded', voice.ok && ['WARNING', 'LOGGED'].includes(voice.d
 const other = await call('POST', '/auth/login', { body: { examId: 'CPA-26', userId: 'WUE26DEMO', password: 'Demo@2026', deviceId: 'smoke-device-9999' } });
 check('second device blocked (MULTI_LOGIN)', !other.ok && other.error.code === 'CONFLICT', other);
 const state = await call('GET', `/sessions/${sid}/state`, { token: ct });
-check('MULTI_LOGIN auto-submitted the session', state.ok && state.data.session.status === 'TERMINATED', state);
+check('MULTI_LOGIN keeps the exam running and only tells the proctor', state.ok && state.data.session.status === 'LIVE', state);
 
 console.log('mentor');
 const mentor = await call('POST', '/auth/staff/login', { body: { email: 'mentor@wue.in', password: 'Mentor@123' } });
@@ -114,7 +114,7 @@ const detail = await call('GET', `/sessions/${sid}/detail`, { token: mt });
 check('session detail', detail.ok && detail.data.violations.length >= 3 && detail.data.browsing.length === 1, detail);
 const trigger = detail.data.violations.find((v) => v.code === 'MULTI_LOGIN');
 const review = await call('POST', `/violations/${trigger.id}/review`, { token: mt, body: { verdict: 'OVERRULED', reason: 'Candidate restarted their own laptop.' } });
-check('overrule reinstates the candidate', review.ok && review.data.reinstated === true && review.data.session.status === 'LIVE', review);
+check('overrule clears the flag and the session stays live', review.ok && review.data.violation.reviewed === 'OVERRULED' && review.data.session.status === 'LIVE', review);
 const warn = await call('POST', `/sessions/${sid}/warn`, { token: mt, body: { message: 'Please keep your face in view.' } });
 check('mentor warning', warn.ok, warn);
 const forbidden = await call('POST', '/exams', { token: mt, body: {} });

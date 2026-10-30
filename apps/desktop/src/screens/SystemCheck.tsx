@@ -1,19 +1,18 @@
-import { ReactNode, useCallback, useEffect, useRef, useState } from 'react'
-import { Camera, Gauge, Loader2, Mic, Monitor, RotateCw, ShieldAlert, XCircle } from 'lucide-react'
+import { useCallback, useEffect, useRef, useState } from 'react'
+import { Camera, Gauge, Mic, RotateCw } from 'lucide-react'
 import CheckRow, { CheckStatus } from '../components/CheckRow'
 import MicMeter from '../components/MicMeter'
 import SpeedGauge from '../components/SpeedGauge'
-import { getProctor, type BlacklistedApp } from '../lib/proctorMock'
 import { measureNetwork } from '../lib/http'
 
-type CheckId = 'camera' | 'mic' | 'network' | 'apps' | 'display' | 'vm'
+type CheckId = 'camera' | 'mic' | 'network'
 interface Result {
   status: CheckStatus
   detail?: string
   hint?: string
 }
 
-const ORDER: CheckId[] = ['camera', 'mic', 'network', 'apps', 'display', 'vm']
+const ORDER: CheckId[] = ['camera', 'mic', 'network']
 const MIC_WINDOW_MS = 6000
 const wait = (ms: number) => new Promise<void>((r) => window.setTimeout(r, ms))
 
@@ -26,8 +25,6 @@ export default function SystemCheck({ onContinue, onBack }: SystemCheckProps) {
   const [results, setResults] = useState<Record<CheckId, Result>>(() => Object.fromEntries(ORDER.map((id) => [id, { status: 'idle' }])) as Record<CheckId, Result>)
   const [progress, setProgress] = useState<Partial<Record<CheckId, number>>>({})
   const [speed, setSpeed] = useState({ value: 0, latency: undefined as number | undefined })
-  const [apps, setApps] = useState<BlacklistedApp[]>([])
-  const [closing, setClosing] = useState<number[]>([])
   const [micActive, setMicActive] = useState(false)
   const [running, setRunning] = useState(false)
 
@@ -79,30 +76,11 @@ export default function SystemCheck({ onContinue, onBack }: SystemCheckProps) {
           prog('network', pct)
         })
         setSpeed({ value: r.mbps, latency: r.latencyMs })
-        if (r.mbps < 2) return { status: 'fail', detail: `${r.mbps.toFixed(1)} Mbps is too slow`, hint: 'Move closer to your router or switch to a wired connection, pause downloads on other devices and Retry.' }
         if (r.mbps < 5 || r.latencyMs > 400) return { status: 'warn', detail: `${r.mbps.toFixed(1)} Mbps · ${r.latencyMs} ms latency is borderline`, hint: 'At least 5 Mbps is recommended for webcam and screen streaming. Close other network-heavy apps and Retry.' }
         return { status: 'pass', detail: `${r.mbps.toFixed(1)} Mbps · ${r.latencyMs} ms latency to the exam server` }
       } catch {
         return { status: 'fail', detail: 'The exam server could not be reached', hint: 'Check your internet connection, then Retry.' }
       }
-    },
-    async apps() {
-      const found = await getProctor().listBlacklistedApps()
-      setApps(found)
-      return found.length === 0
-        ? { status: 'pass', detail: 'No blacklisted applications are running' }
-        : { status: 'fail', detail: `${found.length} blacklisted application${found.length > 1 ? 's' : ''} running`, hint: 'Close the applications listed below using the Close button, then Rescan.' }
-    },
-    async display() {
-      const d = await getProctor().getDisplays()
-      if (d.mirrored) return { status: 'fail', detail: `${d.count} displays · screen mirroring is on`, hint: 'Turn off mirroring/duplicate display (Win+P → PC screen only) and Retry.' }
-      if (d.count > 1) return { status: 'fail', detail: `${d.count} displays detected`, hint: 'Unplug or disable extra monitors so only one display remains, then Retry.' }
-      return { status: 'pass', detail: '1 display · no mirroring' }
-    },
-    async vm() {
-      const v = await getProctor().detectVm()
-      if (v.vm || v.remote) return { status: 'fail', detail: v.detail, hint: 'Exams must run on a physical machine. Close remote-desktop tools (AnyDesk, TeamViewer, RDP) and use the host OS, not a virtual machine.' }
-      return { status: 'pass', detail: 'Physical device · no remote session detected' }
     },
   }
 
@@ -141,20 +119,10 @@ export default function SystemCheck({ onContinue, onBack }: SystemCheckProps) {
     }
   }, [runAll])
 
-  const closeApp = async (app: BlacklistedApp) => {
-    setClosing((c) => [...c, app.pid])
-    await getProctor().closeApp(app.pid)
-    setClosing((c) => c.filter((p) => p !== app.pid))
-    setApps((a) => a.filter((x) => x.pid !== app.pid))
-  }
-
   const passed = ORDER.filter((id) => results[id].status === 'pass').length
-  const allPass = passed === ORDER.length
-  // Development builds: failed checks are shown but never block, so the flow can be tested on any machine.
-  const relaxed = getProctor().relaxed
-  const canContinue = allPass || (relaxed && !running)
+  // Only a camera that will not open or an unreachable server stop the exam; anything else is just shown.
+  const canContinue = !running && ORDER.every((id) => results[id].status !== 'fail' && results[id].status !== 'idle')
   const rowProps = (id: CheckId) => ({ status: results[id].status, detail: results[id].detail, hint: results[id].hint, progress: progress[id], onRetry: () => void runOne(id) })
-  const ico = (n: ReactNode) => n
 
   return (
     <div className="flex h-full flex-col">
@@ -162,7 +130,7 @@ export default function SystemCheck({ onContinue, onBack }: SystemCheckProps) {
         <div className="mx-auto flex max-w-5xl items-center justify-between gap-6">
           <div>
             <h1 className="font-heading text-xl font-semibold text-ink">System check</h1>
-            <p className="text-sm text-muted">We verify your device meets exam requirements. All checks must pass to continue.</p>
+            <p className="text-sm text-muted">We check that your camera, microphone and connection work.</p>
           </div>
           <div className="w-64">
             <div className="flex justify-between text-xs font-medium text-muted">
@@ -178,7 +146,7 @@ export default function SystemCheck({ onContinue, onBack }: SystemCheckProps) {
 
       <main className="flex-1 overflow-y-auto px-8 py-6">
         <div className="mx-auto grid max-w-5xl gap-4 lg:grid-cols-2">
-          <CheckRow title="Camera" description="Your face must be clearly visible" icon={ico(<Camera className="h-5 w-5" />)} {...rowProps('camera')}>
+          <CheckRow title="Camera" description="Your face must be clearly visible" icon={<Camera className="h-5 w-5" />} {...rowProps('camera')}>
             <video ref={videoRef} autoPlay muted playsInline aria-label="Camera preview" className="aspect-video w-full rounded-xl bg-ink/90 object-cover [transform:scaleX(-1)]" />
           </CheckRow>
 
@@ -189,25 +157,6 @@ export default function SystemCheck({ onContinue, onBack }: SystemCheckProps) {
           <CheckRow title="Network speed" description="Minimum 5 Mbps recommended" icon={<Gauge className="h-5 w-5" />} {...rowProps('network')}>
             <SpeedGauge value={speed.value} running={results.network.status === 'running'} latencyMs={speed.latency} />
           </CheckRow>
-
-          <CheckRow title="Blacklisted applications" description="Screen-sharing, chat and AI tools must be closed" icon={<ShieldAlert className="h-5 w-5" />} {...rowProps('apps')}>
-            <ul className="space-y-1.5">
-              {apps.map((a) => (
-                <li key={a.pid} className="flex items-center justify-between rounded-lg bg-soft px-3 py-2 text-xs">
-                  <span><strong className="text-ink">{a.name}</strong> <span className="text-muted">· PID {a.pid} · {a.category}</span></span>
-                  <button type="button" onClick={() => void closeApp(a)} disabled={closing.includes(a.pid)} className="inline-flex items-center gap-1 rounded-md bg-white px-2 py-1 font-medium text-danger ring-1 ring-red-200 hover:bg-red-50 focus-visible:outline-2 focus-visible:outline-accent disabled:opacity-60" aria-label={`Close ${a.name}`}>
-                    {closing.includes(a.pid) ? <Loader2 className="h-3 w-3 animate-spin" /> : <XCircle className="h-3 w-3" />} Close
-                  </button>
-                </li>
-              ))}
-            </ul>
-            <button type="button" onClick={() => void runOne('apps')} className="mt-2 inline-flex items-center gap-1 text-xs font-medium text-accent hover:underline focus-visible:outline-2 focus-visible:outline-accent">
-              <RotateCw className="h-3 w-3" aria-hidden /> Rescan
-            </button>
-          </CheckRow>
-
-          <CheckRow title="Displays" description="Exactly one display, no mirroring" icon={<Monitor className="h-5 w-5" />} {...rowProps('display')} />
-          <CheckRow title="Virtual machine & remote desktop" description="Must run on a physical device" icon={<ShieldAlert className="h-5 w-5" />} {...rowProps('vm')} />
         </div>
       </main>
 
@@ -220,7 +169,7 @@ export default function SystemCheck({ onContinue, onBack }: SystemCheckProps) {
             </button>
           </div>
           <div className="flex items-center gap-3">
-            {!allPass && <span className="text-xs text-muted">{running ? 'Running checks…' : relaxed ? 'Developer mode: checks do not block' : 'Resolve the failed checks to continue'}</span>}
+            {!canContinue && <span className="text-xs text-muted">{running ? 'Running checks…' : 'Fix the failed check to continue'}</span>}
             <button type="button" onClick={onContinue} disabled={!canContinue} className="rounded-xl bg-cta px-6 py-2.5 text-sm font-semibold text-ink shadow-sm hover:brightness-95 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent disabled:cursor-not-allowed disabled:opacity-50">
               Continue to face verification
             </button>

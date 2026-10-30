@@ -11,6 +11,15 @@ export interface Stored {
   examTabId?: number;
 }
 
+/** Identifies this browser to the server. An exam link locks to the first device that signs in with it, so this must outlive the session. */
+export async function deviceId(): Promise<string> {
+  const { deviceId: saved } = (await chrome.storage.local.get('deviceId')) as { deviceId?: string };
+  if (saved) return saved;
+  const id = crypto.randomUUID();
+  await chrome.storage.local.set({ deviceId: id });
+  return id;
+}
+
 export const store = {
   get: () => chrome.storage.session.get(null) as Promise<Stored>,
   set: (patch: Stored) => chrome.storage.session.set(patch),
@@ -18,7 +27,7 @@ export const store = {
 };
 
 export class ApiError extends Error {
-  constructor(message: string, readonly code: string, readonly status: number) {
+  constructor(message: string, readonly code: string, readonly status: number, readonly details?: Record<string, unknown>) {
     super(message);
   }
 }
@@ -34,10 +43,10 @@ export async function call<T>(method: 'GET' | 'POST' | 'PUT', path: string, body
   } catch {
     throw new ApiError('Cannot reach the exam server. Check your connection.', 'NETWORK', 0);
   }
-  const json = (await res.json().catch(() => null)) as { ok?: boolean; data?: T; error?: { code: string; message: string } } | null;
-  if (!res.ok || !json?.ok) throw new ApiError(json?.error?.message ?? `Request failed (${res.status})`, json?.error?.code ?? 'SERVER', res.status);
+  const json = (await res.json().catch(() => null)) as { ok?: boolean; data?: T; error?: { code: string; message: string; details?: Record<string, unknown> } } | null;
+  if (!res.ok || !json?.ok) throw new ApiError(json?.error?.message ?? `Request failed (${res.status})`, json?.error?.code ?? 'SERVER', res.status, json?.error?.details);
   return json.data as T;
 }
 
 /** Messages content scripts send to the background worker. */
-export type ContentMessage = { type: 'typed'; text: string; url: string; title: string } | { type: 'status' };
+export type ContentMessage = { type: 'typed'; text: string; url: string; title: string } | { type: 'reply'; prompt: string; text: string; url: string; title: string } | { type: 'status' };

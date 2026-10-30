@@ -96,6 +96,8 @@ export interface Candidate {
   emailStatus: 'PENDING' | 'SENT' | 'FAILED';
   /** Signed URL of the reference photo captured at face verification. */
   photoUrl?: string;
+  /** Gravatar photo for the email; transparent when the person has none, so the initials show. */
+  avatarUrl?: string;
   /** Newest emailed join link, when one was sent. */
   invite?: { id: string; status: InviteStatus; deviceBound: boolean };
 }
@@ -123,6 +125,8 @@ export interface Violation {
   message: string;
   evidenceUrl?: string;
   reviewed?: 'CONFIRMED' | 'OVERRULED';
+  /** Marks taken off when this flag was confirmed. */
+  penaltyMarks?: number;
 }
 
 export interface BrowsingLog {
@@ -132,5 +136,7 @@ export interface BrowsingLog {
   url: string;
   title: string;
   query?: string;
+  /** What the AI assistant answered to `query`. */
+  reply?: string;
   flaggedAi: boolean;
 }

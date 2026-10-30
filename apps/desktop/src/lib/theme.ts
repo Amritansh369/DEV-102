@@ -9,4 +9,4 @@ export function getTimeTheme(date: Date): TimeTheme {
   return 'night'
 }
 
-export const backgroundFor = (look: Look, time: TimeTheme): string => `/images/bg/${look}-${time}.webp`
+export const backgroundFor = (look: Look, time: TimeTheme): string => `images/bg/${look}-${time}.webp`

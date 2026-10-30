@@ -11,14 +11,14 @@ interface Row {
 }
 
 const ROWS: Row[] = [
-  { feature: "Dedicated secure desktop app", detail: "Kiosk exam browser instead of a browser tab", ours: "yes", typical: "partial", typicalNote: "Browser extension only" },
+  { feature: "Dedicated secure desktop app", detail: "Monitored exam browser instead of a browser tab", ours: "yes", typical: "partial", typicalNote: "Browser extension only" },
   { feature: "Face verification + OTP at entry", detail: "Matches the registered candidate before the exam starts", ours: "yes", typical: "partial", typicalNote: "OTP only" },
   { feature: "Multiple-face and gaze detection", detail: "Continuous webcam analysis with severity levels", ours: "yes", typical: "partial", typicalNote: "Snapshots every few minutes" },
   { feature: "Entire-screen sharing enforced", detail: "Exam pauses if sharing stops", ours: "yes", typical: "partial", typicalNote: "Tab sharing allowed" },
   { feature: "Blacklisted apps closed before start", detail: "Remote desktop, screen recorders, chat tools", ours: "yes", typical: "no" },
   { feature: "VM and remote desktop detection", detail: "Checked at system check and during the exam", ours: "yes", typical: "no" },
   { feature: "Every URL and search query logged", detail: "AI sites and AI-style prompts are flagged", ours: "yes", typical: "no" },
-  { feature: "Warnings then auto-submit policy", detail: "Configurable per exam", ours: "yes", typical: "partial", typicalNote: "Manual action only" },
+  { feature: "Marks deducted by policy", detail: "Configurable per exam, confirmed by a proctor", ours: "yes", typical: "partial", typicalNote: "Manual action only" },
   { feature: "Proctor live grid and termination", detail: "Screens, webcam, risk score and violation feed", ours: "yes", typical: "partial", typicalNote: "Recordings reviewed later" },
   { feature: "Human review of every penalty", detail: "Proctors confirm or overrule with evidence", ours: "yes", typical: "no" },
   { feature: "Autosave through network drops", detail: "Answers queue locally and sync on reconnect", ours: "yes", typical: "partial" },

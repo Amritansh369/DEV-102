@@ -35,9 +35,19 @@ describe('groupVisits', () => {
   it('names search engines and the sandbox search, keeping the searched text', () => {
     const visits = groupVisits([
       entry(1, 'https://www.google.com/search?q=binary+search', { title: 'Google Search', query: 'binary search' }),
-      entry(2, 'sandbox://search?q=sorting', { title: 'Sandbox search', query: 'sorting' }),
+      entry(2, 'sandbox://search?q=sorting', { title: 'Search', query: 'sorting' }),
     ])
-    expect(visits.map((v) => [v.site, v.queries[0]?.text, v.ai])).toEqual([['Google', 'binary search', false], ['Sandbox search', 'sorting', false]])
+    expect(visits.map((v) => [v.site, v.queries[0]?.text, v.ai])).toEqual([['Google', 'binary search', false], ['Search', 'sorting', false]])
+  })
+
+  it('puts an AI reply under its question and keeps the newest version of a growing answer', () => {
+    const base = { sessionId: 's', url: 'https://chatgpt.com/c/1', title: 'ChatGPT', flaggedAi: true }
+    const [visit] = groupVisits([
+      { ...base, id: '1', at: '2026-10-30T10:00:00Z', query: 'what is 2+2' },
+      { ...base, id: '2', at: '2026-10-30T10:00:05Z', query: 'what is 2+2', reply: 'It is' },
+      { ...base, id: '3', at: '2026-10-30T10:00:09Z', query: 'what is 2+2', reply: 'It is 4.' },
+    ])
+    expect(visit?.queries).toEqual([{ id: '1', at: '2026-10-30T10:00:00Z', text: 'what is 2+2', reply: 'It is 4.' }])
   })
 
   it('shows a message once when the tracker reported it after a pause and again on Enter', () => {

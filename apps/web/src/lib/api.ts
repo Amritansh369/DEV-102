@@ -57,12 +57,8 @@ export const SEVERITY_COLOR: Record<Severity, string> = { LOW: '#94A3B8', MEDIUM
 
 export interface AuthUser { id: string; name: string; email: string; role: Role; examId?: string; candidateId?: string }
 
-/** Seeded demo accounts (database/prisma/seed.ts). */
-export const DEMO_CREDENTIALS = {
-  admin: { identifier: 'admin@wue.in', password: 'Admin@123' },
-  mentor: { identifier: 'mentor@wue.in', password: 'Mentor@123' },
-  candidate: { examId: 'CPA-26', identifier: 'WUE26DEMO', password: 'Demo@2026' },
-} as const
+/** Seeded demo organization account (database/prisma/seed.ts). */
+export const DEMO_ORGANIZATION = { identifier: 'admin@wue.in', password: 'Admin@123' } as const
 
 /** Candidates sign in with an exam code; staff with an email. */
 export async function login(input: { identifier: string; password: string; examId?: string }): Promise<{ token: string; user: AuthUser }> {
@@ -75,6 +71,8 @@ export async function login(input: { identifier: string; password: string; examI
 
 export interface PlatformStats { examsConducted: number; candidatesProctored: number; violationsCaught: number; uptimePct: number }
 export const getPlatformStats = () => call(get<PlatformStats>('/public/stats'))
+export interface SystemStatus { ok: boolean; database: boolean; agent: boolean; agentLatencyMs: number | null; agentError?: string | null; checkedAt: string }
+export const getSystemStatus = () => call(get<SystemStatus>('/system/status'))
 
 /* ------------------------------------------------------------------ dashboard */
 
@@ -143,7 +141,7 @@ export const importQuestions = (examId: string, rows: QuestionDraft[]) =>
 /* ------------------------------------------------------------------ candidates and credentials */
 
 export interface ImportRowError { row: number; message: string }
-export interface CredentialRow { candidateId: string; name: string; email: string; examCode: string; userId: string; password: string }
+export interface CredentialRow { candidateId: string; name: string; email: string; examCode: string; userId: string; password: string; avatarUrl?: string }
 export interface EmailResult { candidateId: string; emailStatus: Candidate['emailStatus']; error?: string; inviteId?: string; devLink?: string; outbox?: boolean }
 
 export const listCandidates = (p: { examId?: string; q?: string; page?: number; pageSize?: number; sort?: string; dir?: 'asc' | 'desc' } = {}) =>
@@ -159,10 +157,19 @@ export const revealCandidatePassword = (candidateId: string) => call(post<{ pass
 
 /* ------------------------------------------------------------------ join links */
 
-export interface ProctorInvite { inviteId: string; userId: string | null; name: string; email: string; status: InviteStatus; usedAt: string | null; deviceBound: boolean; createdAt: string }
-export interface ProctorProfileLookup { profile: { name: string; email: string } | null; alreadyInvited: boolean; emailUnavailable: boolean }
+export interface ProctorInvite { inviteId: string; userId: string | null; name: string; email: string; status: InviteStatus; usedAt: string | null; deviceBound: boolean; createdAt: string; avatarUrl?: string }
+/** mailDomainOk: false when the email's domain cannot receive mail, null when DNS could not tell. */
+export interface ProctorProfileLookup { profile: { name: string; email: string } | null; alreadyInvited: boolean; emailUnavailable: boolean; mailDomainOk?: boolean | null; avatarUrl?: string }
 /** devLink is returned only in development when no SMTP server is configured. */
 export interface InviteSent { inviteId: string; devLink?: string; password?: string; outbox?: boolean }
+export interface DesktopBuild { os: string; label: string; file: string; sizeMb: number; url: string; available: boolean }
+/** The installer the website offers; beta is a newer test build, when one is published. */
+export interface DesktopDownloads { extension?: { version: string; file: string; sizeMb: number; url: string } | null; extensionStores?: { chrome?: string; edge?: string }; version: string; releasedAt: string; beta?: { version: string; file: string; sizeMb: number; url: string } | null; builds: DesktopBuild[] }
+export const updateProfile = (name: string) => call(patch<{ name: string }>('/auth/profile', { name }))
+/** The server signs out other devices, so the new token replaces this device's. */
+export const changePassword = (current: string, next: string) =>
+  call(post<{ token: string }>('/auth/change-password', { current, next })).then((r) => setToken(r.token))
+export const getDesktopDownloads = () => call(get<DesktopDownloads>('/downloads/latest'))
 export const listProctors = (examId: string) => call(get<ProctorInvite[]>(`/exams/${examId}/proctors`))
 export const lookupProctorEmail = (examId: string, email: string) => call(get<ProctorProfileLookup>(`/exams/${examId}/proctors/lookup?email=${encodeURIComponent(email)}`))
 export const inviteProctor = (examId: string, input: { name: string; email: string }) =>
@@ -188,19 +195,19 @@ export const getExamReport = (examId: string) => call(get<ExamReport>(`/reports/
 /* ------------------------------------------------------------------ mentor */
 
 export type FinalOutcome = 'CLEAR' | 'WARN' | 'RETEST' | 'DISQUALIFY'
-export interface ReviewRecord { violationId: string; verdict: 'CONFIRMED' | 'OVERRULED'; reason: string; at: string }
+export interface ReviewRecord { violationId: string; verdict: 'CONFIRMED' | 'OVERRULED'; reason: string; at: string; marks?: number }
 export interface FinalDecision { sessionId: string; outcome: FinalOutcome; note: string; decidedAt: string }
 export interface RiskPoint { at: string; score: number }
 export interface QueueItem { session: Session; candidate: Candidate; examTitle: string; examCode: string; violations: Violation[] }
 export interface AssignedExam { exam: Exam; sessionCount: number; liveCount: number; flaggedCount: number }
 export interface MentorDashboardData { mentorName: string; exams: AssignedExam[]; queue: QueueItem[] }
-export interface SessionDetail { session: Session; candidate: Candidate; exam: Exam; violations: Violation[]; browsing: BrowsingLog[]; riskHistory: RiskPoint[]; decision?: FinalDecision }
+export interface SessionDetail { penalties: Record<Violation['severity'], number>; session: Session; candidate: Candidate; exam: Exam; violations: Violation[]; browsing: BrowsingLog[]; riskHistory: RiskPoint[]; decision?: FinalDecision }
 export interface LiveEvent { sessionId: string; candidateName: string; violation: Violation; riskScore: number; warnings: number }
 
 export const getMentorDashboard = () => call(get<MentorDashboardData>('/mentor/dashboard'))
 export const getSessionDetail = (sessionId: string) => call(get<SessionDetail>(`/sessions/${encodeURIComponent(sessionId)}/detail`))
-export const submitViolationReview = (input: { violationId: string; verdict: ReviewRecord['verdict']; reason: string }) =>
-  call(post<{ record: ReviewRecord }>(`/violations/${encodeURIComponent(input.violationId)}/review`, { verdict: input.verdict, reason: input.reason })).then((r) => r.record)
+export const submitViolationReview = (input: { violationId: string; verdict: ReviewRecord['verdict']; reason: string; marks?: number }) =>
+  call(post<{ record: ReviewRecord }>(`/violations/${encodeURIComponent(input.violationId)}/review`, { verdict: input.verdict, reason: input.reason, ...(input.marks !== undefined ? { marks: input.marks } : {}) })).then((r) => r.record)
 export const submitFinalDecision = (input: { sessionId: string; outcome: FinalOutcome; note: string }) =>
   call(post<FinalDecision>(`/sessions/${encodeURIComponent(input.sessionId)}/decision`, { outcome: input.outcome, note: input.note }))
 
@@ -236,6 +243,8 @@ export const getLobby = () => call(get<Lobby>('/candidate/lobby'))
 export interface ResultRelease { scoreReleased: boolean; reviewReleased: boolean; blockedBy: string | null; reviewOpensAt: string | null }
 export interface ResultSummary {
   score: number; totalMarks: number; percent: number; correct: number; wrong: number; unanswered: number
+  /** Marks taken off for confirmed violations; `score` and `percent` already include it. */
+  penaltyMarks?: number
   negativeMarking: { enabled: boolean; value: number }
 }
 export interface ReviewItem {

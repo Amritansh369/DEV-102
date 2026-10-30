@@ -7,7 +7,7 @@ import { usePathname, useRouter } from 'next/navigation'
 import { AnimatePresence, motion } from 'framer-motion'
 import {
   BarChart3, ChevronRight, ClipboardList, Keyboard, KeyRound, LayoutDashboard, Library, LogOut, Menu,
-  PanelLeftClose, PanelLeftOpen, Plus, Search, Settings, ShieldAlert, ShieldCheck, Upload, User, Users, X,
+  PanelLeftClose, PanelLeftOpen, Plus, Search, Settings, ShieldAlert, ShieldCheck, Upload, Users, X,
   type LucideIcon,
 } from 'lucide-react'
 import { NotificationPopover } from '@/components/admin/NotificationPopover'
@@ -16,6 +16,7 @@ import { cx, useDismiss } from '@/lib/adminHooks'
 import { toast, useAdminUi } from '@/lib/adminStore'
 import { useRequireRole, useSession } from '@/lib/session'
 import { post } from '@/lib/http'
+import { useSystemStatus } from '@/components/layout/SystemStatus'
 
 interface NavItem { label: string; href: string; icon: LucideIcon }
 
@@ -45,6 +46,7 @@ const SEARCH_ENTRIES: SearchEntry[] = [
   { id: 'p-cred', label: 'Credentials and emails', hint: 'Page · send login details', href: '/organization/credentials', icon: KeyRound },
   { id: 'p-res', label: 'Results', hint: 'Page · scores and ranks', href: '/organization/results', icon: BarChart3 },
   { id: 'p-rep', label: 'Violation reports', hint: 'Page · review penalties', href: '/organization/reports', icon: ShieldAlert },
+  { id: 'p-set', label: 'Settings', hint: 'Page · name and password', href: '/organization/settings', icon: Settings },
   { id: 'a-new', label: 'Create exam', hint: 'Action · open the exam wizard', href: '/organization/exams/new', icon: Plus },
   { id: 'a-mcq', label: 'Import MCQs from CSV or Excel', hint: 'Action · question bank', href: '/organization/questions?import=1', icon: Upload },
   { id: 'a-cand', label: 'Import candidates', hint: 'Action · candidates', href: '/organization/candidates?import=1', icon: Upload },
@@ -83,6 +85,7 @@ function Brand({ collapsed }: { collapsed: boolean }) {
 /* ---------------------------------- Sidebar ------------------------------- */
 
 function SidebarBody({ collapsed, onNavigate }: { collapsed: boolean; onNavigate?: () => void }) {
+  const status = useSystemStatus()
   const pathname = usePathname() ?? ''
   const isActive = (href: string) => (href === '/organization' ? pathname === '/organization' : pathname === href || pathname.startsWith(`${href}/`))
 
@@ -126,14 +129,14 @@ function SidebarBody({ collapsed, onNavigate }: { collapsed: boolean; onNavigate
         ))}
       </nav>
       <div className="p-3">
-        <div className={cx('flex items-center gap-3 rounded-xl bg-soft p-3', collapsed && 'justify-center')} title={collapsed ? 'All systems operational' : undefined}>
-          <ShieldCheck className="h-5 w-5 shrink-0 text-success" aria-hidden="true" />
+        <div role="status" className={cx('flex items-center gap-3 rounded-xl bg-soft p-3', collapsed && 'justify-center')} title={collapsed ? `${status.title}. ${status.detail}` : undefined}>
+          <ShieldCheck className={cx('h-5 w-5 shrink-0', { ok: 'text-success', warn: 'text-warning', down: 'text-danger', checking: 'text-muted' }[status.tone])} aria-hidden="true" />
           {collapsed ? (
-            <span className="sr-only">All systems operational</span>
+            <span className="sr-only">{status.title}</span>
           ) : (
             <p className="text-xs leading-snug">
-              <span className="block font-semibold text-text">All systems operational</span>
-              <span className="text-muted">Proctoring agent · 42 ms</span>
+              <span className="block font-semibold text-text">{status.title}</span>
+              <span className="text-muted">{status.detail}</span>
             </p>
           )}
         </div>
@@ -314,10 +317,9 @@ function ProfileMenu() {
           >
             <div className="border-b border-border px-3 pb-3 pt-2">
               <p className="text-sm font-semibold text-text">{name}</p>
-              <p className="truncate text-xs text-muted">meenakshi.iyer@whereuelevate.in</p>
+              <p className="truncate text-xs text-muted">{user?.email}</p>
             </div>
             <div className="py-2">
-              <Link role="menuitem" href="/organization/profile" onClick={() => setOpen(false)} className={itemClass}><User className="h-4 w-4" aria-hidden="true" /> My profile</Link>
               <Link role="menuitem" href="/organization/settings" onClick={() => setOpen(false)} className={itemClass}><Settings className="h-4 w-4" aria-hidden="true" /> Organisation settings</Link>
               <button role="menuitem" type="button" className={itemClass} onClick={() => { setOpen(false); toast.info('Keyboard shortcuts', 'Ctrl K search · Ctrl B toggle sidebar · / search the exams table') }}>
                 <Keyboard className="h-4 w-4" aria-hidden="true" /> Keyboard shortcuts

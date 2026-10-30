@@ -34,7 +34,6 @@ interface AppState {
   recording: Recording;
   online: boolean;
   latencyMs: number;
-  lock: { active: boolean; reason: string | null };
   toasts: ToastItem[];
   devPanelOpen: boolean;
 
@@ -50,8 +49,6 @@ interface AppState {
   startProctorChecks: (auth: AuthUser, exam: Exam) => void;
   setRecording: (patch: Partial<Recording>) => void;
   setNetwork: (online: boolean, latencyMs: number) => void;
-  setLock: (reason: string) => void;
-  clearLock: () => void;
   pushToast: (toast: NewToast) => string;
   dismissToast: (id: string) => void;
   toggleDevPanel: (open?: boolean) => void;
@@ -69,7 +66,6 @@ const initialState = () => ({
   exam: null,
   joinRole: null,
   recording: NO_RECORDING,
-  lock: { active: false, reason: null },
 });
 
 let toastSeq = 0;
@@ -96,13 +92,11 @@ export const useApp = create<AppState>()((set, get) => ({
     return true;
   },
 
-  jump: (step) => set({ step, route: 'candidate', recording: recordingFor(step), lock: { active: false, reason: null } }),
-  openMentor: (auth) => set({ route: 'mentor', auth, recording: NO_RECORDING, lock: { active: false, reason: null } }),
+  jump: (step) => set({ step, route: 'candidate', recording: recordingFor(step) }),
+  openMentor: (auth) => set({ route: 'mentor', auth, recording: NO_RECORDING }),
   startProctorChecks: (auth, exam) => set({ route: 'candidate', step: 'faceVerify', auth, exam, recording: NO_RECORDING }),
   setRecording: (patch) => set((s) => ({ recording: { ...s.recording, ...patch } })),
   setNetwork: (online, latencyMs) => set({ online, latencyMs }),
-  setLock: (reason) => set({ lock: { active: true, reason } }),
-  clearLock: () => set({ lock: { active: false, reason: null } }),
 
   pushToast: (toast) => {
     const id = `toast_${++toastSeq}`;

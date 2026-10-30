@@ -1,10 +1,10 @@
 import { FormEvent, useEffect, useRef, useState } from 'react'
 import { AnimatePresence, motion } from 'framer-motion'
-import { Ban, Globe, History, Home, Loader2, Lock, Plus, RotateCw, Search, ShieldCheck, ShieldX, X } from 'lucide-react'
+import { Globe, Home, Loader2, Lock, Plus, RotateCw, Search, X } from 'lucide-react'
 import type { BrowsingLog } from '../lib/types'
 
 type LogEntry = Omit<BrowsingLog, 'id' | 'sessionId'>
-type TabKind = 'home' | 'search' | 'page' | 'blocked' | 'ai'
+type TabKind = 'home' | 'search' | 'page'
 
 interface Tab {
   id: string
@@ -17,9 +17,8 @@ interface Tab {
 }
 
 interface BrowserTabsProps {
+  /** Reference sites the exam suggests on the new-tab page. Any other site opens too. */
   allowedSites: string[]
-  /** Newest first. Shown back to the candidate so logging is transparent. */
-  log: BrowsingLog[]
   onLog: (entry: LogEntry) => void
   onAiSite: (url: string) => void
   onAiQuery: (query: string) => void
@@ -52,9 +51,7 @@ const AI_QUERY_RE = /\b(chat\s?gpt|gpt-?4|gemini|claude|copilot|perplexity|deeps
 const normHost = (h: string) => h.toLowerCase().replace(/^www\./, '')
 const hostMatches = (host: string, domain: string) => host === domain || host.endsWith(`.${domain}`)
 const isAiHost = (host: string) => AI_HOSTS.some((d) => hostMatches(host, d))
-const isAllowed = (host: string, allowed: string[]) => allowed.some((d) => hostMatches(host, normHost(d)))
 const newTab = (): Tab => ({ id: Math.random().toString(36).slice(2, 10), kind: 'home', url: 'sandbox://home', title: 'New tab', loading: false })
-const stamp = (iso: string) => new Date(iso).toLocaleTimeString('en-IN', { hour12: false })
 
 /** Pasted exam questions and AI-style prompts tend to be long or name an assistant. */
 export function looksLikeAiQuery(q: string): boolean {
@@ -75,12 +72,10 @@ function parseInput(raw: string): Parsed {
   return { kind: 'query', query: raw }
 }
 
-export default function BrowserTabs({ allowedSites, log, onLog, onAiSite, onAiQuery }: BrowserTabsProps) {
+export default function BrowserTabs({ allowedSites, onLog, onAiSite, onAiQuery }: BrowserTabsProps) {
   const [tabs, setTabs] = useState<Tab[]>(() => [newTab()])
   const [activeId, setActiveId] = useState(() => tabs[0].id)
   const [address, setAddress] = useState('')
-  const [showLog, setShowLog] = useState(false)
-  const [flaggedOnly, setFlaggedOnly] = useState(false)
 
   const active = tabs.find((t) => t.id === activeId) ?? tabs[0]
 
@@ -98,23 +93,11 @@ export default function BrowserTabs({ allowedSites, log, onLog, onAiSite, onAiQu
     const parsed = parseInput(input)
 
     if (parsed.kind === 'url') {
-      if (NATIVE && isAiHost(parsed.host)) {
-        // The brief: allow AI sites but record that they were opened and everything typed into them.
-        patch(tabId, { kind: 'page', url: parsed.url, host: parsed.host, title: parsed.host, query: undefined, loading: true })
-        onLog({ at, url: parsed.url, title: parsed.host, flaggedAi: true })
-        onAiSite(parsed.url)
-      } else if (isAiHost(parsed.host)) {
-        patch(tabId, { kind: 'ai', url: parsed.url, host: parsed.host, title: 'Blocked: AI assistant', query: undefined, loading: false })
-        onLog({ at, url: parsed.url, title: 'AI assistant site (blocked)', flaggedAi: true })
-        onAiSite(parsed.url)
-      } else if (isAllowed(parsed.host, allowedSites)) {
-        patch(tabId, { kind: 'page', url: parsed.url, host: parsed.host, title: SITE_TITLES[parsed.host] ?? parsed.host, query: undefined, loading: true })
-        onLog({ at, url: parsed.url, title: SITE_TITLES[parsed.host] ?? parsed.host, flaggedAi: false })
-        settle(tabId, 500)
-      } else {
-        patch(tabId, { kind: 'blocked', url: parsed.url, host: parsed.host, title: 'Blocked site', query: undefined, loading: false })
-        onLog({ at, url: parsed.url, title: 'Site not on the allow-list (blocked)', flaggedAi: false })
-      }
+      const ai = isAiHost(parsed.host)
+      const title = SITE_TITLES[parsed.host] ?? parsed.host
+      patch(tabId, { kind: 'page', url: parsed.url, host: parsed.host, title, query: undefined, loading: NATIVE })
+      onLog({ at, url: parsed.url, title, flaggedAi: ai })
+      if (ai) onAiSite(parsed.url)
       return
     }
 
@@ -128,7 +111,7 @@ export default function BrowserTabs({ allowedSites, log, onLog, onAiSite, onAiQu
     }
     const url = `sandbox://search?q=${encodeURIComponent(parsed.query)}`
     patch(tabId, { kind: 'search', url, title: `Search: ${parsed.query.slice(0, 24)}`, query: parsed.query, host: undefined, loading: true })
-    onLog({ at, url, title: 'Sandbox search', query: parsed.query, flaggedAi: flagged })
+    onLog({ at, url, title: 'Search', query: parsed.query, flaggedAi: flagged })
     if (flagged) onAiQuery(parsed.query)
     settle(tabId, 450)
   }
@@ -158,25 +141,13 @@ export default function BrowserTabs({ allowedSites, log, onLog, onAiSite, onAiQu
     if (id === activeId) setActiveId(rest[Math.max(0, idx - 1)].id)
   }
 
-  if (allowedSites.length === 0) {
-    return (
-      <div className="flex h-full flex-col items-center justify-center gap-2 p-8 text-center">
-        <Ban className="h-10 w-10 text-muted" aria-hidden />
-        <h2 className="font-heading text-lg font-semibold text-ink">Browsing is not permitted in this exam</h2>
-        <p className="max-w-sm text-sm text-muted">Your exam coordinator has not allowed any reference websites. Return to the question view to continue.</p>
-      </div>
-    )
-  }
-
-  const shownLog = flaggedOnly ? log.filter((l) => l.flaggedAi) : log
-
   return (
     <div className="flex h-full min-h-0 flex-col">
       <div role="tablist" aria-label="Browser tabs" className="flex items-end gap-1 border-b border-border bg-soft px-3 pt-2">
         {tabs.map((t) => (
           <div key={t.id} className={`group flex max-w-[11rem] items-center gap-1.5 rounded-t-lg border border-b-0 px-3 py-1.5 text-xs ${t.id === activeId ? 'border-border bg-white font-medium text-ink' : 'border-transparent text-muted hover:bg-white/60'}`}>
             <button type="button" role="tab" aria-selected={t.id === activeId} onClick={() => setActiveId(t.id)} className="flex min-w-0 items-center gap-1.5 focus-visible:outline-2 focus-visible:outline-accent">
-              {t.loading ? <Loader2 className="h-3 w-3 shrink-0 animate-spin text-accent" aria-hidden /> : t.kind === 'ai' || t.kind === 'blocked' ? <ShieldX className="h-3 w-3 shrink-0 text-danger" aria-hidden /> : <Globe className="h-3 w-3 shrink-0" aria-hidden />}
+              {t.loading ? <Loader2 className="h-3 w-3 shrink-0 animate-spin text-accent" aria-hidden /> : <Globe className="h-3 w-3 shrink-0" aria-hidden />}
               <span className="truncate">{t.title}</span>
             </button>
             <button type="button" onClick={() => closeTab(t.id)} aria-label={`Close tab ${t.title}`} className="rounded p-0.5 text-muted hover:bg-soft hover:text-danger focus-visible:outline-2 focus-visible:outline-accent">
@@ -199,15 +170,10 @@ export default function BrowserTabs({ allowedSites, log, onLog, onAiSite, onAiQu
         <label className="relative flex-1">
           <span className="sr-only">Address or search</span>
           <Lock className="absolute left-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-success" aria-hidden />
-          <input value={address} onChange={(e) => setAddress(e.target.value)} placeholder="Search or enter an allowed site address" spellCheck={false} className="w-full rounded-full border border-border bg-soft py-2 pl-9 pr-4 text-sm text-ink focus-visible:bg-white focus-visible:outline-2 focus-visible:outline-accent" />
+          <input value={address} onChange={(e) => setAddress(e.target.value)} placeholder="Search or enter any address" spellCheck={false} className="w-full rounded-full border border-border bg-soft py-2 pl-9 pr-4 text-sm text-ink focus-visible:bg-white focus-visible:outline-2 focus-visible:outline-accent" />
         </label>
         <button type="submit" className="rounded-full bg-primary px-4 py-2 text-xs font-semibold text-white hover:bg-primary-600 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent">Go</button>
       </form>
-
-      <div role="note" className="flex items-center gap-2 border-b border-blue-100 bg-blue-50 px-4 py-2 text-xs text-primary">
-        <ShieldCheck className="h-4 w-4 shrink-0" aria-hidden />
-        <span><strong>Activity is logged.</strong> Every website, search and chat query in this browser is recorded and visible to your invigilator. {NATIVE ? 'Opening an AI assistant or typing a question into one is reported as a violation.' : 'AI assistants are blocked and reported.'}</span>
-      </div>
 
       <div className="relative min-h-0 flex-1 overflow-y-auto" role="tabpanel">
         <AnimatePresence>
@@ -232,37 +198,11 @@ export default function BrowserTabs({ allowedSites, log, onLog, onAiSite, onAiQu
                   onLog({ at: new Date().toISOString(), url, title: ai ? `${title || safeHost(url)} (AI chat)` : title, query: text, flaggedAi: flagged })
                   if (flagged) onAiQuery(text)
                 }}
+                onReply={(prompt, text, url, title) => onLog({ at: new Date().toISOString(), url, title: title || safeHost(url), query: prompt, reply: text, flaggedAi: true })}
               />
             ))
           : null}
         {(!NATIVE || active.kind !== 'page') && <PageView tab={active} allowedSites={allowedSites} onNavigate={(input) => navigate(active.id, input)} />}
-      </div>
-
-      <div className="border-t border-border bg-white">
-        <button type="button" onClick={() => setShowLog((s) => !s)} aria-expanded={showLog} className="flex w-full items-center justify-between px-4 py-2 text-xs font-medium text-primary hover:bg-soft focus-visible:outline-2 focus-visible:outline-accent">
-          <span className="inline-flex items-center gap-2"><History className="h-4 w-4" aria-hidden /> Your activity log ({log.length})</span>
-          <span className="text-muted">{showLog ? 'Hide' : 'Show'}</span>
-        </button>
-        {showLog && (
-          <div className="max-h-48 overflow-y-auto border-t border-border px-4 py-2">
-            <label className="mb-2 flex items-center gap-2 text-xs text-muted">
-              <input type="checkbox" checked={flaggedOnly} onChange={(e) => setFlaggedOnly(e.target.checked)} className="accent-primary-600" /> Flagged only
-            </label>
-            {shownLog.length === 0 ? (
-              <p className="py-3 text-center text-xs text-muted">{log.length === 0 ? 'Nothing logged yet. Sites and searches you open will appear here.' : 'No flagged entries.'}</p>
-            ) : (
-              <ul className="space-y-1">
-                {shownLog.map((l) => (
-                  <li key={l.id} className="flex items-center gap-3 rounded-lg px-2 py-1.5 text-xs odd:bg-soft">
-                    <time className="w-16 shrink-0 tabular-nums text-muted" dateTime={l.at}>{stamp(l.at)}</time>
-                    <span className="min-w-0 flex-1 truncate text-ink">{l.query ? <>Search: <strong>{l.query}</strong></> : l.url}</span>
-                    {l.flaggedAi && <span className="rounded-full bg-red-50 px-2 py-0.5 font-medium text-danger">AI flagged</span>}
-                  </li>
-                ))}
-              </ul>
-            )}
-          </div>
-        )}
       </div>
     </div>
   )
@@ -282,17 +222,26 @@ interface GuestPageProps {
   onState: (patch: Partial<Tab>) => void
   onVisit: (url: string, title: string) => void
   onTyped: (text: string, url: string, title: string) => void
+  onReply: (prompt: string, text: string, url: string, title: string) => void
 }
 
 type GuestEvent = Event & { url?: string; title?: string; channel?: string; args?: unknown[]; isMainFrame?: boolean; errorDescription?: string }
 
 /** One Electron webview per tab, kept mounted while hidden so switching tabs does not reload pages. */
-function GuestPage({ tab, hidden, onState, onVisit, onTyped }: GuestPageProps) {
+function GuestPage({ tab, hidden, onState, onVisit, onTyped, onReply }: GuestPageProps) {
   const ref = useRef<HTMLElement>(null)
-  const cb = useRef({ onState, onVisit, onTyped })
-  cb.current = { onState, onVisit, onTyped }
+  const cb = useRef({ onState, onVisit, onTyped, onReply })
+  cb.current = { onState, onVisit, onTyped, onReply }
   const initialUrl = useRef(tab.url)
   const lastVisit = useRef('')
+  const ready = useRef(false)
+
+  // The address bar changed this tab's URL: send the page there. The webview's own navigations already match.
+  useEffect(() => {
+    const el = ref.current as unknown as { getURL?: () => string; loadURL?: (url: string) => Promise<void> } | null
+    const same = (a: string, b: string) => a.replace(/\/$/, '') === b.replace(/\/$/, '')
+    if (ready.current && el?.getURL && !same(el.getURL(), tab.url)) void el.loadURL?.(tab.url).catch(() => undefined)
+  }, [tab.url])
 
   useEffect(() => {
     const el = ref.current
@@ -306,6 +255,7 @@ function GuestPage({ tab, hidden, onState, onVisit, onTyped }: GuestPageProps) {
       cb.current.onVisit(url, title())
     }
     const handlers: [string, (e: Event) => void][] = [
+      ['dom-ready', () => { ready.current = true }],
       ['did-start-loading', () => cb.current.onState({ loading: true })],
       ['did-stop-loading', () => cb.current.onState({ loading: false })],
       ['did-navigate', visit],
@@ -313,12 +263,13 @@ function GuestPage({ tab, hidden, onState, onVisit, onTyped }: GuestPageProps) {
       ['page-title-updated', (e) => cb.current.onState({ title: (e as GuestEvent).title ?? '' })],
       ['did-fail-load', (e) => {
         const g = e as GuestEvent
-        if (g.isMainFrame) cb.current.onState({ loading: false, kind: 'blocked', title: 'Blocked site', host: safeHost(g.url ?? '') })
+        if (g.isMainFrame) cb.current.onState({ loading: false })
       }],
       ['ipc-message', (e) => {
         const g = e as GuestEvent
-        const payload = g.args?.[0] as { text?: string; url?: string; title?: string } | undefined
+        const payload = g.args?.[0] as { text?: string; prompt?: string; url?: string; title?: string } | undefined
         if (g.channel === 'sandbox:typed' && payload?.text) cb.current.onTyped(payload.text, payload.url ?? '', payload.title ?? '')
+        if (g.channel === 'sandbox:reply' && payload?.text && payload.prompt) cb.current.onReply(payload.prompt, payload.text, payload.url ?? '', payload.title ?? '')
       }],
     ]
     handlers.forEach(([name, fn]) => el.addEventListener(name, fn))
@@ -327,11 +278,6 @@ function GuestPage({ tab, hidden, onState, onVisit, onTyped }: GuestPageProps) {
 
   return (
     <div className={hidden ? 'hidden' : 'absolute inset-0'}>
-      {tab.host && isAiHost(tab.host) && (
-        <div role="alert" className="absolute inset-x-0 top-0 z-10 bg-danger px-4 py-1.5 text-center text-xs font-semibold text-white">
-          AI assistant detected · this visit and everything you type here is reported to your invigilator
-        </div>
-      )}
       <webview ref={ref} src={initialUrl.current} partition={SANDBOX_PARTITION} className="h-full w-full" />
     </div>
   )
@@ -344,19 +290,6 @@ interface PageViewProps {
 }
 
 function PageView({ tab, allowedSites, onNavigate }: PageViewProps) {
-  if (tab.kind === 'ai' || tab.kind === 'blocked') {
-    const ai = tab.kind === 'ai'
-    return (
-      <div className="mx-auto flex max-w-md flex-col items-center px-6 py-14 text-center">
-        <span className="flex h-14 w-14 items-center justify-center rounded-2xl bg-red-50 text-danger"><ShieldX className="h-7 w-7" aria-hidden /></span>
-        <h2 className="mt-4 font-heading text-lg font-semibold text-ink">{ai ? 'AI assistants are not allowed' : 'This site is not allowed'}</h2>
-        <p className="mt-2 text-sm text-muted">
-          <strong className="text-ink">{tab.host}</strong> {ai ? 'is an AI assistant. The attempt has been reported to your invigilator and counted as a violation.' : 'is not on this exam’s allow-list. The attempt has been recorded.'}
-        </p>
-      </div>
-    )
-  }
-
   if (tab.kind === 'page' && tab.host) {
     const title = SITE_TITLES[tab.host] ?? tab.host
     return (
@@ -368,8 +301,7 @@ function PageView({ tab, allowedSites, onNavigate }: PageViewProps) {
             <p className="text-xs text-muted">{tab.url}</p>
           </div>
         </div>
-        <p className="mt-6 text-sm leading-relaxed text-ink">Reference material for this site is permitted during your exam. Use the search box above to look up syntax, definitions or documentation.</p>
-        <p className="mt-3 rounded-xl bg-soft p-3 text-xs text-muted">Preview mode: in the installed app this area is an isolated webview with downloads, pop-ups, uploads and the clipboard disabled.</p>
+        <p className="mt-3 rounded-xl bg-soft p-3 text-xs text-muted">Preview mode: websites open in the installed app.</p>
       </article>
     )
   }
@@ -377,7 +309,7 @@ function PageView({ tab, allowedSites, onNavigate }: PageViewProps) {
   if (tab.kind === 'search' && tab.query) {
     return (
       <section className="mx-auto max-w-2xl px-6 py-6" aria-label="Search results">
-        <p className="text-xs text-muted">Sandbox search · results limited to allowed sites</p>
+        <p className="text-xs text-muted">Preview search</p>
         <h2 className="mt-1 font-heading text-lg font-semibold text-ink">Results for “{tab.query}”</h2>
         <ul className="mt-4 space-y-3">
           {allowedSites.slice(0, 4).map((site) => {
@@ -400,8 +332,8 @@ function PageView({ tab, allowedSites, onNavigate }: PageViewProps) {
   return (
     <div className="mx-auto max-w-2xl px-6 py-10 text-center">
       <span className="mx-auto flex h-12 w-12 items-center justify-center rounded-2xl bg-soft text-primary"><Search className="h-6 w-6" aria-hidden /></span>
-      <h2 className="mt-3 font-heading text-lg font-semibold text-ink">Sandbox browser</h2>
-      <p className="mt-1 text-sm text-muted">Only these reference sites are available during your exam.</p>
+      <h2 className="mt-3 font-heading text-lg font-semibold text-ink">Browser</h2>
+      <p className="mt-1 text-sm text-muted">Search or enter any address above.</p>
       <div className="mt-6 grid grid-cols-2 gap-3">
         {allowedSites.map((site) => {
           const host = normHost(site)

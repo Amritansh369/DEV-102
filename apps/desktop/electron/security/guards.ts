@@ -7,7 +7,7 @@ import type { DetectedApp, DisplayInfo, ProctorEvent, ViolationCode } from '../.
 type Category = DetectedApp['category'];
 type Emit = (event: ProctorEvent) => void;
 
-/** Process names (lower-case, without .exe) grouped by why they are banned during an exam. */
+/** Process names (lower-case, without .exe) grouped by why the proctor wants to know about them. */
 const BLACKLIST: Record<string, { name: string; category: Category }> = Object.fromEntries(
   ([
     ['REMOTE', ['anydesk', 'teamviewer', 'teamviewer_service', 'rustdesk', 'parsecd', 'parsec', 'chrome remote desktop host', 'remoting_host', 'mstsc', 'vncviewer', 'vncserver', 'tvnserver', 'winvnc', 'ultravnc', 'splashtopstreamer', 'srstreamer', 'logmein', 'lmiguardiansvc', 'ammyy_admin', 'aa_v3', 'supremo', 'radmin', 'rserver3', 'dwagent', 'meshagent', 'quickassist', 'remotepc', 'zohoassist', 'getscreen', 'nomachine', 'nxplayer']],
@@ -25,8 +25,8 @@ const VM_MACS = ['00:05:69', '00:0c:29', '00:1c:14', '00:50:56', '08:00:27', '00
 const PHONE_OR_STORAGE = /phone|android|iphone|ipad|mtp|mass storage|card reader|flash|storage|kindle|camera|capture/i;
 
 /**
- * Coding assistants a developer has open while running `npm start`. Development builds skip them
- * in the system check list; packaged builds and PROCTOR_STRICT=1 flag them.
+ * Coding assistants a developer has open while running `npm start`. Development builds skip them;
+ * packaged builds and PROCTOR_STRICT=1 flag them.
  */
 const DEV_TOOLS = new Set(['claude', 'codex', 'cursor', 'copilot', 'githubcopilot', 'windsurf']);
 /** Development builds without PROCTOR_STRICT=1: no native restrictions, so the exam can be tested on a dev machine. */
@@ -68,18 +68,6 @@ export function windowTitles(): Promise<{ app: string; title: string }[]> {
       }));
     });
   });
-}
-
-/** Ends a blacklisted process. Only called after the candidate presses Close in the system check. */
-export async function closeProcess(pid: number): Promise<boolean> {
-  const apps = await scanProcesses();
-  if (!apps.some((a) => a.pid === pid)) return false; // never kill a process that is not on the list
-  try {
-    process.kill(pid);
-    return true;
-  } catch {
-    return false;
-  }
 }
 
 export async function displays(): Promise<{ count: number; mirrored: boolean; list: DisplayInfo[]; casting: boolean }> {
@@ -137,6 +125,7 @@ export class GuardMonitor {
   private timers: NodeJS.Timeout[] = [];
   private active = new Set<string>();
   private usbBaseline: Map<string, string> | null = null;
+  private clip = '';
 
   constructor(private readonly emit: Emit) {}
 
@@ -153,23 +142,32 @@ export class GuardMonitor {
     return text || !img.isEmpty() ? createHash('sha1').update(text).update(img.isEmpty() ? '' : img.toDataURL().slice(0, 2048)).digest('hex') : '';
   }
 
+  /** Reports what was copied, anywhere on this computer. The clipboard itself is left alone. */
+  private checkClipboard(): void {
+    const hash = this.hashClip();
+    if (!hash || hash === this.clip) return;
+    this.clip = hash;
+    const text = clipboard.readText().replace(/\s+/g, ' ').trim().slice(0, 300);
+    this.emit({ code: 'CLIPBOARD_USE', message: text ? `Copied: "${text}"` : 'An image was copied.', at: new Date().toISOString() });
+  }
+
   async start(): Promise<void> {
     this.stop();
     if (relaxed) return;
-    clipboard.clear();
+    this.clip = this.hashClip();
     this.usbBaseline = await usbSnapshot();
     const every = (ms: number, fn: () => Promise<void> | void) => {
       const run = () => Promise.resolve(fn()).catch(() => undefined);
       void run();
       this.timers.push(setInterval(run, ms));
     };
-    every(10_000, async () => {
+    every(5_000, async () => {
       const apps = await scanProcesses();
       const names = new Set(apps.map((a) => a.id));
       for (const a of apps) this.flag(a.id, true, a.category === 'REMOTE' ? 'REMOTE_DESKTOP' : 'BLACKLISTED_APP', `${a.name} (${a.category.toLowerCase().replace('_', ' ')}) started during the exam`);
       for (const k of [...this.active]) if (k.startsWith('app-') && !names.has(k)) this.active.delete(k);
     });
-    every(6_000, async () => {
+    every(3_000, async () => {
       const d = await displays();
       this.flag('multi-monitor', d.count > 1, 'MULTI_MONITOR', `${d.count} displays are connected`);
       this.flag('mirroring', d.mirrored, 'SCREEN_MIRRORING', d.casting ? 'Wireless casting (Miracast) is active' : 'Display duplication or mirroring is active');
@@ -187,13 +185,7 @@ export class GuardMonitor {
         if (PHONE_OR_STORAGE.test(label) || key.startsWith('blk:')) this.emit({ code: 'EXTERNAL_DEVICE', message: `New device attached: ${label}`, at: new Date().toISOString() });
       }
     });
-    every(1_500, () => {
-      // Copying inside the exam is blocked, so any content came from outside (another app, phone link).
-      if (this.hashClip()) {
-        clipboard.clear();
-        this.emit({ code: 'CLIPBOARD_USE', message: 'Clipboard content from outside the exam was cleared', at: new Date().toISOString() });
-      }
-    });
+    every(1_500, () => this.checkClipboard());
     screen.on('display-added', this.onDisplayAdded);
   }
 

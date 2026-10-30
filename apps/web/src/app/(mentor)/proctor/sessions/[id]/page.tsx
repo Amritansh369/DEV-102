@@ -219,6 +219,7 @@ function Workspace({ detail }: { detail: SessionDetail }) {
   }, [violations, verdictOf]);
 
   const adjusted = adjustRisk(session.riskScore, violations, verdictOf);
+  const deducted = violations.reduce((sum, v) => sum + (verdictOf(v) === "CONFIRMED" ? v.penaltyMarks ?? 0 : 0), 0);
   const suggested = suggestOutcome(violations, verdictOf);
   const decision = storedDecision ?? detail.decision;
 
@@ -265,7 +266,7 @@ function Workspace({ detail }: { detail: SessionDetail }) {
               </figcaption>
             </figure>
           ) : (
-            <Avatar name={candidate.name} size="lg" src={candidate.photoUrl} />
+            <Avatar name={candidate.name} size="lg" src={candidate.photoUrl ?? candidate.avatarUrl} />
           )}
           <div className="min-w-0 flex-1">
             <div className="flex flex-wrap items-center gap-2">
@@ -279,7 +280,7 @@ function Workspace({ detail }: { detail: SessionDetail }) {
             {[
               ["Started", formatDateTime(session.startedAt)],
               ["Progress", `${session.progress}%`],
-              ["Warnings", `${session.warnings} / ${exam.settings.maxWarnings}`],
+              ["Marks deducted", String(deducted)],
             ].map(([k, v]) => (
               <div key={k}>
                 <dt className="text-xs text-slate-500">{k}</dt>
@@ -339,11 +340,13 @@ function Workspace({ detail }: { detail: SessionDetail }) {
             candidateName={candidate.name}
             existing={reviews[reviewTarget.id]}
             fallbackVerdict={reviewTarget.reviewed}
+            suggestedMarks={detail.penalties[reviewTarget.severity]}
             onClose={() => setReviewTarget(null)}
             onSaved={(rec) => {
               saveReview(rec);
+              setViolations((cur) => cur.map((v) => (v.id === rec.violationId ? { ...v, reviewed: rec.verdict, penaltyMarks: rec.marks } : v)));
               setReviewTarget(null);
-              toast({ tone: "success", title: rec.verdict === "CONFIRMED" ? "Penalty confirmed" : "Penalty overruled", description: VIOLATION_LABEL[reviewTarget.code] });
+              toast({ tone: "success", title: rec.verdict === "CONFIRMED" ? `Confirmed, ${rec.marks ?? 0} marks deducted` : "Penalty overruled", description: VIOLATION_LABEL[reviewTarget.code] });
             }}
           />
         )}
@@ -425,11 +428,14 @@ const REASON_CHIPS: Record<ReviewForm["verdict"], string[]> = {
   OVERRULED: ["Poor lighting caused a false detection.", "Candidate had the invigilator's permission.", "Duplicate of an earlier event.", "Evidence is unclear or inconclusive."],
 };
 
-function ReviewModal({ violation, candidateName, existing, fallbackVerdict, onClose, onSaved }: { violation: Violation; candidateName: string; existing?: ReviewRecord; fallbackVerdict?: ReviewForm["verdict"]; onClose: () => void; onSaved: (record: ReviewRecord) => void }) {
+function ReviewModal({ violation, candidateName, existing, fallbackVerdict, suggestedMarks, onClose, onSaved }: { violation: Violation; candidateName: string; existing?: ReviewRecord; fallbackVerdict?: ReviewForm["verdict"]; suggestedMarks: number; onClose: () => void; onSaved: (record: ReviewRecord) => void }) {
   const ref = useDialog(onClose);
   const uid = useId();
   const toast = useMentorStore((s) => s.toast);
   const [serverError, setServerError] = useState<string | null>(null);
+  const [marks, setMarks] = useState(String(violation.penaltyMarks ?? suggestedMarks));
+  const marksValue = Number(marks);
+  const marksValid = marks.trim() !== "" && Number.isFinite(marksValue) && marksValue >= 0 && marksValue <= 1000;
   const { register, handleSubmit, watch, setValue, formState: { errors, isSubmitting } } = useForm<ReviewForm>({
     resolver: zodResolver(reviewSchema),
     defaultValues: { verdict: existing?.verdict ?? fallbackVerdict ?? "CONFIRMED", reason: existing?.reason ?? "" },
@@ -444,6 +450,7 @@ function ReviewModal({ violation, candidateName, existing, fallbackVerdict, onCl
         violationId: violation.id,
         verdict: values.verdict ?? "CONFIRMED",
         reason: values.reason ?? "",
+        ...(values.verdict === "CONFIRMED" ? { marks: marksValue } : {}),
       }));
     } catch (e) {
       const message = e instanceof Error ? e.message : "Could not save the review.";
@@ -472,7 +479,7 @@ function ReviewModal({ violation, candidateName, existing, fallbackVerdict, onCl
             <legend className="text-sm font-semibold">Your decision</legend>
             <div className="mt-2 grid grid-cols-2 gap-3">
               {([
-                { value: "CONFIRMED", title: "Confirm penalty", body: "The event is valid and counts.", icon: ThumbsUp },
+                { value: "CONFIRMED", title: "Confirm penalty", body: "The event is valid. Marks are deducted.", icon: ThumbsUp },
                 { value: "OVERRULED", title: "Overrule", body: "False alarm. Remove it from the score.", icon: RotateCcw },
               ] as const).map((o) => (
                 <label key={o.value} className="relative block cursor-pointer">
@@ -486,6 +493,13 @@ function ReviewModal({ violation, candidateName, existing, fallbackVerdict, onCl
               ))}
             </div>
           </fieldset>
+
+          {verdict === "CONFIRMED" && (
+            <div>
+              <label htmlFor={`${uid}-marks`} className="text-sm font-semibold">Marks to deduct <span className="font-normal text-slate-500">(your organization suggests {suggestedMarks})</span></label>
+              <input id={`${uid}-marks`} type="number" min={0} max={1000} step={0.25} value={marks} onChange={(e) => setMarks(e.target.value)} aria-invalid={!marksValid} className="mt-2 w-28 rounded-xl border border-border p-2.5 text-sm tabular-nums outline-none focus:border-accent focus:ring-4 focus:ring-accent/20 aria-[invalid=true]:border-danger" />
+            </div>
+          )}
 
           <div>
             <label htmlFor={`${uid}-reason`} className="text-sm font-semibold">Reason <span className="font-normal text-slate-500">(saved to the audit trail)</span></label>
@@ -504,7 +518,7 @@ function ReviewModal({ violation, candidateName, existing, fallbackVerdict, onCl
           {serverError && <p role="alert" className="rounded-xl bg-red-50 p-3 text-sm text-danger">{serverError}</p>}
           <div className="flex justify-end gap-3">
             <button type="button" onClick={onClose} className={`rounded-xl border border-border px-4 py-2.5 text-sm font-semibold text-slate-700 hover:bg-soft ${focusRing}`}>Cancel</button>
-            <button type="submit" disabled={isSubmitting} className={`inline-flex items-center gap-2 rounded-xl px-5 py-2.5 text-sm font-semibold text-white disabled:opacity-60 ${focusRing} ${verdict === "CONFIRMED" ? "bg-primary hover:bg-primary-600" : "bg-success hover:brightness-95"}`}>
+            <button type="submit" disabled={isSubmitting || (verdict === "CONFIRMED" && !marksValid)} className={`inline-flex items-center gap-2 rounded-xl px-5 py-2.5 text-sm font-semibold text-white disabled:opacity-60 ${focusRing} ${verdict === "CONFIRMED" ? "bg-primary hover:bg-primary-600" : "bg-success hover:brightness-95"}`}>
               {isSubmitting && <Loader2 className="h-4 w-4 animate-spin" aria-hidden />}
               {verdict === "CONFIRMED" ? "Confirm penalty" : "Overrule penalty"}
             </button>

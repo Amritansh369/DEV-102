@@ -13,3 +13,8 @@ declare module 'react' {
     }
   }
 }
+
+declare global {
+  /** Set from package.json at build time (electron.vite.config.ts). */
+  const __APP_VERSION__: string;
+}

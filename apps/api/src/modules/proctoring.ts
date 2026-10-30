@@ -1,13 +1,12 @@
 import { Router } from 'express';
-import { readFile } from 'node:fs/promises';
 import { z } from 'zod';
 import { fail, handle, parse } from '../lib/core.js';
 import { prisma } from '../lib/db.js';
 import { candidateOnly } from '../lib/auth.js';
 import { VIOLATION_CODES, hostAllowed, isAiUrl, readSettings, toBrowsing } from '../lib/domain.js';
-import { decodeImage, evidencePath, saveEvidence } from '../lib/evidence.js';
+import { decodeImage, readFacePhoto, saveEvidence } from '../lib/evidence.js';
 import { agent } from '../lib/agent.js';
-import { recordViolation, type RecordResult } from '../lib/policy.js';
+import { inCooldown, recordViolation, type RecordResult } from '../lib/policy.js';
 import { realtime } from '../lib/realtime.js';
 import { limits } from '../lib/security.js';
 import { ownSession } from './sessions.js';
@@ -22,6 +21,9 @@ const eventSchema = z.object({
 
 /** Sessions that already sent the reference photo to the agent (the agent caches the embedding). */
 const faceRegistered = new Set<string>();
+/** The newest webcam frame of each live session: proof for events that come without a picture. */
+const latestFrame = new Map<string, { image: { buffer: Buffer; mime: string }; at: number }>();
+const FRAME_FRESH_MS = 30_000;
 
 async function liveSession(req: Parameters<typeof ownSession>[0], id: string) {
   const s = await ownSession(req, id);
@@ -41,21 +43,31 @@ proctoringRouter.post('/events', ...candidateOnly, limits.ingest, handle(async (
   const results: RecordResult[] = [];
   for (const e of events) {
     const at = e.at ? new Date(Math.min(Date.parse(e.at), Date.now())) : undefined;
-    const shot = e.screenshot ? decodeImage(e.screenshot) : null;
-    const evidenceId = shot ? await saveEvidence(s.id, 'screen', shot) : undefined;
+    const evidenceId = await eventProof(s, e.code, e.screenshot, at);
     const r = await recordViolation({ sessionId: s.id, code: e.code, ...(e.message ? { message: e.message } : {}), source: e.source, ...(e.confidence !== undefined ? { confidence: e.confidence } : {}), ...(at ? { at } : {}), ...(evidenceId ? { evidenceId } : {}) });
     results.push(r);
     if (r.status !== 'LIVE') break;
   }
   const last = results[results.length - 1];
+  if (last && last.status !== 'LIVE') latestFrame.delete(s.id);
   return body.events ? { results, last } : last;
 }));
+
+/** The picture kept with an event: its screenshot, else the webcam at that moment. Repeats inside the cooldown keep none. */
+async function eventProof(s: Parameters<typeof inCooldown>[0], code: (typeof VIOLATION_CODES)[number], screenshot: string | undefined, at: Date | undefined): Promise<string | undefined> {
+  if (await inCooldown(s, code, at)) return undefined;
+  const shot = screenshot ? decodeImage(screenshot) : null;
+  if (shot) return saveEvidence(s.id, 'screen', shot);
+  const frame = latestFrame.get(s.id);
+  return frame && Math.abs((at?.getTime() ?? Date.now()) - frame.at) < FRAME_FRESH_MS ? saveEvidence(s.id, 'webcam', frame.image) : undefined;
+}
 
 /** `capturedAt` marks a frame the desktop kept while offline: it is analysed and recorded at that time, not shown as live. */
 async function analyzeImage(kind: 'webcam' | 'screen', sessionId: string, examId: string, candidateId: string, image: string, capturedAt?: Date) {
   const img = decodeImage(image) ?? fail('VALIDATION', 'The image could not be read.');
   const b64 = img.buffer.toString('base64');
   if (!capturedAt) {
+    if (kind === 'webcam') latestFrame.set(sessionId, { image: img, at: Date.now() });
     if (kind === 'webcam') realtime.snapshot(examId, sessionId, `data:${img.mime};base64,${b64}`);
     else realtime.toExam(examId, 'screen:snapshot', { sessionId, image: `data:${img.mime};base64,${b64}`, at: new Date().toISOString() });
   }
@@ -63,7 +75,7 @@ async function analyzeImage(kind: 'webcam' | 'screen', sessionId: string, examId
   let registered: string | undefined;
   if (kind === 'webcam' && !faceRegistered.has(sessionId)) {
     const c = await prisma.candidate.findUnique({ where: { id: candidateId }, select: { photoPath: true } });
-    if (c?.photoPath) registered = (await readFile(evidencePath(c.photoPath)).catch(() => null))?.toString('base64');
+    registered = (await readFacePhoto(candidateId, c?.photoPath ?? null))?.toString('base64');
   }
   const result = kind === 'webcam' ? await agent.analyzeFrame(sessionId, b64, registered) : await agent.analyzeScreen(sessionId, b64);
   if (registered && !result.degraded) faceRegistered.add(sessionId);
@@ -102,6 +114,8 @@ proctoringRouter.post('/screen', ...candidateOnly, limits.frames, handle(async (
 
 const entrySchema = z.object({
   url: z.string().url().max(2000), title: z.string().max(300).default(''), query: z.string().max(2000).optional(), at: z.string().datetime({ offset: true }).optional(),
+  /** What the AI assistant answered to `query`. Such an entry only adds the answer to the log: its visit and query were already flagged. */
+  reply: z.string().max(8000).optional(),
   /** A picture of the AI tab taken by the desktop app, kept as evidence for this entry. */
   screenshot: z.string().min(100).max(4_000_000).optional(),
 });
@@ -112,7 +126,7 @@ proctoringRouter.post('/browsing-logs', ...candidateOnly, limits.ingest, handle(
   const allowed = readSettings(s.exam.settings).allowedSites;
   const items = body.entries.filter((e) => /^https?:/i.test(e.url));
   const rows = items.map((e) => ({
-    sessionId: s.id, url: e.url, title: e.title.slice(0, 300), query: e.query?.slice(0, 2000) || null,
+    sessionId: s.id, url: e.url, title: e.title.slice(0, 300), query: e.query?.slice(0, 2000) || null, reply: e.reply || null,
     at: e.at ? new Date(Math.min(Date.parse(e.at), Date.now())) : new Date(), flaggedAi: isAiUrl(e.url),
   }));
   const created = await prisma.$transaction(rows.map((data) => prisma.browsingLog.create({ data })));
@@ -120,19 +134,19 @@ proctoringRouter.post('/browsing-logs', ...candidateOnly, limits.ingest, handle(
 
   const results: RecordResult[] = [];
   for (const [i, r] of created.entries()) {
-    if (!r.flaggedAi) continue;
+    if (!r.flaggedAi || r.reply) continue;
     const host = new URL(r.url).hostname;
     // The screenshot proves the typed query when there is one, else the visit.
     const shot = items[i]?.screenshot ? decodeImage(items[i].screenshot) : null;
-    const evidenceId = shot ? await saveEvidence(s.id, 'screen', shot) : undefined;
+    const evidenceId = shot && !(await inCooldown(s, r.query ? 'AI_QUERY_DETECTED' : 'AI_SITE_OPENED', r.at)) ? await saveEvidence(s.id, 'screen', shot) : undefined;
     const proof = (forQuery: boolean) => (evidenceId && forQuery === Boolean(r.query) ? { evidenceId } : {});
-    results.push(await recordViolation({ sessionId: s.id, code: 'AI_SITE_OPENED', source: 'server', at: r.at, message: `Opened ${host} (${r.title || 'AI assistant'}) in a sandbox tab.`, ...proof(false) }));
+    results.push(await recordViolation({ sessionId: s.id, code: 'AI_SITE_OPENED', source: 'server', at: r.at, message: `Opened ${host} (${r.title || 'AI assistant'}).`, ...proof(false) }));
     if (r.query) {
       results.push(await recordViolation({ sessionId: s.id, code: 'AI_QUERY_DETECTED', source: 'server', at: r.at, message: `Typed into ${host}: "${r.query.slice(0, 160)}"`, ...proof(true) }));
     }
   }
   // The agent catches pasted exam questions typed into ordinary search engines too.
-  const queries = created.filter((r) => r.query && !r.flaggedAi);
+  const queries = created.filter((r) => r.query && !r.flaggedAi && !r.reply);
   if (queries.length) {
     const qs = await prisma.question.findMany({ where: { id: { in: s.questionOrder } }, select: { text: true } });
     const verdict = await agent.analyzeBrowsing(s.id, queries.map((q) => ({ url: q.url, title: q.title, query: q.query ?? '', at: q.at.toISOString() })), qs.map((q) => q.text));

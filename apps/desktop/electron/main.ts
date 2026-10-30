@@ -1,25 +1,25 @@
 import { app, BrowserWindow, desktopCapturer, session, shell } from 'electron';
 import { join } from 'node:path';
+import { pathToFileURL } from 'node:url';
 import { CH, registerIpc } from './ipc';
-import { Kiosk } from './security/kiosk';
+import { ExamWindow } from './security/exam-window';
 import { setRelaxed } from './security/guards';
 import { SANDBOX_PARTITION, attachGuard, hardenSandbox } from './browser-sandbox/sandbox';
+import { startAutoUpdates } from './updater';
+import { isAppPage } from './trust';
 
 const PROTOCOL = 'dev102';
-const AI_HOSTS = [
-  'chatgpt.com', 'chat.openai.com', 'openai.com', 'gemini.google.com', 'bard.google.com', 'claude.ai', 'copilot.microsoft.com',
-  'perplexity.ai', 'deepseek.com', 'chat.deepseek.com', 'poe.com', 'you.com', 'character.ai', 'grok.com', 'meta.ai', 'phind.com',
-] as const;
 
 const devUrl = process.env.ELECTRON_RENDERER_URL ?? process.env.DESKTOP_RENDERER_URL;
 const isDev = !app.isPackaged;
-// Development keeps the window debuggable unless PROCTOR_STRICT=1; packaged builds always lock down.
-const softKiosk = isDev && process.env.PROCTOR_STRICT !== '1';
-setRelaxed(softKiosk);
-const rendererOrigin = () => (devUrl ? new URL(devUrl).origin : 'file://');
+// Development skips the native guards unless PROCTOR_STRICT=1, so coding tools do not raise flags.
+const relaxed = isDev && process.env.PROCTOR_STRICT !== '1';
+setRelaxed(relaxed);
+// Where the app's own pages come from: the dev server, or the renderer folder inside the installed app.
+const rendererBase = () => (devUrl ? new URL(devUrl).origin : pathToFileURL(join(__dirname, '../renderer/')).href);
 
 let win: BrowserWindow | null = null;
-let kiosk: Kiosk | null = null;
+let exam: ExamWindow | null = null;
 let pendingDeepLink: string | null = null;
 let appIsQuitting = false;
 
@@ -46,7 +46,7 @@ function deliverDeepLink(url: string): void {
   else pendingDeepLink = url;
 }
 
-const emit = registerIpc(() => win, () => kiosk, rendererOrigin);
+const emit = registerIpc(() => win, () => exam, rendererBase);
 
 function lockDownSession(): void {
   const ses = session.defaultSession;
@@ -64,7 +64,7 @@ function lockDownSession(): void {
     cb({ video: primary });
   }, { useSystemPicker: false });
   ses.on('will-download', (e) => e.preventDefault());
-  hardenSandbox(AI_HOSTS);
+  hardenSandbox();
 }
 
 async function createWindow(): Promise<void> {
@@ -87,13 +87,20 @@ async function createWindow(): Promise<void> {
       spellcheck: false,
       devTools: isDev,
       // Read by the preload as window.proctor.relaxed.
-      additionalArguments: softKiosk ? ['--proctor-relaxed'] : [],
+      additionalArguments: relaxed ? ['--proctor-relaxed'] : [],
     },
   });
-  kiosk = new Kiosk(win, emit, softKiosk);
+  exam = new ExamWindow(win, emit);
 
   win.on('close', (event) => {
-    if (kiosk?.active && !appIsQuitting) event.preventDefault();
+    if (!exam?.active || appIsQuitting) return;
+    // A close from the OS (taskbar, Alt+F4) during an exam gets the same question as the title bar's button.
+    event.preventDefault();
+    void exam.confirmClose().then((close) => { if (close) win?.close(); });
+  });
+  // The exam page blocks unloading while it runs; once no exam is running, or closing was confirmed, let it go.
+  win.webContents.on('will-prevent-unload', (event) => {
+    if (!exam?.active) event.preventDefault();
   });
   // Opens full screen; the title bar's maximise button leaves and re-enters it.
   win.once('ready-to-show', () => {
@@ -105,7 +112,7 @@ async function createWindow(): Promise<void> {
   }
   win.on('closed', () => {
     win = null;
-    kiosk = null;
+    exam = null;
   });
   win.webContents.on('did-finish-load', () => {
     if (pendingDeepLink) deliverDeepLink(pendingDeepLink);
@@ -116,9 +123,9 @@ async function createWindow(): Promise<void> {
     return { action: 'deny' };
   });
   win.webContents.on('will-navigate', (e, url) => {
-    if (!url.startsWith(rendererOrigin())) e.preventDefault();
+    if (!isAppPage(url, rendererBase())) e.preventDefault();
   });
-  attachGuard(win.webContents, AI_HOSTS);
+  attachGuard(win.webContents);
 
   try {
     if (devUrl) await win.loadURL(devUrl);
@@ -138,6 +145,7 @@ app.whenReady().then(() => {
   const link = process.argv.find((a) => a.startsWith(`${PROTOCOL}://`));
   if (link) pendingDeepLink = link;
   void createWindow();
+  startAutoUpdates(() => win, () => Boolean(exam?.active));
 });
 
 app.on('web-contents-created', (_e, contents) => {
@@ -147,13 +155,12 @@ app.on('web-contents-created', (_e, contents) => {
 });
 
 app.on('window-all-closed', () => {
-  kiosk?.exit();
   if (process.platform !== 'darwin') app.quit();
 });
 
 app.on('before-quit', () => {
   appIsQuitting = true;
-  kiosk?.exit();
+  exam?.stop();
 });
 
 app.on('activate', () => {

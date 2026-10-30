@@ -100,7 +100,11 @@ describe('exam clock pause while offline', () => {
     expect(r.body.data?.remainingSec).toBeGreaterThan(10 * 60 - 5);
     expect(r.body.data?.remainingSec).toBeLessThanOrEqual(10 * 60);
     expect(db.session.networkLost).toBe(false);
-    expect(realtime.toExam).toHaveBeenCalledWith('exam-1', 'session:presence', expect.objectContaining({ sessionId: 'sess-1', online: true, pausedSec: 300 }));
+    expect(realtime.toExam).toHaveBeenCalledWith('exam-1', 'session:presence', expect.objectContaining({ sessionId: 'sess-1', online: true }));
+    // Measured from the real clock, so a slow test run can add a second or two.
+    const presence = vi.mocked(realtime.toExam).mock.calls.find(([, event]) => event === 'session:presence')?.[2] as { pausedSec: number };
+    expect(presence.pausedSec).toBeGreaterThanOrEqual(300);
+    expect(presence.pausedSec).toBeLessThan(305);
   });
 
   it('accepts answers after the old deadline passed while the candidate was offline', async () => {

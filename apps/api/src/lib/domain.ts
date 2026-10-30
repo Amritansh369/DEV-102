@@ -2,6 +2,7 @@ import type {
   BrowsingLog, Candidate, Exam, ExamSession, Invite, Question, Severity, Violation, ViolationCode,
 } from '@prisma/client';
 import { signPhotoUrl } from './evidence.js';
+import { gravatarUrl } from './email-check.js';
 
 /** Canonical violation catalogue. Labels and default severities match the web UI. */
 export const VIOLATION_META: Record<ViolationCode, { label: string; severity: Severity; message: string }> = {
@@ -49,19 +50,23 @@ export interface ExamExtras {
   resultsReleasedAt?: string | null; resultsReleasedBy?: string | null;
 }
 export interface ViolationPolicy {
-  weights: Record<Severity, number>; maxWarnings: number; warnFrom: Severity; autoSubmit: boolean;
+  weights: Record<Severity, number>;
+  /** Marks taken off for each confirmed violation, set by the organization. A proctor can change it per flag. */
+  penalties: Record<Severity, number>;
+  maxWarnings: number; warnFrom: Severity; autoSubmit: boolean;
   autoSubmitFrom: Severity; autoSubmitOnCritical: boolean; riskFlagAt: number; cooldownSec: number;
 }
 
-export const DEFAULT_SETTINGS: ExamSettings = { shuffle: true, negativeMarking: false, allowedSites: [], maxWarnings: 2, autoSubmit: true, audioMonitoring: false, proctorOnly: false, oneWay: false, liveAudio: false };
+export const DEFAULT_SETTINGS: ExamSettings = { shuffle: true, negativeMarking: false, allowedSites: [], maxWarnings: 2, autoSubmit: true, audioMonitoring: false, proctorOnly: true, oneWay: false, liveAudio: false };
 export const DEFAULT_POLICY: ViolationPolicy = {
   weights: { LOW: 2, MEDIUM: 8, HIGH: 20, CRITICAL: 50 },
+  penalties: { LOW: 0, MEDIUM: 1, HIGH: 2, CRITICAL: 5 },
   maxWarnings: 2, warnFrom: 'MEDIUM', autoSubmit: true, autoSubmitFrom: 'HIGH', autoSubmitOnCritical: true, riskFlagAt: 60, cooldownSec: 30,
 };
 export const defaultExtras = (title: string): ExamExtras => ({
   category: 'General assessment',
   description: `${title} conducted under full proctoring.`,
-  instructions: 'Keep your webcam on and your face visible for the entire exam. Do not switch windows or open other applications. Your screen, webcam and browsing activity are recorded and reviewed.',
+  instructions: 'Keep your webcam on and your face visible for the entire exam. Your screen, webcam and browsing activity are recorded and reviewed by your proctor.',
   lateEntryMin: 10, checkInMin: 30, negativeValue: 0.25, allowCalculator: false, releaseResults: 'AFTER_REVIEW',
 });
 
@@ -102,9 +107,12 @@ const asObj = (v: unknown): Record<string, unknown> => (v && typeof v === 'objec
 export const readSettings = (v: unknown): ExamSettings => ({ ...DEFAULT_SETTINGS, ...asObj(v) }) as ExamSettings;
 export const readPolicy = (v: unknown): ViolationPolicy => {
   const o = asObj(v);
-  return { ...DEFAULT_POLICY, ...o, weights: { ...DEFAULT_POLICY.weights, ...asObj(o.weights) } } as ViolationPolicy;
+  return { ...DEFAULT_POLICY, ...o, weights: { ...DEFAULT_POLICY.weights, ...asObj(o.weights) }, penalties: { ...DEFAULT_POLICY.penalties, ...asObj(o.penalties) } } as ViolationPolicy;
 };
 export const readExtras = (v: unknown, title: string): ExamExtras => ({ ...defaultExtras(title), ...asObj(v) }) as ExamExtras;
+
+/** Answers still count this long after the deadline, so the app's final save beats the server's auto-submit. */
+export const SUBMIT_GRACE_MS = 15_000;
 
 /** Silence longer than two missed heartbeats (sent every 10 s) counts as offline, and the exam clock is paused for it. */
 export const PAUSE_AFTER_MS = 20_000;
@@ -167,11 +175,12 @@ export function toQuestion(q: Question, withAnswer = true) {
 export const toCandidate = (c: Candidate) => ({
   id: c.id, name: c.name, email: c.email, userId: c.userId, examId: c.examId, status: c.status, emailStatus: c.emailStatus,
   ...(c.photoPath ? { photoUrl: signPhotoUrl(c.id) } : {}),
+  avatarUrl: gravatarUrl(c.email),
 });
 
 export const toSession = (s: ExamSession) => ({
   id: s.id, candidateId: s.candidateId, examId: s.examId, status: s.status, progress: s.progress,
-  riskScore: s.riskScore, warnings: s.warnings, startedAt: s.startedAt.toISOString(),
+  riskScore: s.riskScore, warnings: s.warnings, startedAt: s.startedAt.toISOString(), penaltyMarks: s.penaltyMarks,
 });
 
 /* ---------------------------------------------------------------- join links */
@@ -192,10 +201,11 @@ export const toViolation = (v: Violation, sign: EvidenceSigner) => ({
   id: v.id, sessionId: v.sessionId, code: v.code, severity: v.severity, at: v.at.toISOString(), message: v.message,
   ...(v.evidenceId ? { evidenceUrl: sign(v.evidenceId) } : {}),
   ...(v.reviewed ? { reviewed: v.reviewed } : {}),
+  ...(v.penaltyMarks !== null ? { penaltyMarks: v.penaltyMarks } : {}),
 });
 
 export const toBrowsing = (b: BrowsingLog) => ({
-  id: b.id, sessionId: b.sessionId, at: b.at.toISOString(), url: b.url, title: b.title, ...(b.query ? { query: b.query } : {}), flaggedAi: b.flaggedAi,
+  id: b.id, sessionId: b.sessionId, at: b.at.toISOString(), url: b.url, title: b.title, ...(b.query ? { query: b.query } : {}), ...(b.reply ? { reply: b.reply } : {}), flaggedAi: b.flaggedAi,
 });
 
 export type Grade = 'CORRECT' | 'WRONG' | 'UNANSWERED';

@@ -31,7 +31,7 @@ const FLAGGED = 3;
 
 const FEED_CALM = [
   ['Rohan M.', 'Looked away 4 s', C.amber],
-  ['Meera P.', 'Copy shortcut blocked', C.amber],
+  ['Meera P.', 'Copied exam text', C.amber],
   ['Kavya R.', 'Network back, answers synced', C.sky],
   ['Dev K.', 'Face verified', C.green],
 ] as const;
@@ -154,7 +154,7 @@ function drawConsole(g: CanvasRenderingContext2D, s: Stage, clock: string, t: nu
     text(s.verdict ? 'Proctor review · confirm or overrule with a reason' : 'CRITICAL · AI query detected · "time complexity of binary search" typed on chatgpt.com', 60, 906, 27, '#fff', 700);
   } else {
     rr(g, 28, 870, W - 56, 70, 18, 'rgba(34,197,94,.12)', 'rgba(34,197,94,.4)');
-    text('All candidates verified · kiosk locked · answers autosaving', 60, 906, 27, '#bbf7d0', 600);
+    text('All candidates verified · screens shared · answers autosaving', 60, 906, 27, '#bbf7d0', 600);
   }
 }
 

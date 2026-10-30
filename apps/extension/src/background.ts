@@ -1,10 +1,11 @@
 /**
- * Service worker. While an exam session is live it reports visited tabs and text typed into AI sites
- * to /proctoring/browsing-logs, and leaving the exam tab or the browser as WINDOW_BLUR events.
+ * Service worker. While an exam session is live it reports visited tabs, searches, and what is typed into
+ * AI sites and answered there to /proctoring/browsing-logs, and leaving the exam tab or the browser as
+ * WINDOW_BLUR events with a picture of what came to the front.
  */
 import { call, store, type ContentMessage, type Stored } from './api';
 
-type Entry = { url: string; title: string; query?: string; at: string };
+type Entry = { url: string; title: string; query?: string; reply?: string; screenshot?: string; at: string };
 
 const BLUR_COOLDOWN_MS = 10_000;
 const queue: Entry[] = [];
@@ -17,6 +18,16 @@ const live = async (): Promise<(Required<Pick<Stored, 'token' | 'sessionId'>> & 
   return s.token && s.sessionId ? { ...s, token: s.token, sessionId: s.sessionId } : null;
 };
 const loggable = (url?: string): url is string => !!url && /^https?:/i.test(url);
+
+/** The text searched for on a results page, e.g. google.com/search?q=... */
+function searched(url: string): string | undefined {
+  const u = new URL(url);
+  return /(^|\.)(google|bing|duckduckgo|yahoo|brave)\.[a-z.]+$/.test(u.hostname) ? u.searchParams.get('q') ?? u.searchParams.get('p') ?? undefined : undefined;
+}
+
+/** A picture of the tab in front, kept as proof. Chrome cannot capture its own pages, so this can come back empty. */
+const shot = (windowId?: number): Promise<string | undefined> =>
+  (windowId === undefined ? chrome.tabs.captureVisibleTab({ format: 'jpeg', quality: 50 }) : chrome.tabs.captureVisibleTab(windowId, { format: 'jpeg', quality: 50 })).catch(() => undefined);
 
 function enqueue(entry: Entry): void {
   queue.push(entry);
@@ -40,7 +51,8 @@ async function blur(message: string): Promise<void> {
   const s = await live();
   if (!s || Date.now() - lastBlur < BLUR_COOLDOWN_MS) return;
   lastBlur = Date.now();
-  await call('POST', '/proctoring/events', { sessionId: s.sessionId, code: 'WINDOW_BLUR', message }, s.token).catch(() => undefined);
+  const screenshot = await new Promise((r) => setTimeout(r, 600)).then(() => shot());
+  await call('POST', '/proctoring/events', { sessionId: s.sessionId, code: 'WINDOW_BLUR', message, ...(screenshot ? { screenshot } : {}) }, s.token).catch(() => undefined);
 }
 
 chrome.tabs.onActivated.addListener(({ tabId }) => {
@@ -57,7 +69,11 @@ chrome.tabs.onUpdated.addListener((tabId, info, tab) => {
   if (info.status !== 'complete' || !loggable(tab.url) || lastUrl.get(tabId) === tab.url) return;
   const url = tab.url;
   lastUrl.set(tabId, url);
-  void live().then((s) => s && enqueue({ url, title: tab.title ?? '', at: new Date().toISOString() }));
+  void live().then((s) => {
+    if (!s) return;
+    const query = searched(url);
+    enqueue({ url, title: tab.title ?? '', ...(query ? { query } : {}), at: new Date().toISOString() });
+  });
 });
 
 chrome.tabs.onRemoved.addListener((tabId) => lastUrl.delete(tabId));
@@ -73,7 +89,14 @@ chrome.runtime.onMessage.addListener((msg: ContentMessage, sender, reply) => {
     return true; // reply asynchronously
   }
   if (msg.type === 'typed' && sender.tab) {
-    void live().then((s) => s && enqueue({ url: msg.url, title: msg.title, query: msg.text, at: new Date().toISOString() }));
+    void live().then(async (s) => {
+      if (!s) return;
+      const screenshot = await shot(sender.tab?.windowId);
+      enqueue({ url: msg.url, title: msg.title, query: msg.text, ...(screenshot ? { screenshot } : {}), at: new Date().toISOString() });
+    });
+  }
+  if (msg.type === 'reply' && sender.tab) {
+    void live().then((s) => s && enqueue({ url: msg.url, title: msg.title, query: msg.prompt, reply: msg.text, at: new Date().toISOString() }));
   }
 });
 

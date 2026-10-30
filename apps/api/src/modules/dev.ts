@@ -33,7 +33,7 @@ devRouter.get('/status', handle(async () => {
   ]);
   return {
     env: config.NODE_ENV, uptimeSec: Math.round(process.uptime()), db, agent: { ...agentHealth, circuitOpen: agent.circuitOpen },
-    sockets: realtime.connections(), smtp: config.smtpEnabled ? 'smtp' : 'outbox', reseeding,
+    sockets: realtime.connections(), smtp: config.mailProvider ? 'smtp' : 'outbox', mailProvider: config.mailProvider ?? 'outbox', reseeding,
     counts: { exams: counts[0], candidates: counts[1], liveSessions: counts[2], violations: counts[3], emails: counts[4] },
     demo: DEMO,
   };

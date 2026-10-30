@@ -1,9 +1,10 @@
 /**
- * The exam tab: sign in → one-time code → face check → consent → exam → receipt.
- * Uses the same API as the desktop app, with channel "web". While the exam runs it autosaves answers,
- * sends heartbeats and uploads a webcam frame every 20 s; background.ts reports browsing.
+ * The exam tab: exam link and password → one-time code → face check → consent → screen share → waiting room → exam → receipt.
+ * Candidates join with the exam link and password from their email, like the desktop app. While the exam runs it autosaves answers, sends
+ * heartbeats, and uploads webcam and screen frames; background.ts reports browsing. Nothing warns the candidate.
  */
-import { ApiError, call, store } from './api';
+import { parseInviteToken } from '../../desktop/src/lib/invite-token';
+import { ApiError, call, deviceId, store } from './api';
 
 interface Option { id: string; text: string }
 interface Question { id: string; type: 'MCQ' | 'NUMERIC'; text: string; options: Option[]; multi: boolean; marks: number; unit?: string }
@@ -20,6 +21,7 @@ interface Receipt { receiptId: string | null; submittedAt: string; answered: num
 const app = document.getElementById('app') as HTMLElement;
 let token = '';
 let camera: MediaStream | null = null;
+let screen: MediaStream | null = null;
 
 /* ---------------------------------------------------------------- tiny DOM helpers */
 
@@ -58,17 +60,21 @@ const field = (label: string, input: HTMLInputElement) => h('label', {}, label, 
 /* ---------------------------------------------------------------- steps */
 
 function login(): void {
-  const exam = h('input', { required: true, autocomplete: 'off', placeholder: 'e.g. CPA-26' });
-  const user = h('input', { required: true, autocomplete: 'username' });
-  const pass = h('input', { required: true, type: 'password', autocomplete: 'current-password' });
-  show(card('Sign in to your exam', 'Use the exam code, user ID and password from your credentials email.',
-    form([field('Exam code', exam), field('User ID', user), field('Password', pass)], 'Sign in', async () => {
-      const r = await call<{ token: string }>('POST', '/auth/login', { examId: exam.value.trim(), userId: user.value.trim(), password: pass.value, channel: 'web' });
+  const link = h('input', { required: true, autocomplete: 'off', placeholder: 'https://…/join/…' });
+  const pass = h('input', { required: true, type: 'password', autocomplete: 'off' });
+  show(card('Join your exam', 'Enter the exam link and password from your invitation email.',
+    form([field('Exam link', link), field('Password', pass)], 'Continue', async () => {
+      const invite = parseInviteToken(link.value);
+      if (!invite) throw new Error('That is not a valid exam link. Copy the whole link from your email.');
+      // Checked first, so a proctor's link is not locked to this browser by mistake.
+      const { role } = await call<{ role: string }>('GET', `/auth/invites/${invite}`);
+      if (role !== 'CANDIDATE') throw new Error('This is a proctor link. Proctors use the desktop app.');
+      const r = await call<{ token: string }>('POST', '/auth/invites/login', { token: invite, password: pass.value, deviceId: await deviceId() });
       token = r.token;
       await store.set({ token });
       await otp();
     })));
-  exam.focus();
+  link.focus();
 }
 
 async function otp(): Promise<void> {
@@ -102,18 +108,62 @@ async function face(): Promise<void> {
 
 function consent(): void {
   const ok = h('input', { type: 'checkbox', required: true });
-  show(card('Before you start', 'During the exam this extension and the exam server will:',
+  show(card('Before you start', 'During the exam your proctor can see:',
     h('ul', {},
-      h('li', {}, 'take a webcam picture every 20 seconds;'),
-      h('li', {}, 'record every site you open in Chrome and when you switch tabs;'),
-      h('li', {}, 'record what you type on AI sites such as ChatGPT;'),
-      h('li', {}, 'record when you leave the exam tab or switch to another application.')),
-    h('p', { class: 'muted' }, 'Your invigilator sees these events live. Keep this tab in front until you submit.'),
-    form([h('label', { class: 'check' }, ok, 'I understand and agree to be monitored')], 'Start the exam', async () => {
-      const paper = await call<Paper>('POST', '/sessions/start', { consent: true }, token);
-      await store.set({ sessionId: paper.sessionId });
-      exam(paper);
-    })));
+      h('li', {}, 'your entire screen, until you finish;'),
+      h('li', {}, 'your webcam, with pictures kept as proof of flagged events;'),
+      h('li', {}, 'every site you open in Chrome and when you switch tabs;'),
+      h('li', {}, 'your searches, what you type on AI sites and what they answer.')),
+    form([h('label', { class: 'check' }, ok, 'I understand and agree to be monitored')], 'Share entire screen', share)));
+}
+
+/** Asks for the whole screen, shows it back, and only then lets the candidate go on. Used again when an exam is reopened. */
+async function share(): Promise<void> {
+  const stream = await navigator.mediaDevices.getDisplayMedia({ video: { displaySurface: 'monitor' }, audio: false } as DisplayMediaStreamOptions).catch(() => {
+    throw new Error('Screen sharing is required to take this exam. Choose Entire screen and press Share.');
+  });
+  const track = stream.getVideoTracks()[0];
+  const surface = (track?.getSettings() as (MediaTrackSettings & { displaySurface?: string }) | undefined)?.displaySurface;
+  if (surface && surface !== 'monitor') {
+    stream.getTracks().forEach((t) => t.stop());
+    throw new Error(`You shared a ${surface}. Choose Entire screen.`);
+  }
+  screen = stream;
+  const preview = h('video', { autoplay: true, muted: true, playsInline: true, class: 'preview' });
+  preview.srcObject = stream;
+  show(card('This is what your proctor sees', 'Your entire screen is shared until you finish the exam.',
+    preview,
+    h('p', { class: 'hint' }, 'Sharing is active'),
+    form([], 'Continue to exam', start)));
+}
+
+async function start(): Promise<void> {
+  try {
+    const paper = await call<Paper>('POST', '/sessions/start', { consent: true }, token);
+    await store.set({ sessionId: paper.sessionId });
+    exam(paper);
+  } catch (e) {
+    if (e instanceof ApiError && e.details?.waiting) return waitingRoom(Date.now() + Date.parse(String(e.details.startsAt)) - Date.parse(String(e.details.serverTime)));
+    throw e;
+  }
+}
+
+/** Everything is ready; the exam opens by itself when the countdown ends. The server's clock decides. */
+function waitingRoom(opensAt: number): void {
+  const time = h('p', { class: 'countdown', role: 'timer' });
+  show(card('You are in the waiting room', 'Stay here. Your exam starts by itself when the timer ends.', time));
+  let looked = 0;
+  const tick = () => {
+    const left = Math.max(0, Math.ceil((opensAt - Date.now()) / 1000));
+    time.textContent = left > 0 ? `${String(Math.floor(left / 3600)).padStart(2, '0')}:${String(Math.floor((left % 3600) / 60)).padStart(2, '0')}:${String(left % 60).padStart(2, '0')}` : 'Starting…';
+    // A look at the server every 30 s picks up a changed start time; at zero the exam opens.
+    if (left > 0 && ++looked < 30) return;
+    looked = 0;
+    window.clearInterval(timer);
+    void start().catch((e: unknown) => show(card('Could not open the exam', message(e))));
+  };
+  const timer = window.setInterval(tick, 1000);
+  tick();
 }
 
 /* ---------------------------------------------------------------- exam */
@@ -218,8 +268,17 @@ function exam(p: Paper): void {
     timers.forEach(clearInterval);
     clearTimeout(saveTimer);
     submitBtn.disabled = true;
+    const send = () => call<Receipt>('POST', `/sessions/${p.sessionId}/submit`, { answers, values, flagged: [...flagged], reason }, token);
     try {
-      const r = await call<Receipt>('POST', `/sessions/${p.sessionId}/submit`, { answers, values, flagged: [...flagged], reason }, token);
+      let r: Receipt | null = null;
+      // Time-up has nobody to press Submit again, so it keeps trying through a network drop.
+      for (let tries = 0; !r; tries++) {
+        r = await send().catch(async (e: unknown) => {
+          if (reason !== 'TIME_UP' || !(e instanceof ApiError) || e.code !== 'NETWORK' || tries >= 40) throw e;
+          await new Promise((wait) => setTimeout(wait, 3000));
+          return null;
+        });
+      }
       done(p, r, reason);
     } catch (e) {
       ended = false;
@@ -242,10 +301,23 @@ function exam(p: Paper): void {
       })
       .catch(() => undefined);
   }, 15_000));
+  // The webcam goes every 2 s so a phone or a second person is caught quickly; a slow network skips a turn.
+  let sending = false;
   timers.push(window.setInterval(() => {
-    const image = grab(thumb, 640, 0.72);
-    if (image && navigator.onLine) void call('POST', '/proctoring/frames', { sessionId: p.sessionId, image }, token).catch(() => undefined);
+    const image = sending ? null : grab(thumb, 640, 0.72);
+    if (!image || !navigator.onLine) return;
+    sending = true;
+    void call('POST', '/proctoring/frames', { sessionId: p.sessionId, image }, token).catch(() => undefined).finally(() => { sending = false; });
+  }, 2000));
+  const screenVideo = h('video', { autoplay: true, muted: true, playsInline: true });
+  screenVideo.srcObject = screen;
+  timers.push(window.setInterval(() => {
+    const image = grab(screenVideo, 1280, 0.6);
+    if (image && navigator.onLine) void call('POST', '/proctoring/screen', { sessionId: p.sessionId, image }, token).catch(() => undefined);
   }, 20_000));
+  screen?.getVideoTracks()[0]?.addEventListener('ended', () => {
+    void call('POST', '/proctoring/events', { sessionId: p.sessionId, code: 'SCREEN_SHARE_STOPPED' }, token).catch(() => undefined);
+  });
   window.addEventListener('beforeunload', (e) => { if (!ended) { void save(); e.preventDefault(); } });
 
   show(h('div', { class: 'exam' },
@@ -259,6 +331,8 @@ function exam(p: Paper): void {
 function done(p: Paper, r: Receipt, reason: 'MANUAL' | 'TIME_UP'): void {
   camera?.getTracks().forEach((t) => t.stop());
   camera = null;
+  screen?.getTracks().forEach((t) => t.stop());
+  screen = null;
   void store.clear('sessionId', 'token');
   const title = r.status === 'TERMINATED' ? 'Your exam was ended by the invigilator' : reason === 'TIME_UP' ? 'Time is up: your exam was submitted' : 'Your exam has been submitted';
   show(card(title, `${p.exam.title} (${p.exam.code}) · ${new Date(r.submittedAt).toLocaleString()}`,
@@ -282,11 +356,11 @@ void (async () => {
   await store.set({ examTabId: tab?.id });
   const saved = await store.get();
   if (saved.token && saved.sessionId) {
-    // Reopened mid-exam: /sessions/start returns the live session's paper with saved answers.
+    // Reopened mid-exam: sharing needs a click, then /sessions/start returns the live paper with saved answers.
     token = saved.token;
     try {
       camera = await navigator.mediaDevices.getUserMedia({ video: { width: 640, height: 480 }, audio: false });
-      exam(await call<Paper>('POST', '/sessions/start', { consent: true }, token));
+      show(card('Share your screen again', 'Your answers are saved. Share your entire screen to carry on.', form([], 'Share entire screen', share)));
       return;
     } catch {
       await store.clear('sessionId', 'token');

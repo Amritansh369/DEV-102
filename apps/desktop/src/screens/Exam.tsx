@@ -1,14 +1,15 @@
 import { KeyboardEvent as ReactKeyboardEvent, useCallback, useEffect, useMemo, useRef, useState, type JSX } from 'react'
 import { create } from 'zustand'
 import { AnimatePresence, motion } from 'framer-motion'
-import { AlertTriangle, ArrowLeft, ArrowRight, Check, CheckCircle2, CloudOff, Eraser, Flag, Globe, Keyboard, Loader2, Lock, RefreshCw, Send, WifiOff, X } from 'lucide-react'
+import { AlertTriangle, ArrowLeft, ArrowRight, Check, CheckCircle2, CloudOff, Eraser, Flag, Globe, Keyboard, Loader2, Monitor, RefreshCw, Send, WifiOff, X } from 'lucide-react'
 import { api, type ExamPaper, type ViolationResult } from '../lib/api'
-import { captureWindow, startLive } from '../lib/live'
+import { HttpError } from '../lib/http'
+import { proofShot, startLive } from '../lib/live'
 import { watchAway } from '../lib/away'
 import { getProctor } from '../lib/proctorMock'
 import type { BrowsingLog, Question, Severity, ViolationCode } from '../lib/types'
 import QuestionPalette, { type PaletteItem } from '../components/QuestionPalette'
-import Timer from '../components/Timer'
+import Timer, { formatClock } from '../components/Timer'
 import BrowserTabs from '../components/BrowserTabs'
 import WarningModal, { type WarningInfo, type WarningKind } from '../components/WarningModal'
 import WebcamThumb, { type FaceStatus, type LinkQuality } from '../components/WebcamThumb'
@@ -21,7 +22,7 @@ const VIOLATION_META: Record<ViolationCode, { severity: Severity; message: strin
   NO_FACE: { severity: 'MEDIUM', message: 'No face was detected. Stay visible to the camera.' },
   GAZE_AWAY: { severity: 'LOW', message: 'You appear to be looking away from the screen.' },
   FACE_MISMATCH: { severity: 'HIGH', message: 'The person on camera does not match your verified face.' },
-  AI_SITE_OPENED: { severity: 'HIGH', message: 'An AI assistant website was opened in the sandbox browser.' },
+  AI_SITE_OPENED: { severity: 'HIGH', message: 'An AI assistant website was opened.' },
   AI_QUERY_DETECTED: { severity: 'HIGH', message: 'A search that looks like an AI prompt or answer lookup was detected.' },
   BLACKLISTED_APP: { severity: 'HIGH', message: 'A blacklisted application was started during the exam.' },
   SCREEN_MIRRORING: { severity: 'HIGH', message: 'Screen mirroring or casting was detected.' },
@@ -192,13 +193,15 @@ interface ExamProps {
   onSubmitted: (summary: SubmitSummary) => void
 }
 
-type Phase = 'loading' | 'error' | 'active'
+type Phase = 'loading' | 'waiting' | 'error' | 'active'
 interface Toast { id: string; text: string; tone: 'info' | 'ok' | 'warn' }
 
 export default function Exam({ examId, userId, onSubmitted }: ExamProps) {
   const [phase, setPhase] = useState<Phase>('loading')
   const [loadError, setLoadError] = useState<string | null>(null)
   const [paper, setPaper] = useState<ExamPaper | null>(null)
+  /** When the exam opens, in this computer's clock. */
+  const [opensAt, setOpensAt] = useState(0)
   const [view, setView] = useState<'exam' | 'browser'>('exam')
   const [submitOpen, setSubmitOpen] = useState(false)
   const [forcedReason, setForcedReason] = useState<string | null>(null)
@@ -223,7 +226,6 @@ export default function Exam({ examId, userId, onSubmitted }: ExamProps) {
   const save = useExamStore((s) => s.save)
   const warnings = useExamStore((s) => s.warnings)
   const events = useExamStore((s) => s.events)
-  const log = useExamStore((s) => s.log)
   const { choose, type, clear, toggleFlag, go } = useExamStore.getState()
 
   const stageRef = useRef<HTMLElement>(null)
@@ -245,8 +247,8 @@ export default function Exam({ examId, userId, onSubmitted }: ExamProps) {
     window.setTimeout(() => setToasts((t) => t.filter((x) => x.id !== id)), 4500)
   }, [])
 
-  const load = useCallback(async () => {
-    setPhase('loading')
+  const load = useCallback(async (quiet = false) => {
+    if (!quiet) setPhase('loading')
     setLoadError(null)
     try {
       const p = await api.getExamPaper(examId)
@@ -254,6 +256,12 @@ export default function Exam({ examId, userId, onSubmitted }: ExamProps) {
       setPaper(p)
       setPhase('active')
     } catch (e) {
+      if (e instanceof HttpError && e.details?.waiting) {
+        // The server's clock decides: the countdown is its time left, whatever this computer's clock says.
+        setOpensAt(Date.now() + Date.parse(String(e.details.startsAt)) - Date.parse(String(e.details.serverTime)))
+        setPhase('waiting')
+        return
+      }
       setLoadError(e instanceof Error ? e.message : 'Could not load the exam paper.')
       setPhase('error')
     }
@@ -309,7 +317,8 @@ export default function Exam({ examId, userId, onSubmitted }: ExamProps) {
           setActiveWarning((cur) => (cur?.kind === 'submit' ? cur : { id: uid(), code, severity, message, kind, warningNumber: r.warnings }))
         } else if (r.outcome !== 'SUPPRESSED') pushToast(`Noted: ${message}`, 'info')
       }
-      void api.reportViolation({ examId: p.exam.id, sessionId: p.sessionId, code, severity, message, at }).then((r) => {
+      // A picture of the screen goes with every event as proof; a failed capture must not lose the event.
+      void proofShot().catch(() => null).then((screenshot) => api.reportViolation({ examId: p.exam.id, sessionId: p.sessionId, code, severity, message, at, ...(screenshot ? { screenshot } : {}) })).then((r) => {
         if (silent) return
         if (r) applyServer(r)
         else applyLocal()
@@ -332,11 +341,18 @@ export default function Exam({ examId, userId, onSubmitted }: ExamProps) {
       const s = useExamStore.getState()
       const flaggedIds = s.questions.filter((q) => s.flagged[q.id]).map((q) => q.id)
       const answered = s.questions.filter((q) => isAnswered(q, s.answers, s.numeric)).length
+      const send = () => api.submitExam({ examId: p.exam.id, answers: s.answers, values: valuesOf(s.questions, s.numeric), flagged: flaggedIds, auto, reason, browsing: s.log })
       try {
         while (!navigator.onLine) await wait(1000)
-        const res = await api.submitExam({ examId: p.exam.id, answers: s.answers, values: valuesOf(s.questions, s.numeric), flagged: flaggedIds, auto, reason, browsing: s.log })
+        // An automatic submit has nobody to press Retry, so it keeps trying through a network drop.
+        let res = await send().catch((e: unknown) => e as Error)
+        for (let tries = 0; auto && res instanceof HttpError && res.code === 'NETWORK' && tries < 40; tries++) {
+          await wait(3000)
+          res = await send().catch((e: unknown) => e as Error)
+        }
+        if (res instanceof Error) throw res
         const isDisqualified = disqualified || res.status === 'TERMINATED'
-        void getProctor().exitKiosk().catch(() => undefined)
+        void getProctor().exam.stop().catch(() => undefined)
         onSubmitted({ answered, total: s.questions.length, flagged: flaggedIds.length, autoSubmitted: auto, disqualified: isDisqualified, reason, receiptId: res.receiptId, submittedAt: res.submittedAt })
       } catch (e) {
         setSubmitError(e instanceof Error ? e.message : 'Submission failed. Please try again.')
@@ -448,10 +464,17 @@ export default function Exam({ examId, userId, onSubmitted }: ExamProps) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [phase, paper?.sessionId])
 
-  /* kiosk mode, native guards and native proctor events */
+  /* leaving and closing the window are reported only while the exam runs, not on a loading or error screen */
+  useEffect(() => {
+    if (phase !== 'active') return
+    const proctor = getProctor()
+    void proctor.exam.start().catch(() => undefined)
+    return () => { void proctor.exam.stop().catch(() => undefined) }
+  }, [phase])
+
+  /* native guards and native proctor events */
   useEffect(() => {
     const proctor = getProctor()
-    void proctor.enterKiosk().catch(() => undefined)
     void window.proctor?.guards.start().catch(() => undefined)
     const unsubscribe = proctor.onEvent((ev) => report(ev.code, { message: ev.message }))
     const guard = (e: BeforeUnloadEvent) => {
@@ -465,45 +488,20 @@ export default function Exam({ examId, userId, onSubmitted }: ExamProps) {
       unsubscribe()
       window.removeEventListener('beforeunload', guard)
       void window.proctor?.guards.stop().catch(() => undefined)
-      void proctor.exitKiosk().catch(() => undefined)
     }
   }, [report])
 
-  /* window focus loss: brief blurs are LOW, longer absences MEDIUM */
+  /* clipboard and keyboard: everything works and is noted; only reloading is stopped, as it would drop the exam */
   useEffect(() => {
-    let blurredAt: number | null = null
-    const onBlur = () => { blurredAt = Date.now() }
-    const onFocus = () => {
-      if (blurredAt === null) return
-      const away = Date.now() - blurredAt
-      blurredAt = null
-      if (away > 1500) report('WINDOW_BLUR', { severity: away > 5000 ? 'MEDIUM' : 'LOW', message: `The exam window lost focus for ${Math.round(away / 1000)} seconds.` })
-    }
-    window.addEventListener('blur', onBlur)
-    window.addEventListener('focus', onFocus)
-    return () => {
-      window.removeEventListener('blur', onBlur)
-      window.removeEventListener('focus', onFocus)
-    }
-  }, [report])
-
-  /* clipboard, context menu and keyboard */
-  useEffect(() => {
-    const block = (e: Event) => {
-      e.preventDefault()
-      if (e.type !== 'contextmenu') report('CLIPBOARD_USE')
+    const noteCopy = (e: Event) => {
+      const text = document.getSelection()?.toString().replace(/\s+/g, ' ').trim().slice(0, 300)
+      report('CLIPBOARD_USE', { message: text ? `Copied from the exam: "${text}"` : `${e.type === 'paste' ? 'Pasted into' : 'Copied from'} the exam.` })
     }
     const onKey = (e: KeyboardEvent) => {
       const ctrl = e.ctrlKey || e.metaKey
       const k = e.key.toLowerCase()
 
-      if (ctrl && ['c', 'x', 'v'].includes(k)) { e.preventDefault(); report('CLIPBOARD_USE'); return }
-      const restricted = (ctrl && ['p', 's', 'u', 'r', 'f'].includes(k)) || (ctrl && e.shiftKey && ['i', 'j'].includes(k)) || ['F5', 'F12', 'PrintScreen'].includes(e.key)
-      if (restricted) {
-        e.preventDefault()
-        report('SHORTCUT_BLOCKED', { message: `Blocked shortcut: ${[ctrl ? 'Ctrl' : '', e.shiftKey ? 'Shift' : '', e.key].filter(Boolean).join('+')}` })
-        return
-      }
+      if ((ctrl && k === 'r') || e.key === 'F5') { e.preventDefault(); return }
       if (e.key === 'Escape') { setHelpOpen(false); return }
       if (uiRef.current.modalOpen) return
       if (ctrl && e.key === 'Enter') { e.preventDefault(); setSubmitOpen(true); return }
@@ -525,16 +523,14 @@ export default function Exam({ examId, userId, onSubmitted }: ExamProps) {
         if (opt) s.choose(q.id, opt.id, q.multi)
       }
     }
-    document.addEventListener('copy', block)
-    document.addEventListener('cut', block)
-    document.addEventListener('paste', block)
-    document.addEventListener('contextmenu', block)
+    document.addEventListener('copy', noteCopy)
+    document.addEventListener('cut', noteCopy)
+    document.addEventListener('paste', noteCopy)
     document.addEventListener('keydown', onKey)
     return () => {
-      document.removeEventListener('copy', block)
-      document.removeEventListener('cut', block)
-      document.removeEventListener('paste', block)
-      document.removeEventListener('contextmenu', block)
+      document.removeEventListener('copy', noteCopy)
+      document.removeEventListener('cut', noteCopy)
+      document.removeEventListener('paste', noteCopy)
       document.removeEventListener('keydown', onKey)
     }
   }, [report])
@@ -544,15 +540,14 @@ export default function Exam({ examId, userId, onSubmitted }: ExamProps) {
     (entry: Omit<BrowsingLog, 'id' | 'sessionId'>) => {
       const full: BrowsingLog = { ...entry, id: uid(), sessionId: paperRef.current?.sessionId ?? '' }
       useExamStore.setState((s) => ({ log: [full, ...s.log] }))
-      if (!entry.flaggedAi || !window.proctor) {
+      if (!entry.flaggedAi || entry.reply || !window.proctor) {
         void api.logBrowsing(examId, full).catch(() => undefined)
         return
       }
       // A picture of the AI tab goes with the entry as evidence; a page that just opened gets a moment to load.
       void (async () => {
         if (!entry.query) await new Promise((r) => window.setTimeout(r, 1500))
-        const shot = await captureWindow()
-        await api.logBrowsing(examId, full, shot)
+        await api.logBrowsing(examId, full, await proofShot().catch(() => null))
       })().catch(() => undefined)
     },
     [examId],
@@ -570,6 +565,7 @@ export default function Exam({ examId, userId, onSubmitted }: ExamProps) {
   }
 
   if (phase === 'loading') return <ExamSkeleton />
+  if (phase === 'waiting') return <WaitingRoom opensAt={opensAt} onCheck={() => load(true)} />
   if (phase === 'error' || !paper) {
     return (
       <div className="flex h-full flex-col items-center justify-center gap-3 bg-soft p-8 text-center" role="alert">
@@ -594,20 +590,19 @@ export default function Exam({ examId, userId, onSubmitted }: ExamProps) {
     <div className="relative flex h-full min-h-[700px] min-w-[1100px] flex-col bg-soft text-ink">
       <header className="flex h-16 shrink-0 items-center justify-between gap-4 border-b border-border bg-white px-6">
         <div className="flex min-w-0 items-center gap-3">
-          <img src="/images/logo.png" alt="" className="h-8 w-auto" onError={(e) => (e.currentTarget.style.display = 'none')} />
+          <img src="images/logo.png" alt="" className="h-8 w-auto" onError={(e) => (e.currentTarget.style.display = 'none')} />
           <div className="min-w-0">
             <h1 className="truncate font-heading text-sm font-semibold">{exam.title}</h1>
             <p className="text-xs text-muted">{exam.code} · {questions.length} questions · {exam.totalMarks} marks</p>
           </div>
-          <span className="ml-2 hidden items-center gap-1 rounded-full bg-blue-50 px-2.5 py-1 text-[11px] font-medium text-primary xl:inline-flex"><Lock className="h-3 w-3" aria-hidden /> Kiosk mode</span>
+          <span className="ml-2 hidden items-center gap-1.5 rounded-full bg-green-50 px-2.5 py-1 text-[11px] font-medium text-success lg:inline-flex" title="Your entire screen is shared with your proctor until you finish"><Monitor className="h-3 w-3" aria-hidden /><span className="h-1.5 w-1.5 animate-pulse rounded-full bg-success" aria-hidden /> Screen shared</span>
         </div>
 
         <nav className="flex rounded-xl bg-soft p-1" aria-label="Workspace">
-          {([['exam', 'Questions', null], ['browser', 'Sandbox browser', log.length]] as const).map(([id, label, count]) => (
+          {([['exam', 'Questions'], ['browser', 'Browser']] as const).map(([id, label]) => (
             <button key={id} type="button" aria-pressed={view === id} onClick={() => setView(id)} className={`inline-flex items-center gap-1.5 rounded-lg px-3.5 py-1.5 text-xs font-medium transition focus-visible:outline-2 focus-visible:outline-accent ${view === id ? 'bg-white text-primary shadow-sm' : 'text-muted hover:text-ink'}`}>
               {id === 'browser' && <Globe className="h-3.5 w-3.5" aria-hidden />}
               {label}
-              {count !== null && count > 0 && <span className="rounded-full bg-primary/10 px-1.5 text-[10px] tabular-nums">{count}</span>}
             </button>
           ))}
         </nav>
@@ -642,7 +637,7 @@ export default function Exam({ examId, userId, onSubmitted }: ExamProps) {
                 <p className="text-sm text-muted">Contact your invigilator. This exam has no questions yet.</p>
               </div>
             ) : (
-              <div className="flex h-full select-none flex-col">
+              <div className="flex h-full flex-col">
                 <div className="flex flex-wrap items-center gap-2 border-b border-border px-6 py-3 text-xs">
                   <span className="rounded-full bg-primary px-3 py-1 font-semibold text-white tabular-nums">Question {index + 1} of {questions.length}</span>
                   <span className="rounded-full bg-soft px-2.5 py-1 font-medium text-muted">{sectionOf(q)}</span>
@@ -706,10 +701,9 @@ export default function Exam({ examId, userId, onSubmitted }: ExamProps) {
           <div className={view === 'browser' ? 'h-full' : 'hidden'}>
             <BrowserTabs
               allowedSites={exam.settings.allowedSites}
-              log={log}
               onLog={handleLog}
-              onAiSite={(url) => report('AI_SITE_OPENED', { message: `An AI assistant site was opened in the sandbox browser (${safeHost(url)}).` })}
-              onAiQuery={(query) => report('AI_QUERY_DETECTED', { message: `A search resembling an AI prompt was detected: “${query.slice(0, 60)}”.` })}
+              onAiSite={(url) => report('AI_SITE_OPENED', { message: `An AI assistant site was opened (${safeHost(url)}).` })}
+              onAiQuery={(query) => report('AI_QUERY_DETECTED', { message: `Typed into an AI assistant or search: "${query.slice(0, 200)}"` })}
             />
           </div>
 
@@ -773,7 +767,7 @@ export default function Exam({ examId, userId, onSubmitted }: ExamProps) {
           <motion.aside initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }} className="fixed bottom-4 left-4 z-40 w-72 rounded-2xl border border-border bg-white p-4 shadow-xl" aria-label="Keyboard shortcuts">
             <div className="flex items-center justify-between"><h2 className="font-heading text-sm font-semibold">Keyboard shortcuts</h2><button type="button" onClick={() => setHelpOpen(false)} aria-label="Close shortcuts" className="rounded p-1 text-muted hover:bg-soft"><X className="h-4 w-4" /></button></div>
             <dl className="mt-3 space-y-1.5 text-xs">
-              {[['← / → or P / N', 'Previous / next question'], ['1 – 9', 'Select option'], ['M', 'Mark for review'], ['C', 'Clear response'], ['Alt + B', 'Toggle sandbox browser'], ['Ctrl + Enter', 'Review & submit'], ['?', 'Show or hide this panel']].map(([k, d]) => (
+              {[['← / → or P / N', 'Previous / next question'], ['1 – 9', 'Select option'], ['M', 'Mark for review'], ['C', 'Clear response'], ['Alt + B', 'Toggle browser'], ['Ctrl + Enter', 'Review & submit'], ['?', 'Show or hide this panel']].map(([k, d]) => (
                 <div key={k} className="flex justify-between gap-3"><dt><kbd className="rounded bg-soft px-1.5 py-0.5 font-mono text-[11px]">{k}</kbd></dt><dd className="text-muted">{d}</dd></div>
               ))}
             </dl>
@@ -814,6 +808,41 @@ function SaveIndicator({ status, at }: { status: SaveStatus; at: number | null }
   }
   const s = map[status]
   return <span role="status" className={`hidden items-center gap-1.5 text-xs font-medium xl:inline-flex ${s.cls}`}>{s.icon}{s.text}</span>
+}
+
+/** Everything is checked and the screen is shared; the exam opens by itself when the countdown ends. */
+function WaitingRoom({ opensAt, onCheck }: { opensAt: number; onCheck: () => Promise<void> }) {
+  const [now, setNow] = useState(() => Date.now())
+  const check = useRef(onCheck)
+  check.current = onCheck
+
+  useEffect(() => {
+    const tick = window.setInterval(() => setNow(Date.now()), 1000)
+    // A regular look at the server picks up a changed start time.
+    const look = window.setInterval(() => void check.current(), 30_000)
+    return () => {
+      window.clearInterval(tick)
+      window.clearInterval(look)
+    }
+  }, [])
+
+  const left = Math.max(0, Math.ceil((opensAt - now) / 1000))
+  useEffect(() => {
+    if (left > 0) return
+    // A small random delay so a full room does not reach the server in the same instant.
+    const id = window.setTimeout(() => void check.current(), 500 + Math.random() * 2000)
+    return () => window.clearTimeout(id)
+  }, [left])
+
+  return (
+    <div className="flex h-full min-h-[700px] flex-col items-center justify-center gap-4 bg-soft p-8 text-center">
+      <span className="inline-flex items-center gap-1.5 rounded-full bg-green-50 px-3 py-1 text-xs font-medium text-success"><Monitor className="h-3.5 w-3.5" aria-hidden /><span className="h-1.5 w-1.5 animate-pulse rounded-full bg-success" aria-hidden /> Screen shared</span>
+      <h1 className="font-heading text-2xl font-semibold text-ink">You are in the waiting room</h1>
+      <p className="max-w-md text-sm text-muted">Stay here. Your exam starts by itself when the timer ends.</p>
+      <p role="timer" aria-live="off" className="rounded-2xl border border-border bg-white px-10 py-6 font-heading text-6xl font-semibold tabular-nums text-primary shadow-sm">{left > 0 ? formatClock(left) : 'Starting…'}</p>
+      <p className="text-xs text-muted">Opens at {new Date(opensAt).toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' })}</p>
+    </div>
+  )
 }
 
 function ExamSkeleton() {

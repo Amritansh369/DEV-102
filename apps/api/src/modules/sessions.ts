@@ -3,14 +3,13 @@ import { z } from 'zod';
 import { fail, handle, must, parse } from '../lib/core.js';
 import { prisma } from '../lib/db.js';
 import { auth, authenticate, candidateOnly } from '../lib/auth.js';
-import { PAUSE_AFTER_MS, examInclude, examStatus, readExtras, resumedDeadline, readOptions, readPolicy, readSettings, toExam, toQuestion, toSession } from '../lib/domain.js';
+import { SUBMIT_GRACE_MS, PAUSE_AFTER_MS, examInclude, examStatus, readExtras, resumedDeadline, readOptions, readPolicy, readSettings, toExam, toQuestion, toSession } from '../lib/domain.js';
 import { finalizeSession } from '../lib/policy.js';
 import { realtime } from '../lib/realtime.js';
 import { sendMail, templates } from '../lib/mailer.js';
 import { notifyResultReady } from '../lib/results.js';
 import { VERIFY_WINDOW_MS } from './auth.js';
 
-const GRACE_MS = 15_000;
 
 /** Loads a session the caller may act on: candidates only their own, staff any. */
 export async function ownSession(req: Request, sessionId: string) {
@@ -120,38 +119,58 @@ sessionsRouter.post('/start', ...candidateOnly, handle(async (req) => {
   if (cand.status === 'SUBMITTED' || cand.status === 'DISQUALIFIED') fail('CONFLICT', 'You have already completed this exam.');
 
   const existing = await prisma.examSession.findFirst({ where: { candidateId: cand.id, status: { in: ['LIVE', 'WAITING'] } } });
-  if (existing) {
-    if (existing.deviceId && a.deviceId && existing.deviceId !== a.deviceId) fail('FORBIDDEN', 'This exam is in progress on another device.');
-    return paper(existing.id);
-  }
+  if (existing?.deviceId && a.deviceId && existing.deviceId !== a.deviceId) fail('FORBIDDEN', 'This exam is in progress on another device.');
+  if (existing?.status === 'LIVE') return paper(existing.id);
 
   const status = examStatus(exam);
-  if (status === 'SCHEDULED' || status === 'DRAFT') fail('CONFLICT', `The exam has not started yet. It opens at ${exam.startsAt.toISOString()}.`);
+  if (status === 'DRAFT') fail('CONFLICT', 'The exam has not been published yet.');
   if (status === 'COMPLETED') fail('CONFLICT', 'The exam window has closed.');
   const extras = readExtras(exam.extras, exam.title);
-  if (extras.lateEntryMin > 0 && Date.now() > exam.startsAt.getTime() + extras.lateEntryMin * 60_000) {
+  // A candidate in the waiting room came on time, however long the room took to open.
+  if (!existing && status === 'LIVE' && extras.lateEntryMin > 0 && Date.now() > exam.startsAt.getTime() + extras.lateEntryMin * 60_000) {
     fail('CONFLICT', `Late entry closed ${extras.lateEntryMin} minutes after the start.`);
   }
 
   const since = new Date(Date.now() - VERIFY_WINDOW_MS);
-  const otp = await prisma.otpCode.findFirst({ where: { subjectId: cand.id, consumedAt: { gte: since } } });
-  if (!otp) fail('FORBIDDEN', 'Verify the one-time code sent to your email before starting.');
-  if (!cand.faceVerifiedAt || cand.faceVerifiedAt < since) fail('FORBIDDEN', 'Complete face verification before starting.');
+  const otp = existing ? null : await prisma.otpCode.findFirst({ where: { subjectId: cand.id, consumedAt: { gte: since } } });
+  if (!existing) {
+    if (!otp) fail('FORBIDDEN', 'Verify the one-time code sent to your email before starting.');
+    if (!cand.faceVerifiedAt || cand.faceVerifiedAt < since) fail('FORBIDDEN', 'Complete face verification before starting.');
+  }
+
+  if (status === 'SCHEDULED') {
+    // Inside the check-in window the candidate joins the room, so the proctor sees who has arrived. No questions until it opens.
+    const inRoom = Date.now() >= exam.startsAt.getTime() - extras.checkInMin * 60_000;
+    if (inRoom && !existing) {
+      const waiting = await prisma.examSession.create({
+        data: {
+          candidateId: cand.id, examId: exam.id, status: 'WAITING', deviceId: a.deviceId ?? null, consentAt: new Date(),
+          faceVerifiedAt: cand.faceVerifiedAt, faceScore: cand.faceScore, otpVerifiedAt: otp?.consumedAt ?? null,
+          questionOrder: [], deadlineAt: exam.endsAt, lastHeartbeatAt: new Date(),
+        },
+      });
+      realtime.toExam(exam.id, 'session:status', { session: toSession(waiting), candidateName: cand.name, userId: cand.userId, reason: 'WAITING' });
+    }
+    fail('CONFLICT', 'The exam has not started yet.', { waiting: true, startsAt: exam.startsAt.toISOString(), serverTime: new Date().toISOString() });
+  }
 
   const settings = readSettings(exam.settings);
   const qs = await prisma.question.findMany({ where: { examId: exam.id }, orderBy: { position: 'asc' }, select: { id: true } });
   if (qs.length === 0) fail('CONFLICT', 'This exam has no questions yet.');
   const ids = qs.map((q) => q.id);
   const now = Date.now();
-  const session = await prisma.examSession.create({
-    data: {
-      candidateId: cand.id, examId: exam.id, status: 'LIVE', deviceId: a.deviceId ?? null, consentAt: new Date(now),
-      faceVerifiedAt: cand.faceVerifiedAt, faceScore: cand.faceScore, otpVerifiedAt: otp!.consumedAt,
-      questionOrder: settings.shuffle ? shuffle(ids) : ids,
-      deadlineAt: new Date(Math.min(now + exam.durationMin * 60_000, exam.endsAt.getTime())),
-      lastHeartbeatAt: new Date(now),
-    },
-  });
+  const live = {
+    status: 'LIVE' as const, startedAt: new Date(now), questionOrder: settings.shuffle ? shuffle(ids) : ids,
+    deadlineAt: new Date(Math.min(now + exam.durationMin * 60_000, exam.endsAt.getTime())), lastHeartbeatAt: new Date(now),
+  };
+  const session = existing
+    ? await prisma.examSession.update({ where: { id: existing.id }, data: live })
+    : await prisma.examSession.create({
+        data: {
+          ...live, candidateId: cand.id, examId: exam.id, deviceId: a.deviceId ?? null, consentAt: new Date(now),
+          faceVerifiedAt: cand.faceVerifiedAt, faceScore: cand.faceScore, otpVerifiedAt: otp?.consumedAt ?? null,
+        },
+      });
   await prisma.riskPoint.create({ data: { sessionId: session.id, score: 0 } });
   await prisma.candidate.update({ where: { id: cand.id }, data: { status: 'IN_EXAM' } });
   realtime.toExam(exam.id, 'session:status', { session: toSession(session), candidateName: cand.name, userId: cand.userId, reason: 'STARTED' });
@@ -171,7 +190,7 @@ sessionsRouter.get('/:id/questions', ...candidateOnly, handle(async (req) => {
 sessionsRouter.put('/:id/answers', ...candidateOnly, handle(async (req) => {
   const s = await resumeIfPaused(await ownSession(req, String(req.params.id)));
   const body = parse(z.object({ answers: answersSchema, values: valuesSchema.optional(), flagged: z.array(z.string().max(64)).max(2000).optional() }), req.body);
-  if (s.status !== 'LIVE' || Date.now() > s.deadlineAt.getTime() + GRACE_MS) fail('CONFLICT', 'This exam has ended. Answers can no longer be changed.', { status: s.status });
+  if (s.status !== 'LIVE' || Date.now() > s.deadlineAt.getTime() + SUBMIT_GRACE_MS) fail('CONFLICT', 'This exam has ended. Answers can no longer be changed.', { status: s.status });
   const r = await saveAnswers(s.id, s.questionOrder, body.answers, body.flagged, body.values);
   realtime.toExam(s.examId, 'session:progress', { sessionId: s.id, progress: r.progress });
   return { savedAt: new Date().toISOString(), count: r.count, progress: r.progress, remainingSec: remainingSec(s.deadlineAt) };
@@ -193,7 +212,7 @@ sessionsRouter.post('/:id/submit', ...candidateOnly, handle(async (req) => {
     flagged: z.array(z.string().max(64)).max(2000).optional(),
     reason: z.enum(['MANUAL', 'TIME_UP']).default('MANUAL'),
   }), req.body ?? {});
-  if (s.status === 'LIVE' && (body.answers || body.values) && Date.now() <= s.deadlineAt.getTime() + GRACE_MS) {
+  if (s.status === 'LIVE' && (body.answers || body.values) && Date.now() <= s.deadlineAt.getTime() + SUBMIT_GRACE_MS) {
     await saveAnswers(s.id, s.questionOrder, body.answers ?? {}, body.flagged, body.values);
   }
   const done = await finalizeSession(s.id, s.status === 'LIVE' ? body.reason : (s.submitReason ?? body.reason));

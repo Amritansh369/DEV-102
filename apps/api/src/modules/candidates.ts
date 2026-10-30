@@ -7,6 +7,7 @@ import { prisma } from '../lib/db.js';
 import { adminOnly, audit, staff } from '../lib/auth.js';
 import { decrypt, encrypt, hashPassword, randomPassword } from '../lib/crypto.js';
 import { inviteStatus, toCandidate } from '../lib/domain.js';
+import { gravatarUrl, mailDomainOk } from '../lib/email-check.js';
 import { renderTemplate, sendMail, templates } from '../lib/mailer.js';
 import { issueInvite } from './invites.js';
 
@@ -50,24 +51,17 @@ async function issuePassword(c: Pick<Candidate, 'id'>): Promise<string> {
 }
 
 /**
- * After a candidate's link is emailed, the organization (the exam's creator, else every admin) and every
- * proctor invited to the exam get a copy with the same link and password. A failed copy never fails the send.
+ * After a candidate's link is emailed, the organization (the exam's creator, else every admin) gets a copy
+ * with the same link and password. Proctors never do: they only get their own proctor link.
+ * A failed copy never fails the send.
  */
-async function copyToStaff(c: Candidate & { exam: { id: string; title: string; code: string; createdById: string | null } }, link: string, password: string, startTime: string) {
-  const [creator, admins, proctors] = await Promise.all([
+async function copyToOrganization(c: Candidate & { exam: { title: string; code: string; createdById: string | null } }, link: string, password: string, startTime: string) {
+  const [creator, admins] = await Promise.all([
     c.exam.createdById ? prisma.user.findFirst({ where: { id: c.exam.createdById, deletedAt: null }, select: { email: true, name: true } }) : null,
     prisma.user.findMany({ where: { role: 'ADMIN', deletedAt: null }, select: { email: true, name: true } }),
-    prisma.invite.findMany({
-      where: { examId: c.exam.id, role: 'MENTOR', revokedAt: null, expiresAt: { gt: new Date() } },
-      select: { user: { select: { email: true, name: true, deletedAt: true } } },
-    }),
   ]);
-  const organization = creator ? [creator] : admins;
-  const to = new Map<string, { name: string; role: 'organization' | 'proctor' }>();
-  for (const u of organization) to.set(u.email, { name: u.name, role: 'organization' });
-  for (const p of proctors) if (p.user && !p.user.deletedAt && !to.has(p.user.email)) to.set(p.user.email, { name: p.user.name, role: 'proctor' });
-  await Promise.all([...to].map(([email, who]) =>
-    sendMail({ to: email, ...templates.credentialsCopy(who.name, who.role, { name: c.name, email: c.email, userId: c.userId }, c.exam.title, c.exam.code, startTime, link, password), kind: 'credentials_copy', candidateId: c.id })
+  await Promise.all((creator ? [creator] : admins).map((u) =>
+    sendMail({ to: u.email, ...templates.credentialsCopy(u.name, { name: c.name, email: c.email, userId: c.userId }, c.exam.title, c.exam.code, startTime, link, password), kind: 'credentials_copy', candidateId: c.id })
       .catch(() => undefined)));
 }
 
@@ -88,13 +82,13 @@ async function deliverCredentials(candidateId: string, tpl: { subject?: string |
   const body = tpl.body && !tpl.body.includes('{{inviteLink}}') ? `${tpl.body}
 
 Your exam link: {{inviteLink}}` : tpl.body || DEFAULT_BODY;
-  const mail = templates.credentials(renderTemplate(tpl.subject || DEFAULT_SUBJECT, vars), renderTemplate(body, vars));
+  const mail = templates.credentials(renderTemplate(tpl.subject || DEFAULT_SUBJECT, vars), renderTemplate(body, vars), vars);
   const r = await sendMail({ to: c.email, ...mail, kind: 'credentials', candidateId: c.id });
   await prisma.candidate.update({
     where: { id: c.id },
     data: { emailStatus: r.ok ? 'SENT' : 'FAILED', ...(r.ok && c.status === 'INVITED' ? { status: 'EMAILED' } : {}) },
   });
-  if (r.ok) await copyToStaff(c, invite.link, password, vars.startTime);
+  if (r.ok) await copyToOrganization(c, invite.link, password, vars.startTime);
   return {
     candidateId, emailStatus: r.ok ? ('SENT' as const) : ('FAILED' as const), ...(r.error ? { error: r.error } : {}),
     // Development only: with no SMTP configured the link is returned so the flow can be tested locally.
@@ -117,7 +111,7 @@ async function pool<T, R>(items: T[], size: number, fn: (item: T) => Promise<R>)
   return out;
 }
 
-const credentialRow = (c: Candidate, examCode: string, password: string) => ({ candidateId: c.id, name: c.name, email: c.email, examCode, userId: c.userId, password });
+const credentialRow = (c: Candidate, examCode: string, password: string) => ({ candidateId: c.id, name: c.name, email: c.email, examCode, userId: c.userId, password, avatarUrl: gravatarUrl(c.email) });
 
 export const candidatesRouter = Router();
 
@@ -151,14 +145,25 @@ candidatesRouter.post('/exams/:id/candidates/import', ...adminOnly, handle(async
   const fresh: { name: string; email: string }[] = [];
   const existing = new Set((await prisma.candidate.findMany({ where: { examId: exam.id }, select: { email: true } })).map((c) => c.email));
   let duplicates = 0;
+  const rowOf = new Map<string, number>();
   rows.forEach((r, i) => {
     const name = r.name.trim();
     const email = r.email.trim().toLowerCase();
     if (name.length < 2) invalid.push({ row: i + 1, message: 'Name is required.' });
     else if (!emailOk.safeParse(email).success) invalid.push({ row: i + 1, message: `"${r.email}" is not a valid email.` });
     else if (existing.has(email)) duplicates++;
-    else { existing.add(email); fresh.push({ name, email }); }
+    else { existing.add(email); fresh.push({ name, email }); rowOf.set(email, i + 1); }
   });
+  // Drop addresses whose domain cannot receive mail (typos like gmial.com). An unanswered DNS lookup lets the row through.
+  const domains = [...new Set(fresh.map((f) => f.email.split('@')[1] as string))].slice(0, 200);
+  const dead = new Set((await Promise.all(domains.map(async (d) => ((await mailDomainOk(`x@${d}`)) === false ? d : null)))).filter(Boolean));
+  if (dead.size) {
+    for (const f of fresh.filter((x) => dead.has(x.email.split('@')[1] as string))) {
+      invalid.push({ row: rowOf.get(f.email) as number, message: `"${f.email}" cannot receive email: its domain does not exist or accepts no mail.` });
+    }
+    fresh.splice(0, fresh.length, ...fresh.filter((x) => !dead.has(x.email.split('@')[1] as string)));
+    invalid.sort((a, b) => a.row - b.row);
+  }
   const ids = await nextUserIds(fresh.length);
   const passwords = fresh.map(() => randomPassword());
   const hashes: string[] = [];

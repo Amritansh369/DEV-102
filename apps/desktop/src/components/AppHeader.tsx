@@ -153,13 +153,13 @@ export function AppHeader() {
             )}
           </div>
           <div className="no-drag flex h-12">
-            <button type="button" aria-label="Minimize window" disabled={inExam} onClick={controls.minimize} className="w-11 text-muted transition hover:bg-slate-100 disabled:cursor-not-allowed disabled:opacity-40">
+            <button type="button" aria-label="Minimize window" onClick={controls.minimize} className="w-11 text-muted transition hover:bg-slate-100 disabled:cursor-not-allowed disabled:opacity-40">
               <Minus className="mx-auto h-4 w-4" aria-hidden />
             </button>
-            <button type="button" aria-label={controls.maximized ? 'Restore window' : 'Maximize window'} disabled={inExam} onClick={controls.toggleMaximize} className="w-11 text-muted transition hover:bg-slate-100 disabled:cursor-not-allowed disabled:opacity-40">
+            <button type="button" aria-label={controls.maximized ? 'Restore window' : 'Maximize window'} onClick={controls.toggleMaximize} className="w-11 text-muted transition hover:bg-slate-100 disabled:cursor-not-allowed disabled:opacity-40">
               {controls.maximized ? <Copy className="mx-auto h-3.5 w-3.5" aria-hidden /> : <Square className="mx-auto h-3.5 w-3.5" aria-hidden />}
             </button>
-            <button type="button" aria-label="Close application" onClick={() => setCloseOpen(true)} className="w-11 text-muted transition hover:bg-danger hover:text-white">
+            <button type="button" aria-label="Close application" onClick={() => (inExam ? void getProctor().window.close() : setCloseOpen(true))} className="w-11 text-muted transition hover:bg-danger hover:text-white">
               <X className="mx-auto h-4 w-4" aria-hidden />
             </button>
           </div>
@@ -171,25 +171,17 @@ export function AppHeader() {
         onClose={() => setCloseOpen(false)}
         size="sm"
         icon={<ShieldCheck className="h-5 w-5" aria-hidden />}
-        title={inExam ? 'You can’t exit during the exam' : 'Close the secure exam browser?'}
-        description={
-          inExam
-            ? 'The app is locked while your exam is running. Submit your exam from the question screen to finish.'
-            : 'You will need to sign in again with your Exam ID and Candidate ID.'
-        }
+        title="Close the secure exam browser?"
+        description="You will need to sign in again with your Exam ID and Candidate ID."
         footer={
-          inExam ? (
-            <Button onClick={() => setCloseOpen(false)}>Back to exam</Button>
-          ) : (
-            <>
-              <Button variant="ghost" onClick={() => setCloseOpen(false)}>
-                Stay
-              </Button>
-              <Button variant="danger" onClick={controls.close}>
-                Close app
-              </Button>
-            </>
-          )
+          <>
+            <Button variant="ghost" onClick={() => setCloseOpen(false)}>
+              Stay
+            </Button>
+            <Button variant="danger" onClick={controls.close}>
+              Close app
+            </Button>
+          </>
         }
       />
     </>

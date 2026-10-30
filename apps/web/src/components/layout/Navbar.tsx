@@ -181,7 +181,7 @@ export function Navbar() {
         scrolled ? 'border-border shadow-card' : 'border-transparent',
       )}
     >
-      <nav aria-label="Primary" className="mx-auto flex h-[72px] max-w-7xl items-center justify-between gap-6 px-4 sm:px-6 lg:px-8">
+      <nav aria-label="Primary" className="mx-auto flex h-[72px] max-w-7xl items-center justify-between gap-3 xl:gap-6 px-4 sm:px-6 lg:px-8">
         <BrandMark />
 
         <ul className="hidden items-center gap-1 lg:flex">
@@ -193,7 +193,7 @@ export function Navbar() {
                   href={l.href}
                   aria-current={active ? 'page' : undefined}
                   className={cn(
-                    'relative rounded-lg px-3.5 py-2 text-sm font-semibold transition focus-ring',
+                    'relative whitespace-nowrap rounded-lg px-2.5 py-2 text-sm font-semibold transition focus-ring xl:px-3.5',
                     active ? 'bg-primary-50 text-primary-600' : 'text-ink/75 hover:bg-primary-50/70 hover:text-primary',
                   )}
                 >

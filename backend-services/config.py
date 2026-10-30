@@ -23,7 +23,11 @@ class Settings:
     agent_key: str = os.getenv("AGENT_API_KEY", "dev-agent-key")
     llm_api_key: str = os.getenv("LLM_API_KEY", "")
     llm_model: str = os.getenv("LLM_MODEL", "") or "claude-sonnet-5-5"
-    llm_base_url: str = os.getenv("LLM_BASE_URL", "https://api.anthropic.com")
+    llm_base_url: str = os.getenv("LLM_BASE_URL", "") or "https://api.anthropic.com"
+    # Optional second provider, tried when the first is rate-limited or failing (free tiers run out fast).
+    llm_fallback_api_key: str = os.getenv("LLM_FALLBACK_API_KEY", "")
+    llm_fallback_model: str = os.getenv("LLM_FALLBACK_MODEL", "")
+    llm_fallback_base_url: str = os.getenv("LLM_FALLBACK_BASE_URL", "")
     models_dir: Path = ROOT / "models"
 
     # Rules. Webcam frames arrive every second, so timers accumulate across frames per session.
@@ -32,6 +36,8 @@ class Settings:
     yaw_limit_deg: float = _f("YAW_LIMIT_DEG", 28.0)
     pitch_limit_deg: float = _f("PITCH_LIMIT_DEG", 22.0)
     iris_offset_limit: float = _f("IRIS_OFFSET_LIMIT", 0.32)
+    # Eyelid gap as a share of the eye's width; a wide smile still sits above this, closed eyes below it.
+    eye_open_ratio: float = _f("EYE_OPEN_RATIO", 0.09)
     match_threshold: float = _f("FACE_MATCH_THRESHOLD", 0.363)
     mismatch_frames: int = int(_f("FACE_MISMATCH_FRAMES", 2))
     dark_mean: float = _f("CAMERA_DARK_MEAN", 28.0)
@@ -48,6 +54,10 @@ class Settings:
     # watch- and button-sized misreads that score as high.
     phone_min_score: float = _f("PHONE_MIN_SCORE", 0.35)
     phone_min_area: float = _f("PHONE_MIN_AREA", 0.02)
+    # A confident hit counts even when small: a phone in the hand or on the desk is often under 1% of
+    # the frame, while misreads on phone-free test portraits never scored above 0.4.
+    phone_strong_score: float = _f("PHONE_STRONG_SCORE", 0.5)
+    phone_strong_min_area: float = _f("PHONE_STRONG_MIN_AREA", 0.004)
     phone_frames: int = int(_f("PHONE_FRAMES", 1))
     notes_min_score: float = _f("NOTES_MIN_SCORE", 0.4)
     notes_frames: int = int(_f("NOTES_FRAMES", 2))
@@ -58,7 +68,7 @@ class Settings:
 
     @property
     def llm_enabled(self) -> bool:
-        return bool(self.llm_api_key)
+        return bool(self.llm_api_key or self.llm_fallback_api_key)
 
 
 settings = Settings()

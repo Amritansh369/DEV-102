@@ -272,7 +272,7 @@ function SettingsTab({ d, onSaved }: { d: Loaded; onSaved: (exam: Exam, policy: 
         <Toggle checked={settings.shuffle} onChange={(v) => setSettings({ ...settings, shuffle: v })} label="Shuffle questions and options" disabled={readOnly} />
         <Toggle checked={settings.negativeMarking} onChange={(v) => setSettings({ ...settings, negativeMarking: v })} label="Negative marking" disabled={readOnly} />
         <Toggle checked={settings.audioMonitoring} onChange={(v) => setSettings({ ...settings, audioMonitoring: v })} label="Audio monitoring" description="Flags talking and a muted microphone. Sound is analysed on the candidate's computer and never recorded or sent." disabled={readOnly} />
-        <Toggle checked={Boolean(settings.proctorOnly)} onChange={(v) => setSettings({ ...settings, proctorOnly: v })} label="Proctor-only alerts" description="Violations only flag to proctors: the candidate sees no warnings and the exam is never ended automatically." disabled={readOnly} />
+        <Toggle checked={Boolean(settings.proctorOnly)} onChange={(v) => setSettings({ ...settings, proctorOnly: v })} label="Proctor-only alerts" description="On by default. The candidate can use anything and sees no warnings; every flag, picture and AI chat goes to the proctor, who can deduct marks. Off: warnings and auto-submit apply." disabled={readOnly} />
         <Toggle checked={Boolean(settings.oneWay)} onChange={(v) => setSettings({ ...settings, oneWay: v })} label="One-way questions" description="Questions are answered in order; a candidate cannot go back after Next." disabled={readOnly} />
         <Toggle checked={Boolean(settings.liveAudio)} onChange={(v) => setSettings({ ...settings, liveAudio: v })} label="Live microphone to proctors" description="Proctors watching the screen can also listen live. Nothing is recorded; candidates are told on the consent screen." disabled={readOnly} />
         <div>
@@ -283,7 +283,7 @@ function SettingsTab({ d, onSaved }: { d: Loaded; onSaved: (exam: Exam, policy: 
           </div>
           {siteErr && <p role="alert" className="mt-1.5 text-xs font-medium text-danger">{siteErr}</p>}
           <div className="mt-3 flex flex-wrap gap-2">
-            {settings.allowedSites.length === 0 && <span className="text-xs text-muted">No extra sites are allowed.</span>}
+            {settings.allowedSites.length === 0 && <span className="text-xs text-muted">No sites are suggested.</span>}
             {settings.allowedSites.map((s) => <span key={s} className="inline-flex items-center gap-1.5 rounded-full bg-primary/10 px-3 py-1 text-xs font-semibold text-primary">{s}{!readOnly && <button type="button" aria-label={`Remove ${s}`} onClick={() => setSettings({ ...settings, allowedSites: settings.allowedSites.filter((x) => x !== s) })} className="rounded-full outline-none hover:text-danger focus-visible:ring-2 focus-visible:ring-accent">×</button>}</span>)}
           </div>
         </div>

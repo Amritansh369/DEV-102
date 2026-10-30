@@ -99,6 +99,8 @@ export interface Violation {
   message: string;
   evidenceUrl?: string;
   reviewed?: 'CONFIRMED' | 'OVERRULED';
+  /** Marks taken off when this flag was confirmed. */
+  penaltyMarks?: number;
 }
 
 export interface BrowsingLog {
@@ -108,6 +110,8 @@ export interface BrowsingLog {
   url: string;
   title: string;
   query?: string;
+  /** What the AI assistant answered to `query`. */
+  reply?: string;
   flaggedAi: boolean;
 }
 
@@ -223,18 +227,6 @@ export interface DetectedApp {
   pid: number;
 }
 
-export interface SystemReport {
-  os: string;
-  cameraOk: boolean;
-  micLevel: number; // 0-1
-  networkMbps: number;
-  latencyMs: number;
-  blacklistedApps: DetectedApp[];
-  displays: DisplayInfo[];
-  vmDetected: boolean;
-  remoteDesktop: boolean;
-}
-
 export interface ScreenShareResult {
   ok: boolean;
   surface: 'monitor' | 'window' | 'browser' | 'unknown';
@@ -251,7 +243,7 @@ export interface ProctorEvent {
 /** Bridge exposed by the Electron preload script as window.proctor. */
 export interface ProctorApi {
   readonly native: boolean;
-  /** Development build: no kiosk lock, native guards or blocking system checks. */
+  /** Development build: no native guards. */
   readonly relaxed: boolean;
   window: {
     minimize(): Promise<void>;
@@ -260,21 +252,11 @@ export interface ProctorApi {
     isMaximized(): Promise<boolean>;
     onMaximizeChange(cb: (maximized: boolean) => void): () => void;
   };
-  system: {
-    scan(): Promise<SystemReport>;
-    closeApps(ids: string[]): Promise<string[]>;
-  };
-  listBlacklistedApps(): Promise<DetectedApp[]>;
-  closeApp(pid: number): Promise<void>;
-  getDisplays(): Promise<{ count: number; mirrored: boolean }>;
-  detectVm(): Promise<{ vm: boolean; remote: boolean; detail: string }>;
-  enterKiosk(): Promise<void>;
-  exitKiosk(): Promise<void>;
   onEvent(cb: (event: ProctorEvent) => void): () => void;
-  kiosk: {
-    enter(): Promise<void>;
-    exit(): Promise<void>;
-    isActive(): boolean;
+  /** Tells the app an exam is running: leaving or closing the window is reported from then on. */
+  exam: {
+    start(): Promise<void>;
+    stop(): Promise<void>;
   };
   screen: {
     requestEntireScreen(): Promise<ScreenShareResult>;
@@ -290,18 +272,15 @@ export interface ProctorApi {
  * What the Electron preload exposes as window.proctor. Screen sharing stays in the renderer
  * (getDisplayMedia, auto-routed to the entire screen by the main process), so it is not here.
  */
-export interface NativeBridge extends Omit<ProctorApi, 'screen' | 'system'> {
+export interface NativeBridge extends Omit<ProctorApi, 'screen'> {
   readonly native: true;
   deviceId(): Promise<string>;
-  /** `capture` returns a JPEG data URL of the exam window, sandbox tabs included, or null. */
-  window: ProctorApi['window'] & { capture(): Promise<string | null> };
+  /** A JPEG data URL per connected display, whichever one is being streamed. */
+  captureScreens(): Promise<string[]>;
   /** Titles of other programs' visible windows (Windows only); a browser's title is its active tab. */
   windowTitles(): Promise<{ app: string; title: string }[]>;
-  system: { closeApps(ids: string[]): Promise<string[]> };
   guards: { start(): Promise<void>; stop(): Promise<void> };
-  sandbox: { setPolicy(allowedSites: string[]): Promise<void> };
   store: { get<T = unknown>(key: string): Promise<T | null>; set(key: string, value: unknown): Promise<void>; del(key: string): Promise<void> };
-  clipboard: { clear(): Promise<void> };
   onDeepLink(cb: (url: string) => void): () => void;
 }
 

@@ -65,6 +65,7 @@ class FaceVerifyResult(BaseModel):
     similarity: float
     faces: int
     liveness: bool
+    eyesOpen: bool | None = None
 
 
 class RiskResult(BaseModel):

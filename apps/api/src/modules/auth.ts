@@ -1,5 +1,4 @@
 import { Router } from 'express';
-import { readFile, writeFile, mkdir } from 'node:fs/promises';
 import { z } from 'zod';
 import type { Prisma } from '@prisma/client';
 import { config } from '../config.js';
@@ -8,7 +7,7 @@ import { prisma } from '../lib/db.js';
 import { auth, authenticate, requireRole, signToken } from '../lib/auth.js';
 import { hashOtp, hashPassword, randomOtp, safeEqual, sha256, verifyPassword } from '../lib/crypto.js';
 import { INVITE_TOKEN, examInclude, inviteStatus, toExam } from '../lib/domain.js';
-import { decodeImage, evidencePath } from '../lib/evidence.js';
+import { decodeImage, readFacePhoto, saveFacePhoto } from '../lib/evidence.js';
 import { agent } from '../lib/agent.js';
 import { maskEmail, sendMail, templates } from '../lib/mailer.js';
 import { recordViolation } from '../lib/policy.js';
@@ -201,6 +200,27 @@ authRouter.get('/me', authenticate, handle(async (req) => {
   return { id: u.id, name: u.name, email: u.email, role: u.role };
 }));
 
+/** Staff edit their own account from the settings page. */
+authRouter.patch('/profile', authenticate, requireRole('ADMIN', 'MENTOR'), handle(async (req) => {
+  const { name } = parse(z.object({ name: z.string().trim().min(2, 'Enter your name.').max(120) }), req.body);
+  const u = await prisma.user.update({ where: { id: auth(req).sub }, data: { name } });
+  return { id: u.id, name: u.name, email: u.email, role: u.role };
+}));
+
+/** Changing the password signs out every other device; the returned token keeps this one signed in. */
+authRouter.post('/change-password', authenticate, requireRole('ADMIN', 'MENTOR'), limits.auth, handle(async (req) => {
+  const body = parse(z.object({ current: z.string().min(1).max(128), next: z.string().min(10, 'Use at least 10 characters.').max(128) }), req.body);
+  const a = auth(req);
+  const user = must(await prisma.user.findFirst({ where: { id: a.sub, deletedAt: null } }), 'User');
+  if (!(await verifyPassword(body.current, user.passwordHash))) fail('VALIDATION', 'Your current password is not correct.');
+  const updated = await prisma.user.update({ where: { id: user.id }, data: { passwordHash: await hashPassword(body.next), tokenVersion: { increment: 1 } } });
+  await prisma.auditLog.create({ data: { actorId: user.id, actorRole: user.role, action: 'auth.change_password', ip: req.ip ?? null } });
+  return { token: signToken({ sub: a.sub, role: a.role, tv: updated.tokenVersion, ...(a.examId ? { examId: a.examId } : {}) }) };
+}));
+
+/** ICE servers for the live screen view; signed-in only, because the TURN credential lets anyone relay traffic. */
+authRouter.get('/ice-servers', authenticate, handle(async () => ({ iceServers: config.iceServers })));
+
 authRouter.post('/logout', authenticate, handle(async (req) => {
   const a = auth(req);
   if (a.role === 'CANDIDATE') await prisma.candidate.update({ where: { id: a.sub }, data: { tokenVersion: { increment: 1 } } });
@@ -265,20 +285,19 @@ authRouter.post('/face/verify', authenticate, requireRole('CANDIDATE', 'MENTOR')
   const subject = a.role === 'CANDIDATE'
     ? must(await prisma.candidate.findUnique({ where: { id: a.sub } }), 'Candidate')
     : must(await prisma.user.findUnique({ where: { id: a.sub } }), 'User');
-  const registered = subject.photoPath ? (await readFile(evidencePath(subject.photoPath)).catch(() => null))?.toString('base64') ?? null : null;
+  const registered = (await readFacePhoto(subject.id, subject.photoPath))?.toString('base64') ?? null;
   const r = await agent.faceMatch(img.buffer.toString('base64'), registered);
   if (!r.degraded && r.faces !== 1) {
     return { passed: false, matchScore: 0, livenessOk: r.liveness, faces: r.faces, reason: r.faces === 0 ? 'No face found. Centre your face in the frame.' : 'More than one face is visible. Only you should be in view.' };
   }
+  // The first photo becomes the proctor's profile picture, so it has to show the candidate with open eyes.
+  if (!r.degraded && !registered && r.eyesOpen === false) {
+    return { passed: false, matchScore: 0, livenessOk: r.liveness, faces: r.faces, reason: 'Keep your eyes open and look at the camera for your photo.' };
+  }
   const passed = r.degraded ? true : registered ? r.match : true;
   if (passed) {
-    let photoPath = subject.photoPath;
-    if (!photoPath) {
-      // First verification registers the reference photo used for FACE_MISMATCH checks during the exam.
-      await mkdir(config.evidenceDir, { recursive: true });
-      photoPath = a.role === 'CANDIDATE' ? `face_${subject.id}.jpg` : `face_staff_${subject.id}.jpg`;
-      await writeFile(evidencePath(photoPath), img.buffer, { mode: 0o600 });
-    }
+    // First verification registers the reference photo used as the profile picture and for FACE_MISMATCH checks.
+    const photoPath = registered ? subject.photoPath : await saveFacePhoto(subject.id, img.buffer);
     if (a.role === 'CANDIDATE') await prisma.candidate.update({ where: { id: subject.id }, data: { photoPath, faceVerifiedAt: new Date(), faceScore: r.similarity } });
     else await prisma.user.update({ where: { id: subject.id }, data: { photoPath, faceVerifiedAt: new Date() } });
   }

@@ -3,7 +3,7 @@ import { config } from '../config.js';
 import { sendAlert } from './alerts.js';
 import { logger } from './core.js';
 import { prisma } from './db.js';
-import { SEVERITY_RANK, VIOLATION_META, readExtras, readPolicy, readSettings, scoreAnswers, toSession, toViolation } from './domain.js';
+import { SEVERITY_RANK, VIOLATION_META, readExtras, readPolicy, readSettings, scoreAnswers, toSession, toViolation, type ViolationPolicy } from './domain.js';
 import { signEvidenceUrl } from './evidence.js';
 import { realtime } from './realtime.js';
 import { randomToken } from './crypto.js';
@@ -44,6 +44,13 @@ export async function recomputeRisk(sessionId: string): Promise<number> {
   return risk;
 }
 
+/** Whether the same event was already recorded inside the exam's cooldown, so it would be suppressed. */
+export async function inCooldown(session: { id: string; exam: { policy: unknown } }, code: ViolationCode, at = new Date(), policy: ViolationPolicy = readPolicy(session.exam.policy)): Promise<boolean> {
+  if (policy.cooldownSec <= 0) return false;
+  const recent = await prisma.violation.findFirst({ where: { sessionId: session.id, code, at: { gte: new Date(at.getTime() - policy.cooldownSec * 1000) } }, select: { id: true } });
+  return Boolean(recent);
+}
+
 /**
  * Policy engine. Applies the exam's ViolationPolicy to one event:
  * cooldown suppression → risk → immediate auto-submit on CRITICAL → warnings up to maxWarnings →
@@ -64,12 +71,7 @@ export async function recordViolation(input: RecordInput): Promise<RecordResult>
     return { outcome: 'LOGGED', violationId: null, warnings: session.warnings, maxWarnings, riskScore: session.riskScore, status: session.status };
   }
 
-  const recent = policy.cooldownSec > 0
-    ? await prisma.violation.findFirst({
-        where: { sessionId: session.id, code: input.code, at: { gte: new Date(at.getTime() - policy.cooldownSec * 1000) } },
-        select: { id: true },
-      })
-    : null;
+  const recent = await inCooldown(session, input.code, at, policy);
 
   let outcome: Outcome = 'LOGGED';
   let warnings = session.warnings;
@@ -122,6 +124,31 @@ export async function recordViolation(input: RecordInput): Promise<RecordResult>
   return { outcome, violationId: v.id, warnings, maxWarnings, riskScore, status };
 }
 
+type ScoredSession = Pick<ExamSession, 'examId'> & { exam: { settings: unknown; extras: unknown; title: string }; answers: { questionId: string; optionIds: string[]; value: number | null }[] };
+
+/** Marks earned from the answers, before any deduction for violations. */
+async function grossScore(s: ScoredSession): Promise<number> {
+  const questions = await prisma.question.findMany({ where: { examId: s.examId }, select: { id: true, marks: true, correctIds: true, type: true, answerKey: true } });
+  const settings = readSettings(s.exam.settings);
+  const extras = readExtras(s.exam.extras, s.exam.title);
+  const values = new Map(s.answers.flatMap((a) => (a.value === null ? [] : [[a.questionId, a.value] as const])));
+  return scoreAnswers(questions, new Map(s.answers.map((a) => [a.questionId, a.optionIds])), { enabled: settings.negativeMarking, value: extras.negativeValue }, values).score;
+}
+
+const confirmedPenalties = async (sessionId: string): Promise<number> =>
+  (await prisma.violation.aggregate({ where: { sessionId, reviewed: 'CONFIRMED' }, _sum: { penaltyMarks: true } }))._sum.penaltyMarks ?? 0;
+
+/** Marks after deductions; never below zero. */
+export const netScore = (gross: number, penaltyMarks: number): number => Math.max(0, Math.round((gross - penaltyMarks) * 100) / 100);
+
+/** Brings a session's deduction, and its score once it has ended, in line with the proctor's reviews. */
+export async function applyPenalties(sessionId: string): Promise<void> {
+  const s = await prisma.examSession.findUniqueOrThrow({ where: { id: sessionId }, include: { exam: true, answers: true } });
+  const penaltyMarks = await confirmedPenalties(sessionId);
+  const ended = s.status === 'SUBMITTED' || s.status === 'TERMINATED';
+  await prisma.examSession.update({ where: { id: sessionId }, data: { penaltyMarks, ...(ended ? { score: netScore(await grossScore(s), penaltyMarks) } : {}) } });
+}
+
 /**
  * Ends a session: scores the saved answers, sets the receipt and statuses, and notifies both sides.
  * Idempotent: a session that already ended is returned unchanged.
@@ -129,16 +156,13 @@ export async function recordViolation(input: RecordInput): Promise<RecordResult>
 export async function finalizeSession(sessionId: string, reason: SubmitReason, opts: { disqualify?: boolean } = {}) {
   const s = await prisma.examSession.findUniqueOrThrow({ where: { id: sessionId }, include: { exam: true, answers: true } });
   if (s.status === 'SUBMITTED' || s.status === 'TERMINATED') return s;
-  const questions = await prisma.question.findMany({ where: { examId: s.examId }, select: { id: true, marks: true, correctIds: true, type: true, answerKey: true } });
-  const settings = readSettings(s.exam.settings);
-  const extras = readExtras(s.exam.extras, s.exam.title);
-  const values = new Map(s.answers.flatMap((a) => (a.value === null ? [] : [[a.questionId, a.value] as const])));
-  const { score } = scoreAnswers(questions, new Map(s.answers.map((a) => [a.questionId, a.optionIds])), { enabled: settings.negativeMarking, value: extras.negativeValue }, values);
+  const penaltyMarks = await confirmedPenalties(sessionId);
+  const score = netScore(await grossScore(s), penaltyMarks);
   const terminated = opts.disqualify || reason === 'TERMINATED_BY_MENTOR';
   const updated = await prisma.examSession.update({
     where: { id: sessionId },
     data: {
-      status: terminated ? 'TERMINATED' : 'SUBMITTED', submitReason: reason, submittedAt: new Date(), score,
+      status: terminated ? 'TERMINATED' : 'SUBMITTED', submitReason: reason, submittedAt: new Date(), score, penaltyMarks,
       receiptId: s.receiptId ?? `RCPT-${randomToken(4).toUpperCase()}`, progress: terminated ? s.progress : 100,
     },
   });

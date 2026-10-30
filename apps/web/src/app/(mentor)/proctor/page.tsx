@@ -438,7 +438,7 @@ function DashboardView({ initial }: { initial: MentorDashboardData }) {
                         </td>
                         <td className="px-4 py-3">
                           <div className="flex items-center gap-3">
-                            <Avatar name={candidate.name} size="sm" src={candidate.photoUrl} />
+                            <Avatar name={candidate.name} size="sm" src={candidate.photoUrl ?? candidate.avatarUrl} />
                             <div className="min-w-0">
                               <Link href={`/proctor/sessions/${session.id}`} className={`rounded text-sm font-semibold text-slate-900 hover:text-primary-600 hover:underline ${focusRing}`}>{candidate.name}</Link>
                               <p className="truncate font-mono text-xs text-slate-500">{candidate.userId}</p>

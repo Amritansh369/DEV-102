@@ -21,6 +21,9 @@ const schema = z.object({
   SMTP_PASS: z.string().default(''),
   // Gmail rejects an unverified From address. When unset, send from SMTP_USER.
   MAIL_FROM: z.string().default(''),
+  /** Brevo HTTPS email API. Render's free plan blocks SMTP ports, so production mail goes through this when set. */
+  BREVO_API_KEY: z.string().default(''),
+  MAIL_FROM_NAME: z.string().default('Where U Elevate'),
   EVIDENCE_DIR: z.string().default('.data/evidence'),
   RETENTION_DAYS: z.coerce.number().int().positive().default(30),
   OTP_TTL_MIN: z.coerce.number().int().positive().default(5),
@@ -28,6 +31,15 @@ const schema = z.object({
   PUBLIC_API_URL: z.string().url().default('http://localhost:4000'),
   /** Chrome extension IDs allowed to call the API; the default is the ID fixed by apps/extension/manifest.json's key. */
   EXTENSION_IDS: z.string().default('fgfompcfejncbbpbipjokoniblfihbnm'),
+  /** TURN relay for the live screen view across networks (comma-separated turn:/turns: URLs). STUN alone fails behind mobile or campus NAT. */
+  /** GitHub "owner/repo" whose Releases hold the desktop installers; used when apps/desktop/release has no local build. */
+  /** Store listings of the extension. When set, the download page's Add button installs in one click. */
+  EXTENSION_CHROME_URL: z.string().url().optional(),
+  EXTENSION_EDGE_URL: z.string().url().optional(),
+  DESKTOP_RELEASE_REPO: z.string().regex(/^$|^[\w.-]+\/[\w.-]+$/).default(''),
+  TURN_URLS: z.string().default(''),
+  TURN_USERNAME: z.string().default(''),
+  TURN_CREDENTIAL: z.string().default(''),
   /** n8n webhook that receives CRITICAL violations and auto-submits. Empty turns alerts off. */
   ALERT_WEBHOOK_URL: z.union([z.literal(''), z.string().url()]).default(''),
   ALERT_WEBHOOK_KEY: z.string().default(''),
@@ -41,6 +53,12 @@ if (!parsed.success) {
 }
 
 const env = parsed.data;
+
+function iceServers(e: typeof env): { urls: string | string[]; username?: string; credential?: string }[] {
+  const stun = { urls: 'stun:stun.l.google.com:19302' };
+  const urls = e.TURN_URLS.split(',').map((s) => s.trim()).filter((u) => /^turns?:/.test(u));
+  return urls.length ? [stun, { urls, username: e.TURN_USERNAME, credential: e.TURN_CREDENTIAL }] : [stun];
+}
 if (env.NODE_ENV === 'production' && ['change_me', 'dev-agent-key'].some((weak) => [env.JWT_SECRET, env.AGENT_API_KEY].includes(weak))) {
   console.error('Refusing to start in production with the default JWT_SECRET or AGENT_API_KEY.');
   process.exit(1);
@@ -48,11 +66,21 @@ if (env.NODE_ENV === 'production' && ['change_me', 'dev-agent-key'].some((weak) 
 
 export const config = {
   ...env,
+  // Evidence and photo links must point at this API; Render knows its own address, so a mistyped setting cannot break them.
+  PUBLIC_API_URL: process.env.RENDER_EXTERNAL_URL || env.PUBLIC_API_URL,
   isProd: env.NODE_ENV === 'production',
   clientOrigins: env.CLIENT_URL.split(',').map((s) => s.trim().replace(/\/+$/, '')).filter(Boolean),
   extensionOrigins: env.EXTENSION_IDS.split(',').map((s) => s.trim()).filter(Boolean).map((id) => `chrome-extension://${id}`),
   evidenceDir: resolve(ROOT_DIR, env.EVIDENCE_DIR),
   smtpEnabled: Boolean(env.SMTP_HOST && env.SMTP_USER && env.SMTP_PASS),
+  /** Every configured mail delivery in the order tried: Brevo, then SMTP. Empty means the dev outbox. */
+  mailProviders: [
+    ...(env.BREVO_API_KEY && (env.MAIL_FROM || env.SMTP_USER) ? ['brevo' as const] : []),
+    ...(env.SMTP_HOST && env.SMTP_USER && env.SMTP_PASS ? ['smtp' as const] : []),
+  ],
+  /** The first configured mail delivery, or null for the dev outbox. */
+  get mailProvider(): 'brevo' | 'smtp' | null { return this.mailProviders[0] ?? null; },
+  iceServers: iceServers(env),
 };
 
 for (const origin of config.clientOrigins) {

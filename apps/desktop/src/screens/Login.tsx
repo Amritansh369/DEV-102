@@ -31,7 +31,7 @@ const FEATURES: Record<Look, [LucideIcon, string][]> = {
   student: [
     [ShieldCheck, 'Encrypted, tamper-aware exam browser'],
     [Video, 'Webcam and screen monitoring during the test'],
-    [Lock, 'Only approved sites open inside the sandbox'],
+    [Lock, 'Face and email verification before the exam'],
   ],
   proctor: [
     [MonitorCheck, 'Live grid of every candidate in your exam'],
@@ -212,7 +212,7 @@ export default function Login({ onLoggedIn }: LoginProps) {
       <div className="relative grid h-full grid-cols-1 lg:grid-cols-[1.1fr_1fr]">
         <aside className="hidden flex-col justify-between p-12 text-white lg:flex">
           <div className="flex items-center gap-3">
-            <img src="/images/logo.png" alt="Where U Elevate" className="h-10 w-auto rounded bg-white/90 p-1" onError={(e) => (e.currentTarget.style.display = 'none')} />
+            <img src="images/logo.png" alt="Where U Elevate" className="h-10 w-auto rounded bg-white/90 p-1" onError={(e) => (e.currentTarget.style.display = 'none')} />
             <span className="font-heading text-lg font-semibold">Smart Proctor</span>
           </div>
           <div className="max-w-md">
