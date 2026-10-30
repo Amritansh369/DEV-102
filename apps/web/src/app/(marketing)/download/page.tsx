@@ -47,10 +47,10 @@ const STEPS = [
 
 const FAQS: FaqItem[] = [
   { id: "os", q: "Does the app run on Mac, Linux or a phone?", a: "Not yet. The secure exam browser currently supports Windows 10 and 11 only. Please use a Windows laptop or ask your institute for a lab machine." },
-  { id: "av", q: "My antivirus warns about the installer. Is it safe?", a: "The installer is not code-signed yet, so Windows SmartScreen may show an unknown-publisher warning, and some antivirus tools flag any app that closes other programs. Download it only from this page. If your antivirus blocks it, contact your exam coordinator before turning protection off." },
+  { id: "av", q: "My antivirus warns about the installer. Is it safe?", a: "The installer is not code-signed yet, so Windows SmartScreen may show an unknown-publisher warning, and some antivirus tools flag any app that watches the screen. Download it only from this page. If your antivirus blocks it, contact your exam coordinator before turning protection off." },
   { id: "cam", q: "Why does the app need my camera and microphone?", a: "The camera verifies your identity and detects multiple people. The microphone only measures sound level. The consent screen lists everything before the exam begins." },
-  { id: "apps", q: "Which apps will be closed automatically?", a: "Screen recorders, remote desktop tools, messaging apps, VPNs and virtual machines. You will see the exact list during the system check and can close them yourself first." },
-  { id: "net", q: "What if my internet drops during the exam?", a: "Your timer keeps running and answers are saved on your device. They sync when you reconnect. Long outages are reported to the proctor." },
+  { id: "apps", q: "Will the app close my other programs?", a: "No. Nothing is closed or blocked. Your entire screen is shared with your proctor, and other apps, tabs and AI tools are reported to them." },
+  { id: "net", q: "What if my internet drops during the exam?", a: "Your timer pauses and answers are saved on your device. They sync when you reconnect, and you get the lost time back while the exam window is open. Outages are reported to the proctor." },
   { id: "second", q: "Can I use an external monitor?", a: "Yes. Your proctor sees every connected display, and an extra monitor is flagged." },
   { id: "uninstall", q: "How do I remove the app after the exam?", a: "Open Settings, then Apps, and uninstall DEV102 Proctor. No background service is left behind." },
 ];
