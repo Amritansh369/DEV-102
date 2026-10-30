@@ -153,7 +153,6 @@ export const api = {
 
   /** `screenshot` (a picture of the AI tab) is evidence for a live entry only; the offline queue keeps the entry without it. */
   async logBrowsing(_examId: string, entry: BrowsingLog, screenshot?: string | null): Promise<void> {
-    if (!/^https?:/i.test(entry.url)) return; // sandbox:// pages are local placeholders, not real navigations
     const body = { url: entry.url, title: entry.title, ...(entry.query ? { query: entry.query } : {}), ...(entry.reply ? { reply: entry.reply } : {}), at: entry.at, flaggedAi: entry.flaggedAi };
     try {
       await post('/proctoring/browsing-logs', { sessionId: sid(entry.sessionId), entries: [{ ...body, ...(screenshot ? { screenshot } : {}) }] });

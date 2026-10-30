@@ -15,7 +15,7 @@ export function registerIpc(getWin: () => BrowserWindow | null, getExam: () => E
   const emit = (e: ProctorEvent) => getWin()?.webContents.send(CH.evViolation, e);
   const guards = new GuardMonitor(emit);
 
-  /** Only the exam window's own top frame may call the bridge (not sandbox tabs or injected frames). */
+  /** Only the exam window's own top frame may call the bridge (not injected frames). */
   const trusted = (event: IpcMainInvokeEvent): boolean => {
     const win = getWin();
     if (!win || event.sender.id !== win.webContents.id || !event.senderFrame) return false;

@@ -183,7 +183,7 @@ const JOURNEY: { icon: LucideIcon; title: string; body: string }[] = [
 const MONITORED = [
   { icon: Camera, text: 'Webcam frames, analysed for faces, gaze and identity' },
   { icon: Monitor, text: 'Your entire screen while the exam is open' },
-  { icon: Globe2, text: 'Sites and searches in the exam browser, including what you type into AI chats' },
+  { icon: Globe2, text: 'AI tools and searches, read from window titles and your shared screen' },
   { icon: Keyboard, text: 'Typing rhythm and mouse movement summaries (never the keys themselves)' },
 ]
 

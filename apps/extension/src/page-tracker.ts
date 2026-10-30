@@ -1,7 +1,6 @@
 /**
  * What the proctor learns from a web page: text typed into search boxes, text areas and AI chat inputs
- * (when submitted or after a pause), and what an AI assistant answers. Used by the desktop app's exam
- * tabs and by the Chrome extension.
+ * (when submitted or after a pause), and what an AI assistant answers.
  */
 const MIN_LEN = 3;
 const MAX_REPLY = 8000;

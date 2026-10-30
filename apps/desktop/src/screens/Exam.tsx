@@ -1,16 +1,15 @@
 import { KeyboardEvent as ReactKeyboardEvent, useCallback, useEffect, useMemo, useRef, useState, type JSX } from 'react'
 import { create } from 'zustand'
 import { AnimatePresence, motion } from 'framer-motion'
-import { AlertTriangle, ArrowLeft, ArrowRight, Check, CheckCircle2, CloudOff, Eraser, Flag, Globe, Keyboard, Loader2, Monitor, RefreshCw, Send, WifiOff, X } from 'lucide-react'
+import { AlertTriangle, ArrowLeft, ArrowRight, Check, CheckCircle2, CloudOff, Eraser, Flag, Keyboard, Loader2, Monitor, RefreshCw, Send, WifiOff, X } from 'lucide-react'
 import { api, type ExamPaper, type ViolationResult } from '../lib/api'
 import { HttpError } from '../lib/http'
 import { proofShot, startLive } from '../lib/live'
 import { watchAway } from '../lib/away'
 import { getProctor } from '../lib/proctorMock'
-import type { BrowsingLog, Question, Severity, ViolationCode } from '../lib/types'
+import type { Question, Severity, ViolationCode } from '../lib/types'
 import QuestionPalette, { type PaletteItem } from '../components/QuestionPalette'
 import Timer, { formatClock } from '../components/Timer'
-import BrowserTabs from '../components/BrowserTabs'
 import WarningModal, { type WarningInfo, type WarningKind } from '../components/WarningModal'
 import WebcamThumb, { type FaceStatus, type LinkQuality } from '../components/WebcamThumb'
 import { isAnswered, isNumeric, toNumber, valuesOf } from '../lib/answers'
@@ -22,7 +21,7 @@ const VIOLATION_META: Record<ViolationCode, { severity: Severity; message: strin
   NO_FACE: { severity: 'MEDIUM', message: 'No face was detected. Stay visible to the camera.' },
   GAZE_AWAY: { severity: 'LOW', message: 'You appear to be looking away from the screen.' },
   FACE_MISMATCH: { severity: 'HIGH', message: 'The person on camera does not match your verified face.' },
-  AI_SITE_OPENED: { severity: 'HIGH', message: 'An AI assistant website was opened.' },
+  AI_SITE_OPENED: { severity: 'HIGH', message: 'An AI assistant was opened.' },
   AI_QUERY_DETECTED: { severity: 'HIGH', message: 'A search that looks like an AI prompt or answer lookup was detected.' },
   BLACKLISTED_APP: { severity: 'HIGH', message: 'A blacklisted application was started during the exam.' },
   SCREEN_MIRRORING: { severity: 'HIGH', message: 'Screen mirroring or casting was detected.' },
@@ -119,7 +118,6 @@ interface ExamState {
   save: { status: SaveStatus; at: number | null }
   warnings: number
   events: ViolationEvent[]
-  log: BrowsingLog[]
   /** One-way exams only move forward, one question at a time. */
   oneWay: boolean
   init: (paper: ExamPaper, seed: string) => void
@@ -141,7 +139,6 @@ const useExamStore = create<ExamState>()((set) => ({
   save: { status: 'idle', at: null },
   warnings: 0,
   events: [],
-  log: [],
   oneWay: false,
   init: (paper, seed) =>
     set({
@@ -155,7 +152,6 @@ const useExamStore = create<ExamState>()((set) => ({
       save: { status: 'idle', at: null },
       warnings: paper.warningsUsed,
       events: [],
-      log: [],
       oneWay: Boolean(paper.exam.settings.oneWay),
     }),
   choose: (qid, optionId, multi) =>
@@ -202,7 +198,6 @@ export default function Exam({ examId, userId, onSubmitted }: ExamProps) {
   const [paper, setPaper] = useState<ExamPaper | null>(null)
   /** When the exam opens, in this computer's clock. */
   const [opensAt, setOpensAt] = useState(0)
-  const [view, setView] = useState<'exam' | 'browser'>('exam')
   const [submitOpen, setSubmitOpen] = useState(false)
   const [forcedReason, setForcedReason] = useState<string | null>(null)
   const [submitting, setSubmitting] = useState(false)
@@ -236,8 +231,8 @@ export default function Exam({ examId, userId, onSubmitted }: ExamProps) {
   const faceTimer = useRef(0)
   const savedRev = useRef(0)
   const inflight = useRef(false)
-  const uiRef = useRef({ view, modalOpen: false })
-  uiRef.current = { view, modalOpen: submitOpen || forcedReason !== null || activeWarning !== null || paused }
+  const uiRef = useRef({ modalOpen: false })
+  uiRef.current = { modalOpen: submitOpen || forcedReason !== null || activeWarning !== null || paused }
   paperRef.current = paper
   phaseRef.current = phase
 
@@ -341,7 +336,7 @@ export default function Exam({ examId, userId, onSubmitted }: ExamProps) {
       const s = useExamStore.getState()
       const flaggedIds = s.questions.filter((q) => s.flagged[q.id]).map((q) => q.id)
       const answered = s.questions.filter((q) => isAnswered(q, s.answers, s.numeric)).length
-      const send = () => api.submitExam({ examId: p.exam.id, answers: s.answers, values: valuesOf(s.questions, s.numeric), flagged: flaggedIds, auto, reason, browsing: s.log })
+      const send = () => api.submitExam({ examId: p.exam.id, answers: s.answers, values: valuesOf(s.questions, s.numeric), flagged: flaggedIds, auto, reason })
       try {
         while (!navigator.onLine) await wait(1000)
         // An automatic submit has nobody to press Retry, so it keeps trying through a network drop.
@@ -507,9 +502,8 @@ export default function Exam({ examId, userId, onSubmitted }: ExamProps) {
       if (ctrl && e.key === 'Enter') { e.preventDefault(); setSubmitOpen(true); return }
       const target = e.target as HTMLElement
       if (target.closest('input, textarea, select, [data-webcam]')) return
-      if (e.altKey && k === 'b') { e.preventDefault(); setView((v) => (v === 'exam' ? 'browser' : 'exam')); return }
       if (e.key === '?') { setHelpOpen((h) => !h); return }
-      if (uiRef.current.view !== 'exam' || ctrl || e.altKey) return
+      if (ctrl || e.altKey) return
 
       const s = useExamStore.getState()
       const q = s.questions[s.index]
@@ -536,23 +530,6 @@ export default function Exam({ examId, userId, onSubmitted }: ExamProps) {
   }, [report])
 
 
-  const handleLog = useCallback(
-    (entry: Omit<BrowsingLog, 'id' | 'sessionId'>) => {
-      const full: BrowsingLog = { ...entry, id: uid(), sessionId: paperRef.current?.sessionId ?? '' }
-      useExamStore.setState((s) => ({ log: [full, ...s.log] }))
-      if (!entry.flaggedAi || entry.reply || !window.proctor) {
-        void api.logBrowsing(examId, full).catch(() => undefined)
-        return
-      }
-      // A picture of the AI tab goes with the entry as evidence; a page that just opened gets a moment to load.
-      void (async () => {
-        if (!entry.query) await new Promise((r) => window.setTimeout(r, 1500))
-        await api.logBrowsing(examId, full, await proofShot().catch(() => null))
-      })().catch(() => undefined)
-    },
-    [examId],
-  )
-
   const items = useMemo<PaletteItem[]>(
     () => questions.map((q, i) => ({ id: q.id, number: i + 1, section: sectionOf(q), answered: isAnswered(q, answers, numeric), flagged: !!flagged[q.id] })),
     [questions, answers, numeric, flagged],
@@ -560,7 +537,6 @@ export default function Exam({ examId, userId, onSubmitted }: ExamProps) {
 
   const jumpTo = (i: number) => {
     setSubmitOpen(false)
-    setView('exam')
     go(i)
   }
 
@@ -598,15 +574,6 @@ export default function Exam({ examId, userId, onSubmitted }: ExamProps) {
           <span className="ml-2 hidden items-center gap-1.5 rounded-full bg-green-50 px-2.5 py-1 text-[11px] font-medium text-success lg:inline-flex" title="Your entire screen is shared with your proctor until you finish"><Monitor className="h-3 w-3" aria-hidden /><span className="h-1.5 w-1.5 animate-pulse rounded-full bg-success" aria-hidden /> Screen shared</span>
         </div>
 
-        <nav className="flex rounded-xl bg-soft p-1" aria-label="Workspace">
-          {([['exam', 'Questions'], ['browser', 'Browser']] as const).map(([id, label]) => (
-            <button key={id} type="button" aria-pressed={view === id} onClick={() => setView(id)} className={`inline-flex items-center gap-1.5 rounded-lg px-3.5 py-1.5 text-xs font-medium transition focus-visible:outline-2 focus-visible:outline-accent ${view === id ? 'bg-white text-primary shadow-sm' : 'text-muted hover:text-ink'}`}>
-              {id === 'browser' && <Globe className="h-3.5 w-3.5" aria-hidden />}
-              {label}
-            </button>
-          ))}
-        </nav>
-
         <div className="flex items-center gap-3">
           <SaveIndicator status={save.status} at={save.at} />
           <Timer endsAt={endsAt} paused={paused} onExpire={() => void finalize(true, 'Time is up. Your answers were submitted automatically.')} />
@@ -630,7 +597,7 @@ export default function Exam({ examId, userId, onSubmitted }: ExamProps) {
 
       <div className="grid min-h-0 flex-1 grid-cols-[minmax(0,1fr)_320px] gap-4 p-4" inert={paused}>
         <section ref={stageRef} className="relative min-h-0 overflow-hidden rounded-2xl border border-border bg-white shadow-sm">
-          <div className={view === 'exam' ? 'h-full' : 'hidden'}>
+          <div className="h-full">
             {!q ? (
               <div className="flex h-full flex-col items-center justify-center gap-2 text-center">
                 <h2 className="font-heading text-lg font-semibold">No questions assigned</h2>
@@ -698,20 +665,11 @@ export default function Exam({ examId, userId, onSubmitted }: ExamProps) {
             )}
           </div>
 
-          <div className={view === 'browser' ? 'h-full' : 'hidden'}>
-            <BrowserTabs
-              allowedSites={exam.settings.allowedSites}
-              onLog={handleLog}
-              onAiSite={(url) => report('AI_SITE_OPENED', { message: `An AI assistant site was opened (${safeHost(url)}).` })}
-              onAiQuery={(query) => report('AI_QUERY_DETECTED', { message: `Typed into an AI assistant or search: "${query.slice(0, 200)}"` })}
-            />
-          </div>
-
           <WebcamThumb constraintsRef={stageRef} faceStatus={face} quality={quality} onCameraLost={() => report('CAMERA_BLOCKED')} />
         </section>
 
         <aside className="flex min-h-0 flex-col gap-4 overflow-y-auto">
-          {!oneWay && <QuestionPalette items={items} currentId={q?.id ?? ''} onSelect={(id) => { setView('exam'); go(questions.findIndex((x) => x.id === id)) }} />}
+          {!oneWay && <QuestionPalette items={items} currentId={q?.id ?? ''} onSelect={(id) => go(questions.findIndex((x) => x.id === id))} />}
 
           {!exam.settings.proctorOnly && (
           <section className="rounded-2xl border border-border bg-white p-4 shadow-sm" aria-label="Session integrity">
@@ -767,7 +725,7 @@ export default function Exam({ examId, userId, onSubmitted }: ExamProps) {
           <motion.aside initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }} className="fixed bottom-4 left-4 z-40 w-72 rounded-2xl border border-border bg-white p-4 shadow-xl" aria-label="Keyboard shortcuts">
             <div className="flex items-center justify-between"><h2 className="font-heading text-sm font-semibold">Keyboard shortcuts</h2><button type="button" onClick={() => setHelpOpen(false)} aria-label="Close shortcuts" className="rounded p-1 text-muted hover:bg-soft"><X className="h-4 w-4" /></button></div>
             <dl className="mt-3 space-y-1.5 text-xs">
-              {[['← / → or P / N', 'Previous / next question'], ['1 – 9', 'Select option'], ['M', 'Mark for review'], ['C', 'Clear response'], ['Alt + B', 'Toggle browser'], ['Ctrl + Enter', 'Review & submit'], ['?', 'Show or hide this panel']].map(([k, d]) => (
+              {[['← / → or P / N', 'Previous / next question'], ['1 – 9', 'Select option'], ['M', 'Mark for review'], ['C', 'Clear response'], ['Ctrl + Enter', 'Review & submit'], ['?', 'Show or hide this panel']].map(([k, d]) => (
                 <div key={k} className="flex justify-between gap-3"><dt><kbd className="rounded bg-soft px-1.5 py-0.5 font-mono text-[11px]">{k}</kbd></dt><dd className="text-muted">{d}</dd></div>
               ))}
             </dl>
@@ -786,14 +744,6 @@ export default function Exam({ examId, userId, onSubmitted }: ExamProps) {
       </div>
     </div>
   )
-}
-
-function safeHost(url: string): string {
-  try {
-    return new URL(url).hostname
-  } catch {
-    return url
-  }
 }
 
 /* ───────────────────────── local components ───────────────────────── */

@@ -139,10 +139,10 @@ function ExamShowcase() {
       transition={{ duration: 0.7, delay: 0.2 }}
       className="relative w-full max-w-xl"
       role="img"
-      aria-label="Illustration of the exam app: a candidate answers a question, opens ChatGPT in a tab, the typed question is flagged, the risk score rises and a proctor reviews it"
+      aria-label="Illustration of the exam app: a candidate answers a question, opens ChatGPT, it is flagged, the risk score rises and a proctor reviews it"
     >
       <div className="overflow-hidden rounded-3xl bg-white/95 shadow-[0_30px_80px_-20px_rgba(2,8,23,0.6)] ring-1 ring-white/60 backdrop-blur-xl">
-        {/* Window bar with the sandbox tab strip */}
+        {/* Window bar */}
         <div className="flex items-center gap-2 border-b border-border bg-soft/80 px-4 py-2.5">
           <span className="flex gap-1.5" aria-hidden>
             <span className="h-2.5 w-2.5 rounded-full bg-red-400" /><span className="h-2.5 w-2.5 rounded-full bg-amber-400" /><span className="h-2.5 w-2.5 rounded-full bg-emerald-400" />
