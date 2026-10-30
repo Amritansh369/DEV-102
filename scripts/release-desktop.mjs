@@ -34,5 +34,13 @@ const run = (args) => {
   if (r.status !== 0) process.exit(r.status ?? 1);
 };
 run(['electron-vite', 'build']);
+// Create the release (and its tag on main) first: electron-builder uploads several files in parallel, and when the
+// release does not exist yet they race to create it and some uploads fail with "Published releases must have a valid tag".
+const tag = `v${version}`;
+const exists = spawnSync('gh', ['release', 'view', tag], { stdio: 'ignore', env }).status === 0;
+if (!exists) {
+  const r = spawnSync('gh', ['release', 'create', tag, '--target', 'main', '--title', tag, '--notes', `Where U Elevate desktop app ${version}.`, ...(beta ? ['--prerelease'] : [])], { stdio: 'inherit', env });
+  if (r.status !== 0) process.exit(r.status ?? 1);
+}
 run(['electron-builder', '--publish', 'always', `--config.publish.releaseType=${beta ? 'prerelease' : 'release'}`]);
 console.log(`[release] Published v${version}. Installed apps update on their next start or within 4 hours.`);
