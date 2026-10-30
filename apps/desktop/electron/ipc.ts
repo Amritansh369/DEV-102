@@ -41,8 +41,9 @@ export function registerIpc(getWin: () => BrowserWindow | null, getKiosk: () => 
     } else w.setFullScreen(true);
     return w.isFullScreen() || w.isMaximized();
   });
-  handle(CH.winClose, () => {
-    if (getKiosk()?.active) return; // the exam window cannot be closed mid-exam
+  handle(CH.winClose, async () => {
+    // Outside an exam the window closes at once; during one the candidate is warned first.
+    if (!(await (getKiosk()?.confirmClose() ?? Promise.resolve(true)))) return;
     getWin()?.close();
   });
   handle(CH.winIsMax, () => Boolean(getWin()?.isFullScreen() || getWin()?.isMaximized()));

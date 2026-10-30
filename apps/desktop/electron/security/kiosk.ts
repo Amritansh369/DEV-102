@@ -1,4 +1,4 @@
-import { BrowserWindow, globalShortcut, type Input } from 'electron';
+import { BrowserWindow, dialog, globalShortcut, type Input } from 'electron';
 import type { ProctorEvent } from '../../src/lib/types';
 
 type Emit = (event: ProctorEvent) => void;
@@ -76,6 +76,26 @@ export class Kiosk {
         /* the OS owns some combinations; those are caught by blur detection instead */
       }
     }
+  }
+
+  /**
+   * Closing during an exam is allowed, but only after a warning. Confirming reports it to the proctor and leaves
+   * kiosk mode so the window can close. Returns whether the candidate chose to close.
+   */
+  async confirmClose(): Promise<boolean> {
+    if (!this.active) return true;
+    const { response } = await dialog.showMessageBox(this.win, {
+      type: 'warning', buttons: ['Stay in exam', 'Close app'], defaultId: 0, cancelId: 0, noLink: true,
+      title: 'Exam in progress',
+      message: 'You are in the middle of an exam.',
+      detail: 'If you close the app now, your proctor is notified and the exam timer keeps running. You can reopen the app and continue while time remains.',
+    });
+    if (response !== 1) return false;
+    this.emit({ code: 'WINDOW_BLUR', message: 'The candidate closed the exam app during the exam.', at: new Date().toISOString() });
+    // Give the renderer a moment to send the report before the window goes away.
+    await new Promise((r) => setTimeout(r, 400));
+    this.exit();
+    return true;
   }
 
   exit(): void {
