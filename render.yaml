@@ -1,10 +1,4 @@
-# Render blueprint: API (public), AI agent (private) and PostgreSQL. See docs/deploy.md.
-databases:
-  - name: dev102-db
-    plan: basic-256mb
-    databaseName: dev102
-    user: dev102
-
+# Render blueprint: API (public) and AI agent (private). PostgreSQL is on Neon. See docs/deploy.md.
 services:
   - type: web
     name: dev102-api
@@ -18,10 +12,9 @@ services:
       mountPath: /data
       sizeGB: 1
     envVars:
+      # Neon direct connection string (host without -pooler, ?sslmode=require).
       - key: DATABASE_URL
-        fromDatabase:
-          name: dev102-db
-          property: connectionString
+        sync: false
       - key: JWT_SECRET
         generateValue: true
       - key: AGENT_API_KEY
