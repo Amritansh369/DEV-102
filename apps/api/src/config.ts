@@ -23,8 +23,6 @@ const schema = z.object({
   MAIL_FROM: z.string().default(''),
   /** Brevo HTTPS email API. Render's free plan blocks SMTP ports, so production mail goes through this when set. */
   BREVO_API_KEY: z.string().default(''),
-  /** Resend HTTPS email API. Without a verified domain it only delivers to the account owner's own address. */
-  RESEND_API_KEY: z.string().default(''),
   MAIL_FROM_NAME: z.string().default('Where U Elevate'),
   EVIDENCE_DIR: z.string().default('.data/evidence'),
   RETENTION_DAYS: z.coerce.number().int().positive().default(30),
@@ -70,14 +68,13 @@ export const config = {
   extensionOrigins: env.EXTENSION_IDS.split(',').map((s) => s.trim()).filter(Boolean).map((id) => `chrome-extension://${id}`),
   evidenceDir: resolve(ROOT_DIR, env.EVIDENCE_DIR),
   smtpEnabled: Boolean(env.SMTP_HOST && env.SMTP_USER && env.SMTP_PASS),
-  /** Every configured mail delivery in the order tried: Resend, Brevo, SMTP. Empty means the dev outbox. */
+  /** Every configured mail delivery in the order tried: Brevo, then SMTP. Empty means the dev outbox. */
   mailProviders: [
-    ...(env.RESEND_API_KEY ? ['resend' as const] : []),
     ...(env.BREVO_API_KEY && (env.MAIL_FROM || env.SMTP_USER) ? ['brevo' as const] : []),
     ...(env.SMTP_HOST && env.SMTP_USER && env.SMTP_PASS ? ['smtp' as const] : []),
   ],
   /** The first configured mail delivery, or null for the dev outbox. */
-  get mailProvider(): 'resend' | 'brevo' | 'smtp' | null { return this.mailProviders[0] ?? null; },
+  get mailProvider(): 'brevo' | 'smtp' | null { return this.mailProviders[0] ?? null; },
   iceServers: iceServers(env),
 };
 

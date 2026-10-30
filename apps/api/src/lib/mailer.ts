@@ -26,24 +26,6 @@ const brevo: Delivery = async (m) => {
   }
 };
 
-/** Resend's shared test sender, used until MAIL_FROM names an address on a domain verified in Resend. */
-const RESEND_TEST_SENDER = 'onboarding@resend.dev';
-
-/** Resend over HTTPS, for hosts that block SMTP ports. */
-const resend: Delivery = async (m) => {
-  const from = config.MAIL_FROM ? sender() : { name: config.MAIL_FROM_NAME, email: RESEND_TEST_SENDER };
-  const res = await fetch('https://api.resend.com/emails', {
-    method: 'POST',
-    headers: { Authorization: `Bearer ${config.RESEND_API_KEY}`, 'Content-Type': 'application/json' },
-    body: JSON.stringify({ from: `${from.name} <${from.email}>`, to: [m.to], subject: m.subject, html: m.html, text: m.text }),
-    signal: AbortSignal.timeout(15_000),
-  });
-  if (!res.ok) {
-    const body = (await res.json().catch(() => null)) as { message?: string } | null;
-    throw new Error(`Resend ${res.status}: ${body?.message ?? res.statusText}`);
-  }
-};
-
 let transport: Transporter | null = null;
 function smtp(): Delivery {
   transport ??= nodemailer.createTransport({
@@ -59,8 +41,8 @@ function smtp(): Delivery {
 }
 
 /**
- * Tries each configured provider in order until one accepts the message, so a refusal from one (for example
- * Resend in test mode, which only mails the account owner) falls through to the next (for example Brevo).
+ * Tries each configured provider in order (Brevo, then SMTP) until one accepts the message, so a refusal from one
+ * falls through to the next.
  */
 function getDelivery(): Delivery | null {
   if (config.mailProviders.length === 0) return null;
@@ -68,7 +50,7 @@ function getDelivery(): Delivery | null {
     const errors: string[] = [];
     for (const name of config.mailProviders) {
       try {
-        await (name === 'resend' ? resend : name === 'brevo' ? brevo : smtp())(m);
+        await (name === 'brevo' ? brevo : smtp())(m);
         return;
       } catch (err) {
         errors.push((err as Error).message);
@@ -182,7 +164,7 @@ export async function sendMail(m: MailInput): Promise<{ ok: boolean; error?: str
   const deliver = getDelivery();
   if (!deliver) {
     if (config.isProd) {
-      const error = 'Email is not configured: set RESEND_API_KEY, or BREVO_API_KEY with MAIL_FROM, or SMTP_HOST, SMTP_USER and SMTP_PASS.';
+      const error = 'Email is not configured: set BREVO_API_KEY with MAIL_FROM (or SMTP_HOST, SMTP_USER and SMTP_PASS).';
       await prisma.emailLog.update({ where: { id: log.id }, data: { status: 'FAILED', attempts: 0, error } });
       logger.error({ to: m.to, kind: m.kind }, error);
       return { ok: false, error };
