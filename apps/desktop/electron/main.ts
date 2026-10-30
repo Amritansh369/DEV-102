@@ -94,7 +94,14 @@ async function createWindow(): Promise<void> {
   kiosk = new Kiosk(win, emit, softKiosk);
 
   win.on('close', (event) => {
-    if (kiosk?.active && !appIsQuitting) event.preventDefault();
+    if (!kiosk?.active || appIsQuitting) return;
+    // A close from the OS (taskbar, Alt+F4) during an exam gets the same warning as the title bar's button.
+    event.preventDefault();
+    void kiosk.confirmClose().then((close) => { if (close) win?.close(); });
+  });
+  // The exam page blocks unloading while it runs; once kiosk mode is off (no exam, or closing was confirmed) let it go.
+  win.webContents.on('will-prevent-unload', (event) => {
+    if (!kiosk?.active) event.preventDefault();
   });
   // Opens full screen; the title bar's maximise button leaves and re-enters it.
   win.once('ready-to-show', () => {

@@ -448,10 +448,17 @@ export default function Exam({ examId, userId, onSubmitted }: ExamProps) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [phase, paper?.sessionId])
 
-  /* kiosk mode, native guards and native proctor events */
+  /* kiosk mode only while the exam runs: a loading or error screen must stay closable */
   useEffect(() => {
+    if (phase !== 'active') return
     const proctor = getProctor()
     void proctor.enterKiosk().catch(() => undefined)
+    return () => { void proctor.exitKiosk().catch(() => undefined) }
+  }, [phase])
+
+  /* native guards and native proctor events */
+  useEffect(() => {
+    const proctor = getProctor()
     void window.proctor?.guards.start().catch(() => undefined)
     const unsubscribe = proctor.onEvent((ev) => report(ev.code, { message: ev.message }))
     const guard = (e: BeforeUnloadEvent) => {
@@ -465,7 +472,6 @@ export default function Exam({ examId, userId, onSubmitted }: ExamProps) {
       unsubscribe()
       window.removeEventListener('beforeunload', guard)
       void window.proctor?.guards.stop().catch(() => undefined)
-      void proctor.exitKiosk().catch(() => undefined)
     }
   }, [report])
 
