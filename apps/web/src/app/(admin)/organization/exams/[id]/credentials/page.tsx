@@ -49,7 +49,8 @@ export default function CandidatesPage() {
   const [notice, setNotice] = useState<string | null>(null)
   const [previewOpen, setPreviewOpen] = useState(false)
   const [sending, setSending] = useState(false)
-  const [progress, setProgress] = useState({ done: 0, total: 0 })
+  // Counts for the last batch only; the table's failed rows can include earlier batches.
+  const [progress, setProgress] = useState({ done: 0, total: 0, failed: 0 })
   const fileRef = useRef<HTMLInputElement>(null)
 
   useEffect(() => {
@@ -91,6 +92,8 @@ export default function CandidatesPage() {
             status: c.emailStatus === 'SENT' ? 'sent' : c.emailStatus === 'FAILED' ? 'failed' : 'pending',
             ...(invite ? { invite } : {}),
             ...(old?.invite?.id === invite?.id && old.outbox ? { outbox: true } : {}),
+            // The API keeps only the status, so hold on to the reason from this session's send while it still failed.
+            ...(old?.error && c.emailStatus === 'FAILED' ? { error: old.error } : {}),
           }
         }))
       } catch {
@@ -126,11 +129,12 @@ export default function CandidatesPage() {
     async (targets: CredentialRow[]) => {
       if (targets.length === 0) return
       setSending(true)
-      setProgress({ done: 0, total: targets.length })
+      setProgress({ done: 0, total: targets.length, failed: 0 })
       const ids = new Set(targets.map((t) => t.id))
       setRows((prev) => prev.map((r) => (ids.has(r.id) ? { ...r, status: 'queued', error: undefined } : r)))
       const queue = [...targets]
       let done = 0
+      let failedCount = 0
       const worker = async () => {
         while (queue.length) {
           const row = queue.shift()!
@@ -140,9 +144,10 @@ export default function CandidatesPage() {
             setStatus(row.id, 'sent')
           } catch (e) {
             setStatus(row.id, 'failed', e instanceof Error ? e.message : 'Delivery failed')
+            failedCount++
           }
           done++
-          setProgress({ done, total: targets.length })
+          setProgress({ done, total: targets.length, failed: failedCount })
         }
       }
       await Promise.all(Array.from({ length: Math.min(CONCURRENCY, targets.length) }, worker))
@@ -296,7 +301,7 @@ export default function CandidatesPage() {
           <div className="min-w-0 flex-1">
             <h2 className="font-heading text-base font-semibold text-ink">Send credentials</h2>
             <p className="text-xs text-muted" aria-live="polite">
-              {sending ? `Sending ${progress.done} of ${progress.total}…` : progress.total ? `Last batch: ${progress.total - failed.length} delivered, ${failed.length} failed` : `${pending.length} candidate${pending.length === 1 ? '' : 's'} waiting to be emailed`}
+              {sending ? `Sending ${progress.done} of ${progress.total}…` : progress.total ? `Last batch: ${progress.total - progress.failed} delivered, ${progress.failed} failed` : `${pending.length} candidate${pending.length === 1 ? '' : 's'} waiting to be emailed`}
             </p>
           </div>
           <div className="flex gap-2">
