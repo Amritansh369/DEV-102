@@ -24,8 +24,9 @@ const run = (cmd, args, cwd = root) => {
 
 run('npm', ['run', 'build', '-w', 'apps/extension']);
 const zip = join(mkdtempSync(join(tmpdir(), 'dev102-extension-')), `Where-U-Elevate-Extension-${version}.zip`);
-// tar ships with Windows 10+ and macOS; -a picks the zip format from the file name.
-run('tar', ['-a', '-c', '-f', zip, '-C', join(extension, 'dist'), '.']);
+// Windows' own tar writes zips (-a picks the format from the file name). Git Bash's tar comes first on PATH there and cannot.
+const tar = process.platform === 'win32' ? join(process.env.SystemRoot ?? 'C:\Windows', 'System32', 'tar.exe') : 'tar';
+run(tar, ['-a', '-c', '-f', zip, '-C', join(extension, 'dist'), '.']);
 const tag = execFileSync('gh', ['release', 'view', '--json', 'tagName', '--jq', '.tagName'], { encoding: 'utf8' }).trim();
 run('gh', ['release', 'upload', tag, zip, '--clobber']);
 console.log(`[release] Attached the extension ${version} to ${tag}. The website shows it within 10 minutes.`);
