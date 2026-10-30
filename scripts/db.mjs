@@ -65,14 +65,16 @@ async function main() {
   }
   started = true;
   const dbName = url.pathname.replace(/^\//, '') || 'dev102';
-  const client = pg.getPgClient();
+  // Older local clusters may have been initialized with only the application
+  // database, so use PostgreSQL's template database for maintenance queries.
+  const client = pg.getPgClient('template1');
   await client.connect();
   const exists = await client.query('SELECT 1 FROM pg_database WHERE datname = $1', [dbName]);
-  await client.end();
   if (exists.rowCount === 0) {
-    await pg.createDatabase(dbName);
+    await client.query(`CREATE DATABASE ${client.escapeIdentifier(dbName)}`);
     console.log(`[db] Created database "${dbName}"`);
   }
+  await client.end();
   console.log(`[db] PostgreSQL ready on localhost:${url.port || 5432}/${dbName}`);
 
   const stop = async () => { await pg.stop().catch(() => {}); process.exit(0); };
