@@ -16,6 +16,7 @@ import { cx, useDismiss } from '@/lib/adminHooks'
 import { toast, useAdminUi } from '@/lib/adminStore'
 import { useRequireRole, useSession } from '@/lib/session'
 import { post } from '@/lib/http'
+import { useSystemStatus } from '@/components/layout/SystemStatus'
 
 interface NavItem { label: string; href: string; icon: LucideIcon }
 
@@ -83,6 +84,7 @@ function Brand({ collapsed }: { collapsed: boolean }) {
 /* ---------------------------------- Sidebar ------------------------------- */
 
 function SidebarBody({ collapsed, onNavigate }: { collapsed: boolean; onNavigate?: () => void }) {
+  const status = useSystemStatus()
   const pathname = usePathname() ?? ''
   const isActive = (href: string) => (href === '/organization' ? pathname === '/organization' : pathname === href || pathname.startsWith(`${href}/`))
 
@@ -126,14 +128,14 @@ function SidebarBody({ collapsed, onNavigate }: { collapsed: boolean; onNavigate
         ))}
       </nav>
       <div className="p-3">
-        <div className={cx('flex items-center gap-3 rounded-xl bg-soft p-3', collapsed && 'justify-center')} title={collapsed ? 'All systems operational' : undefined}>
-          <ShieldCheck className="h-5 w-5 shrink-0 text-success" aria-hidden="true" />
+        <div role="status" className={cx('flex items-center gap-3 rounded-xl bg-soft p-3', collapsed && 'justify-center')} title={collapsed ? `${status.title}. ${status.detail}` : undefined}>
+          <ShieldCheck className={cx('h-5 w-5 shrink-0', { ok: 'text-success', warn: 'text-warning', down: 'text-danger', checking: 'text-muted' }[status.tone])} aria-hidden="true" />
           {collapsed ? (
-            <span className="sr-only">All systems operational</span>
+            <span className="sr-only">{status.title}</span>
           ) : (
             <p className="text-xs leading-snug">
-              <span className="block font-semibold text-text">All systems operational</span>
-              <span className="text-muted">Proctoring agent · 42 ms</span>
+              <span className="block font-semibold text-text">{status.title}</span>
+              <span className="text-muted">{status.detail}</span>
             </p>
           )}
         </div>

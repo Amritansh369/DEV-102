@@ -6,6 +6,7 @@ import { ArrowRight, Instagram, Linkedin, Mail, Twitter, Youtube, type LucideIco
 import { z } from 'zod';
 import { Avatar, Button, Input, useToast } from '@/components/ui/primitives';
 import { BrandMark } from '@/components/layout/BrandMark';
+import { STATUS_DOT, useSystemStatus } from '@/components/layout/SystemStatus';
 
 const emailSchema = z.string().trim().min(1, 'Please enter your email').email('Enter a valid email address');
 
@@ -124,6 +125,7 @@ function Newsletter() {
 }
 
 export function Footer() {
+  const status = useSystemStatus();
   return (
     <footer className="mt-24 border-t border-border bg-surface">
       <div className="mx-auto max-w-7xl px-4 py-14 sm:px-6 lg:px-8">
@@ -163,9 +165,9 @@ export function Footer() {
         <div className="mt-14 flex flex-col items-start justify-between gap-5 border-t border-border pt-8 md:flex-row md:items-center">
           <div className="flex flex-col gap-2 text-sm text-muted sm:flex-row sm:items-center sm:gap-5">
             <p>&copy; {new Date().getFullYear()} Where U Elevate. All rights reserved.</p>
-            <p className="inline-flex items-center gap-2">
-              <span className="h-2 w-2 animate-pulse-dot rounded-full bg-success" aria-hidden />
-              All systems operational
+            <p className="inline-flex items-center gap-2" role="status" title={status.detail}>
+              <span className={`h-2 w-2 rounded-full ${STATUS_DOT[status.tone]} ${status.tone === 'ok' ? 'animate-pulse-dot' : ''}`} aria-hidden />
+              {status.title}
             </p>
           </div>
           <ul className="flex items-center gap-2" aria-label="Social media">

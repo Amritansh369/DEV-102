@@ -10,6 +10,7 @@ import { SEVERITIES, VIOLATION_META, examInclude, examStatus, readExtras, toCand
 import { evidencePath, signEvidenceUrl, verifyEvidenceSignature, verifyPhotoSignature } from '../lib/evidence.js';
 import { BLOCK_MESSAGE, loadResult } from '../lib/results.js';
 import { desktopReleases } from '../lib/releases.js';
+import { systemStatus } from '../lib/status.js';
 
 const MIN = 60_000;
 const HOUR = 60 * MIN;
@@ -203,6 +204,9 @@ adminRouter.get('/reports/exams/:id/summary', ...staff, handle(async (req) => {
 }));
 
 /* ---------------------------------------------------------------- public, lobby, downloads, evidence */
+
+/** Public: whether the database and the AI agent are answering right now (shown in the site footer and admin sidebar). */
+adminRouter.get('/system/status', handle(() => systemStatus()));
 
 adminRouter.get('/public/stats', handle(async () => {
   const [exams, candidates, violations] = await Promise.all([prisma.exam.count(), prisma.candidate.count(), prisma.violation.count()]);
