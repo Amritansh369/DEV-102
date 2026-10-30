@@ -5,7 +5,7 @@ import dynamic from 'next/dynamic';
 import { useEffect, useRef, useState } from 'react';
 import { homeFor, useSession } from '@/lib/session';
 import { AnimatePresence, motion, useReducedMotion } from 'framer-motion';
-import { Activity, ArrowRight, Building2, Download, Eye, Fingerprint, Globe, Link2, Menu, MonitorCheck, ScanFace, ShieldCheck, Sparkles, Timer, UserCheck, X } from 'lucide-react';
+import { Activity, ArrowRight, Building2, Download, Eye, Fingerprint, Globe, Link2, Menu, MonitorCheck, ScanFace, ShieldCheck, Sparkles, Timer, UserCheck, X, Puzzle } from 'lucide-react';
 import { OrgBackdrop } from '@/components/layout/OrgBackdrop';
 import { OPTIONS, riskTone, useExamStory } from './examStory';
 
@@ -24,6 +24,7 @@ const NAV = [
   { href: '#features', label: 'Features' },
   { href: '/security', label: 'Security' },
   { href: '/download', label: 'Download App' },
+  { href: '/download#extension', label: 'Use Extension' },
 ];
 
 /** The logo is blue on transparent, so it sits on a white badge to stay visible over the hero image. */
@@ -54,16 +55,16 @@ function Nav() {
             <span className="text-[11px] font-medium text-white/70">by Where U Elevate</span>
           </span>
         </Link>
-        <ul className="hidden items-center gap-8 md:flex">
+        <ul className="hidden items-center gap-8 lg:flex">
           {NAV.map((n) => (
             <li key={n.href}>
-              <Link href={n.href} className="rounded-md text-sm font-medium text-white/85 transition hover:text-white focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-white">
+              <Link href={n.href} className="whitespace-nowrap rounded-md text-sm font-medium text-white/85 transition hover:text-white focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-white">
                 {n.label}
               </Link>
             </li>
           ))}
         </ul>
-        <div className="hidden items-center gap-3 md:flex">
+        <div className="hidden items-center gap-3 lg:flex">
           <Link href={account.href} className="rounded-xl px-4 py-2 text-sm font-semibold text-white ring-1 ring-white/40 transition hover:bg-white/10 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-white">
             {account.label}
           </Link>
@@ -73,7 +74,7 @@ function Nav() {
         </div>
         <button
           type="button"
-          className="grid h-11 w-11 place-items-center rounded-xl text-white ring-1 ring-white/30 md:hidden focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-white"
+          className="grid h-11 w-11 place-items-center rounded-xl text-white ring-1 ring-white/30 lg:hidden focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-white"
           aria-expanded={open}
           aria-controls="mobile-menu"
           aria-label={open ? 'Close menu' : 'Open menu'}
@@ -89,7 +90,7 @@ function Nav() {
             initial={{ opacity: 0, y: -8 }}
             animate={{ opacity: 1, y: 0 }}
             exit={{ opacity: 0, y: -8 }}
-            className="mx-5 rounded-2xl bg-white p-3 shadow-2xl md:hidden"
+            className="mx-5 rounded-2xl bg-white p-3 shadow-2xl lg:hidden"
           >
             {[...NAV, account].map((n) => (
               <Link key={n.href} href={n.href} onClick={() => setOpen(false)} className="block rounded-xl px-4 py-3 text-sm font-medium text-text hover:bg-soft">
@@ -338,6 +339,9 @@ export default function Hero() {
           >
             <Link href="/download" className="group inline-flex items-center gap-2 rounded-xl bg-cta px-6 py-3.5 text-sm font-bold text-slate-900 shadow-xl shadow-black/15 transition hover:brightness-105 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-white">
               <Download className="h-4 w-4" aria-hidden /> Download the app
+            </Link>
+            <Link href="/download#extension" className="group inline-flex items-center gap-2 rounded-xl bg-white px-6 py-3.5 text-sm font-bold text-primary shadow-lg transition hover:bg-soft focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-white">
+              <Puzzle className="h-4 w-4" aria-hidden /> Use extension
             </Link>
             <Link href="/login?role=organization" className="group inline-flex items-center gap-2 rounded-xl bg-white px-6 py-3.5 text-sm font-bold text-primary shadow-lg transition hover:bg-soft focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-white">
               <Building2 className="h-4 w-4" aria-hidden /> For organizations <ArrowRight className="h-4 w-4 transition group-hover:translate-x-0.5" aria-hidden />

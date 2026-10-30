@@ -41,7 +41,7 @@ export function ExtensionSection({ release, failed }: { release: DesktopDownload
   const zip = release?.extension;
 
   return (
-    <section id="extension" className="px-4 py-14 sm:px-6">
+    <section id="extension" className="scroll-mt-24 px-4 py-14 sm:px-6">
       <div className="mx-auto max-w-3xl rounded-2xl border border-border bg-white p-6 shadow-sm">
         <h2 className="flex items-center gap-2 font-heading text-2xl font-semibold text-slate-900"><Puzzle className="h-6 w-6 text-primary" aria-hidden /> Take the exam in your browser</h2>
         <p className="mt-2 text-slate-500">Add our extension, then enter the exam link and password from your invitation email. Your exam coordinator will tell you if this is allowed.</p>

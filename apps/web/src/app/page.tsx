@@ -86,6 +86,7 @@ const FOOTER_LINKS = [
   { href: '#features', label: 'Features' },
   { href: '/security', label: 'Security' },
   { href: '/download', label: 'Download App' },
+  { href: '/download#extension', label: 'Use Extension' },
   { href: '/login', label: 'Log in' },
 ];
 
