@@ -45,6 +45,16 @@ To remove these limits, change `plan: free` to `plan: starter` for both services
    | `ALERT_WEBHOOK_URL`, `ALERT_WEBHOOK_KEY` | Optional. The n8n "Proctor violation alerts" webhook production URL and its header-auth value. The API posts CRITICAL violations and auto-submits there. |
 
    Save; Render redeploys the API.
+
+   Optional, on **dev102-agent → Environment**: the AI checks on screenshots and typed queries use an LLM. Without a key the agent still runs every webcam, phone and site check. Two free providers, Gemini first and Hugging Face when Gemini's free quota runs out:
+
+   | Key | Gemini (primary) | Key | Hugging Face (fallback) |
+   | --- | --- | --- | --- |
+   | `LLM_API_KEY` | key from aistudio.google.com/apikey | `LLM_FALLBACK_API_KEY` | token from huggingface.co/settings/tokens ("Make calls to Inference Providers") |
+   | `LLM_BASE_URL` | `https://generativelanguage.googleapis.com/v1beta/openai` | `LLM_FALLBACK_BASE_URL` | `https://router.huggingface.co/v1` |
+   | `LLM_MODEL` | a current free Flash model from AI Studio, e.g. `gemini-2.5-flash` | `LLM_FALLBACK_MODEL` | a vision model, e.g. `Qwen/Qwen2.5-VL-7B-Instruct` |
+
+   Hugging Face's free monthly credit is small, so keep it as the fallback. `https://<agent>/health` shows `"llm": true` once a key is set.
 4. Check `https://<api>/health` returns `{"ok":true,...}`.
 5. Seed the first admin account once, from your machine, against the Neon database:
 

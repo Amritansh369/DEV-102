@@ -54,5 +54,16 @@ services:
     envVars:
       - key: AGENT_API_KEY
         generateValue: true
+      # Optional AI vision and query checks. Free: Gemini first, Hugging Face as fallback (docs/deploy.md).
       - key: LLM_API_KEY
+        sync: false
+      - key: LLM_MODEL
+        sync: false
+      - key: LLM_BASE_URL
+        sync: false
+      - key: LLM_FALLBACK_API_KEY
+        sync: false
+      - key: LLM_FALLBACK_MODEL
+        sync: false
+      - key: LLM_FALLBACK_BASE_URL
         sync: false

@@ -23,7 +23,11 @@ class Settings:
     agent_key: str = os.getenv("AGENT_API_KEY", "dev-agent-key")
     llm_api_key: str = os.getenv("LLM_API_KEY", "")
     llm_model: str = os.getenv("LLM_MODEL", "") or "claude-sonnet-5-5"
-    llm_base_url: str = os.getenv("LLM_BASE_URL", "https://api.anthropic.com")
+    llm_base_url: str = os.getenv("LLM_BASE_URL", "") or "https://api.anthropic.com"
+    # Optional second provider, tried when the first is rate-limited or failing (free tiers run out fast).
+    llm_fallback_api_key: str = os.getenv("LLM_FALLBACK_API_KEY", "")
+    llm_fallback_model: str = os.getenv("LLM_FALLBACK_MODEL", "")
+    llm_fallback_base_url: str = os.getenv("LLM_FALLBACK_BASE_URL", "")
     models_dir: Path = ROOT / "models"
 
     # Rules. Webcam frames arrive every second, so timers accumulate across frames per session.
@@ -62,7 +66,7 @@ class Settings:
 
     @property
     def llm_enabled(self) -> bool:
-        return bool(self.llm_api_key)
+        return bool(self.llm_api_key or self.llm_fallback_api_key)
 
 
 settings = Settings()
