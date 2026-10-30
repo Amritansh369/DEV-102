@@ -3,9 +3,33 @@ import { config } from '../config.js';
 import { logger } from './core.js';
 import { prisma } from './db.js';
 
+type Delivery = (m: { to: string; subject: string; html: string; text: string }) => Promise<void>;
+
+/** "Name <email>" or a bare address, as used in MAIL_FROM. */
+function sender(): { name: string; email: string } {
+  const from = config.MAIL_FROM || config.SMTP_USER;
+  const m = from.match(/^\s*(.*?)\s*<([^>]+)>\s*$/);
+  return m ? { name: m[1] || config.MAIL_FROM_NAME, email: (m[2] as string).trim() } : { name: config.MAIL_FROM_NAME, email: from.trim() };
+}
+
+/** Brevo transactional email over HTTPS, for hosts that block SMTP ports. */
+const brevo: Delivery = async (m) => {
+  const res = await fetch('https://api.brevo.com/v3/smtp/email', {
+    method: 'POST',
+    headers: { 'api-key': config.BREVO_API_KEY, 'Content-Type': 'application/json', Accept: 'application/json' },
+    body: JSON.stringify({ sender: sender(), to: [{ email: m.to }], subject: m.subject, htmlContent: m.html, textContent: m.text }),
+    signal: AbortSignal.timeout(15_000),
+  });
+  if (!res.ok) {
+    const body = (await res.json().catch(() => null)) as { message?: string } | null;
+    throw new Error(`Brevo ${res.status}: ${body?.message ?? res.statusText}`);
+  }
+};
+
 let transport: Transporter | null = null;
-function getTransport(): Transporter | null {
-  if (!config.smtpEnabled) return null;
+function getDelivery(): Delivery | null {
+  if (config.mailProvider === 'brevo') return brevo;
+  if (config.mailProvider !== 'smtp') return null;
   transport ??= nodemailer.createTransport({
     host: config.SMTP_HOST,
     port: config.SMTP_PORT,
@@ -14,7 +38,8 @@ function getTransport(): Transporter | null {
     pool: true,
     maxConnections: 3,
   });
-  return transport;
+  const t = transport;
+  return async (m) => { await t.sendMail({ from: config.MAIL_FROM || config.SMTP_USER, ...m }); };
 }
 
 const esc = (s: string) => s.replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c] as string);
@@ -112,29 +137,29 @@ export interface MailInput { to: string; subject: string; html: string; text: st
 
 /**
  * Sends with up to 3 attempts and exponential backoff and records every outcome in EmailLog.
- * Without SMTP settings the message goes to the dev outbox (EmailLog with the rendered body).
+ * Without Brevo or SMTP settings the message goes to the dev outbox (EmailLog with the rendered body).
  */
 export async function sendMail(m: MailInput): Promise<{ ok: boolean; error?: string; outbox?: boolean }> {
   const log = await prisma.emailLog.create({
     data: { to: m.to, kind: m.kind, subject: m.subject, candidateId: m.candidateId ?? null, status: 'PENDING' },
   });
-  const t = getTransport();
-  if (!t) {
+  const deliver = getDelivery();
+  if (!deliver) {
     if (config.isProd) {
-      const error = 'SMTP is not configured; real email delivery is unavailable.';
+      const error = 'Email is not configured: set BREVO_API_KEY and MAIL_FROM (or SMTP_HOST, SMTP_USER and SMTP_PASS).';
       await prisma.emailLog.update({ where: { id: log.id }, data: { status: 'FAILED', attempts: 0, error } });
       logger.error({ to: m.to, kind: m.kind }, error);
       return { ok: false, error };
     }
     // OTP bodies are not stored, even in the outbox, to keep codes out of the database.
     await prisma.emailLog.update({ where: { id: log.id }, data: { status: 'SENT', attempts: 1, html: m.kind === 'otp' ? null : m.html } });
-    logger.info({ to: m.to, kind: m.kind }, 'email written to dev outbox (SMTP not configured)');
+    logger.info({ to: m.to, kind: m.kind }, 'email written to dev outbox (no mail provider configured)');
     return { ok: true, outbox: true };
   }
   let lastError = '';
   for (let attempt = 1; attempt <= 3; attempt++) {
     try {
-      await t.sendMail({ from: config.MAIL_FROM || config.SMTP_USER, to: m.to, subject: m.subject, html: m.html, text: m.text });
+      await deliver({ to: m.to, subject: m.subject, html: m.html, text: m.text });
       await prisma.emailLog.update({ where: { id: log.id }, data: { status: 'SENT', attempts: attempt } });
       return { ok: true };
     } catch (err) {

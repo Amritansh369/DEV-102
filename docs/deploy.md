@@ -41,7 +41,8 @@ To remove these limits, change `plan: free` to `plan: starter` for both services
    | `CLIENT_URL` | The website URL from step 3, for example `https://dev102.vercel.app` (comma-separate several) |
    | `APP_DOWNLOAD_URL` | `<website URL>/download` |
    | `SMTP_HOST`, `SMTP_USER`, `SMTP_PASS` | For Gmail, use `smtp.gmail.com:587`, your Gmail address, and a Google App Password (not your account password). |
-   | `MAIL_FROM` | Optional. Leave blank to send from `SMTP_USER`; Gmail only permits a different sender address when it is a verified alias. |
+   | `MAIL_FROM` | Optional with SMTP: leave blank to send from `SMTP_USER`; Gmail only permits a different sender address when it is a verified alias. Required with Brevo: the verified sender, e.g. `Smart Proctor <you@gmail.com>`. |
+   | `BREVO_API_KEY` | **Needed on Render's free plan**, which blocks outbound SMTP ports (25, 465, 587), so Gmail SMTP times out there. Create a free account at brevo.com, verify your sender email under **Senders, domains & IPs → Senders**, then create a key under **SMTP & API → API keys**. When set, mail goes through Brevo's HTTPS API instead of SMTP. |
    | `TURN_URLS`, `TURN_USERNAME`, `TURN_CREDENTIAL` | A TURN relay so the proctor's live screen view works when the candidate is on another network (mobile data, campus Wi-Fi). Create a free one, for example on metered.ca, and paste its `turn:`/`turns:` URLs (comma-separated) and credentials. Without it, the screen view only connects on simple networks. |
    | `ALERT_WEBHOOK_URL`, `ALERT_WEBHOOK_KEY` | Optional. The n8n "Proctor violation alerts" webhook production URL and its header-auth value. The API posts CRITICAL violations and auto-submits there. |
 
