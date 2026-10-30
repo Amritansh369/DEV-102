@@ -70,9 +70,9 @@ describe('mailDomainOk', () => {
 });
 
 describe('gravatarUrl', () => {
-  it('hashes the trimmed, lower-cased email with SHA-256 and asks for a 404 when there is no photo', async () => {
+  it('hashes the trimmed, lower-cased email with SHA-256 and asks for a transparent image when there is no photo', async () => {
     const { gravatarUrl } = await import('../src/lib/email-check.js');
     // SHA-256 of "test@example.com"
-    expect(gravatarUrl('  Test@Example.com ')).toBe('https://gravatar.com/avatar/973dfe463ec85785f5f95af5ba3906eedb2d931c24e69824a89ea65dba4e813b?s=96&d=404');
+    expect(gravatarUrl('  Test@Example.com ')).toBe('https://gravatar.com/avatar/973dfe463ec85785f5f95af5ba3906eedb2d931c24e69824a89ea65dba4e813b?s=96&d=blank');
   });
 });

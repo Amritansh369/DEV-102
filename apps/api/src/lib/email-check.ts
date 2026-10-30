@@ -36,8 +36,8 @@ export async function mailDomainOk(email: string): Promise<boolean | null> {
   return ok;
 }
 
-/** The person's Gravatar photo; `d=404` makes the image fail when there is none, and the UI shows initials. */
+/** The person's Gravatar photo; `d=blank` returns a transparent image when there is none, so the initials behind it show through. */
 export function gravatarUrl(email: string, size = 96): string {
   const hash = createHash('sha256').update(email.trim().toLowerCase()).digest('hex');
-  return `https://gravatar.com/avatar/${hash}?s=${size}&d=404`;
+  return `https://gravatar.com/avatar/${hash}?s=${size}&d=blank`;
 }
