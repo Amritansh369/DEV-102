@@ -4,7 +4,7 @@ Production runs as four pieces:
 
 | Piece | Where | Built from |
 | --- | --- | --- |
-| PostgreSQL | Render (managed) | `render.yaml` → `dev102-db` |
+| PostgreSQL | Neon (managed) | direct connection string in `DATABASE_URL` |
 | API (Express + Socket.IO) | Render web service | `apps/api/Dockerfile` |
 | AI agent (FastAPI) | Render private service | `backend-services/Dockerfile` |
 | Website (Next.js) | Vercel | `apps/web/vercel.json` |
@@ -21,8 +21,8 @@ The database schema is managed by Prisma migrations in `database/prisma/migratio
 
 ## 2. Deploy the API, agent and database on Render
 
-1. In Render, choose **New → Blueprint** and pick this repository. Render reads `render.yaml` and proposes `dev102-db`, `dev102-api` and `dev102-agent`.
-2. Leave the values marked "sync: false" empty for now and click **Apply**. Render creates the database, generates `JWT_SECRET` and `AGENT_API_KEY` (shared between the API and agent), and builds both Docker images. The agent image downloads its detection models at build time.
+1. In Render, choose **New → Blueprint** and pick this repository. Render reads `render.yaml` and proposes `dev102-api` and `dev102-agent`.
+2. Set `DATABASE_URL` to the Neon **direct** connection string (host without `-pooler`, ending in `?sslmode=require`), leave the other "sync: false" values empty for now, and click **Apply**. Render generates `JWT_SECRET` and `AGENT_API_KEY` (shared between the API and agent), and builds both Docker images. The agent image downloads its detection models at build time.
 3. When both services are live, open **dev102-api → Environment** and set:
 
    | Key | Value |
@@ -33,10 +33,11 @@ The database schema is managed by Prisma migrations in `database/prisma/migratio
    | `APP_DOWNLOAD_URL` | `<website URL>/download` |
    | `SMTP_HOST`, `SMTP_USER`, `SMTP_PASS` | For Gmail, use `smtp.gmail.com:587`, your Gmail address, and a Google App Password (not your account password). |
    | `MAIL_FROM` | Optional. Leave blank to send from `SMTP_USER`; Gmail only permits a different sender address when it is a verified alias. |
+   | `ALERT_WEBHOOK_URL`, `ALERT_WEBHOOK_KEY` | Optional. The n8n "Proctor violation alerts" webhook production URL and its header-auth value. The API posts CRITICAL violations and auto-submits there. |
 
    Save; Render redeploys the API.
 4. Check `https://<api>/health` returns `{"ok":true,...}`.
-5. Seed the first admin account once, from your machine, against the Render database (copy the **External Database URL** from `dev102-db`):
+5. Seed the first admin account once, from your machine, against the Neon database:
 
    ```bash
    DATABASE_URL="<external database url>" npm run db:seed
@@ -103,3 +104,21 @@ npm run db:migrate -- --name <what-changed>
 ```
 
 `npm start` applies migrations locally, and the API container applies them on deploy. A database created before migrations existed (with `prisma db push`) is detected and marked as already on the first migration.
+
+## Alternative: AWS + Neon + Vercel
+
+The same containers run on one EC2 host with Docker Compose. Caddy provides HTTPS and passes WebSockets through. Files are in `docs/deploy/aws/`.
+
+1. **Neon:** create a project in `aws-ap-southeast-1` and copy the **direct** connection string (the host without `-pooler`, ending in `?sslmode=require`). The API runs `prisma migrate deploy` on start, which needs the direct URL. Seed it once with `DATABASE_URL="<url>" npm run db:seed`.
+2. **EC2:** launch Ubuntu 24.04 on a `t3.medium` (4 GB; the agent's vision models need the memory) with a 30 GB disk. Open ports 80 and 443, and 22 for your IP only. Attach an Elastic IP. Without a domain, use `api.<ip-with-dashes>.sslip.io` as the hostname.
+3. On the host, install `docker.io docker-compose-v2 git`, clone the repo, and copy `docs/deploy/aws/.env.example` to `docs/deploy/aws/.env`. Fill it in, generating the secrets with `openssl rand -hex 32`. Then run:
+
+   ```bash
+   sudo docker compose -f docs/deploy/aws/docker-compose.yml up -d --build
+   ```
+
+   `https://<API_HOST>/health` should return ok once Caddy has its certificate.
+4. **Vercel:** follow section 3 above, with `NEXT_PUBLIC_API_URL=https://<API_HOST>`. Put the Vercel URL in `CLIENT_URL` in the `.env`, then rerun `docker compose ... up -d`.
+5. **Desktop:** follow section 4 above, with `VITE_API_URL=https://<API_HOST>`.
+
+To update, run `git pull` on the host and then the same `docker compose ... up -d --build` command.

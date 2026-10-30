@@ -42,9 +42,11 @@ vi.mock('../src/lib/db.js', () => {
 });
 
 vi.mock('../src/lib/realtime.js', () => ({ realtime: { toExam: vi.fn(), toSession: vi.fn() } }));
+vi.mock('../src/lib/alerts.js', () => ({ sendAlert: vi.fn(async () => {}) }));
 
 const { recordViolation } = await import('../src/lib/policy.js');
 const { realtime } = await import('../src/lib/realtime.js');
+const { sendAlert } = await import('../src/lib/alerts.js');
 
 const START = new Date('2026-10-28T10:00:00Z');
 let minute = 0;
@@ -207,5 +209,39 @@ describe('recordViolation with a configured threshold', () => {
     expect(db.session.warnings).toBe(0);
     expect(vi.mocked(realtime.toSession)).not.toHaveBeenCalled();
     expect(vi.mocked(realtime.toExam)).toHaveBeenCalledWith('exam-1', 'violation:new', expect.objectContaining({ outcome: 'LOGGED' }));
+  });
+});
+
+describe('violation alerts', () => {
+  beforeEach(() => setup());
+
+  it('alerts with the candidate and a proctor link when a CRITICAL event auto-submits', async () => {
+    await record('FACE_MISMATCH');
+    expect(sendAlert).toHaveBeenCalledTimes(1);
+    expect(sendAlert).toHaveBeenCalledWith(expect.objectContaining({
+      event: 'session.auto_submitted', code: 'FACE_MISMATCH', severity: 'CRITICAL', candidateName: 'Asha Rao',
+      examTitle: 'Campus Placement Test', sessionUrl: expect.stringMatching(/\/proctor\/sessions\/sess-1$/),
+    }));
+  });
+
+  it('alerts on auto-submit after repeated violations', async () => {
+    await record('WINDOW_BLUR');
+    await record('CLIPBOARD_USE');
+    expect(sendAlert).not.toHaveBeenCalled();
+    await record('MULTIPLE_FACES');
+    expect(sendAlert).toHaveBeenCalledWith(expect.objectContaining({ event: 'session.auto_submitted', severity: 'HIGH' }));
+  });
+
+  it('alerts on a CRITICAL event that does not end the exam', async () => {
+    setup({ autoSubmit: false });
+    await record('VM_DETECTED');
+    expect(sendAlert).toHaveBeenCalledWith(expect.objectContaining({ event: 'violation.critical', outcome: 'WARNING' }));
+  });
+
+  it('does not alert on a suppressed repeat', async () => {
+    setup({ autoSubmit: false });
+    await record('VM_DETECTED', new Date(START.getTime()));
+    await record('VM_DETECTED', new Date(START.getTime() + 5_000));
+    expect(sendAlert).toHaveBeenCalledTimes(1);
   });
 });

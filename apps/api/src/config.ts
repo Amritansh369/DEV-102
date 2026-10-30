@@ -28,6 +28,9 @@ const schema = z.object({
   PUBLIC_API_URL: z.string().url().default('http://localhost:4000'),
   /** Chrome extension IDs allowed to call the API; the default is the ID fixed by apps/extension/manifest.json's key. */
   EXTENSION_IDS: z.string().default('fgfompcfejncbbpbipjokoniblfihbnm'),
+  /** n8n webhook that receives CRITICAL violations and auto-submits. Empty turns alerts off. */
+  ALERT_WEBHOOK_URL: z.union([z.literal(''), z.string().url()]).default(''),
+  ALERT_WEBHOOK_KEY: z.string().default(''),
 });
 
 const parsed = schema.safeParse(process.env);
