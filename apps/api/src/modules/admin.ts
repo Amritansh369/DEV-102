@@ -254,7 +254,7 @@ adminRouter.get('/downloads/latest', handle(async () => {
       { os: 'macos', label: 'macOS 12+ (Apple silicon & Intel)', file: `Where-U-Elevate-${version}.dmg`, sizeMb: 0, url: '', available: false },
       { os: 'linux', label: 'Ubuntu 22.04+ (AppImage)', file: `Where-U-Elevate-${version}.AppImage`, sizeMb: 0, url: '', available: false },
     ],
-    requirements: ['Webcam and microphone', '4 GB RAM, dual-core CPU', '2 Mbps stable internet', 'One display, no virtual machine'],
+    requirements: ['Webcam and microphone', '4 GB RAM, dual-core CPU', '2 Mbps stable internet'],
   };
 }));
 
