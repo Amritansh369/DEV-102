@@ -600,7 +600,7 @@ export default function Exam({ examId, userId, onSubmitted }: ExamProps) {
     <div className="relative flex h-full min-h-[700px] min-w-[1100px] flex-col bg-soft text-ink">
       <header className="flex h-16 shrink-0 items-center justify-between gap-4 border-b border-border bg-white px-6">
         <div className="flex min-w-0 items-center gap-3">
-          <img src="/images/logo.png" alt="" className="h-8 w-auto" onError={(e) => (e.currentTarget.style.display = 'none')} />
+          <img src="images/logo.png" alt="" className="h-8 w-auto" onError={(e) => (e.currentTarget.style.display = 'none')} />
           <div className="min-w-0">
             <h1 className="truncate font-heading text-sm font-semibold">{exam.title}</h1>
             <p className="text-xs text-muted">{exam.code} · {questions.length} questions · {exam.totalMarks} marks</p>

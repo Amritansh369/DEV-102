@@ -51,7 +51,7 @@ export default function JoinPage() {
 
   return (
     <main className="relative min-h-[calc(100vh-5rem)] overflow-hidden bg-[#050b1a] px-4 py-12 sm:px-5">
-      <OrgBackdrop />
+      <OrgBackdrop look={!invite ? 'org' : proctor ? 'proctor' : 'student'} />
       <motion.div initial={{ opacity: 0, y: 14 }} animate={{ opacity: 1, y: 0 }} className="relative mx-auto max-w-xl rounded-3xl bg-white/95 p-6 shadow-pop ring-1 ring-white/60 backdrop-blur sm:p-8">
         {!invite && !error && (
           <p className="flex items-center justify-center gap-2 py-10 text-sm text-muted"><Loader2 className="h-4 w-4 animate-spin" aria-hidden /> Checking your exam link…</p>

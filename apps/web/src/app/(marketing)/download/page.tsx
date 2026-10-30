@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { AlertCircle, CheckCircle2, Download, ExternalLink, HardDrive, Loader2, MonitorCheck, ShieldCheck, TriangleAlert } from "lucide-react";
+import { AlertCircle, CheckCircle2, Download, ExternalLink, HardDrive, Loader2, MonitorCheck, RefreshCw, ShieldCheck, TriangleAlert } from "lucide-react";
 import { Faq, type FaqItem } from "@/components/marketing/Faq";
 import { CtaBanner } from "@/components/marketing/CtaBanner";
 import { OrgBackdrop } from "@/components/layout/OrgBackdrop";
@@ -147,10 +147,10 @@ export default function DownloadPage() {
                       <a href={APP_LINK} className="inline-flex w-full items-center justify-center gap-2 rounded-xl bg-cta px-6 py-3.5 font-semibold text-slate-900 shadow-md transition hover:-translate-y-0.5 hover:brightness-105 focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-cta/40">
                         <ExternalLink className="h-5 w-5" aria-hidden /> Open the app
                       </a>
-                      <p className="mt-2 text-sm text-slate-500">The app checks for updates when it opens and offers to restart when one is ready.</p>
-                      <a href={absolute(windows.url)} className="mt-1 inline-flex items-center gap-1.5 text-sm font-medium text-primary underline-offset-2 hover:underline">
-                        <Download className="h-4 w-4" aria-hidden /> Not opening? Download the installer again
+                      <a href={absolute(windows.url)} className="mt-3 inline-flex w-full items-center justify-center gap-2 rounded-xl border border-primary/30 bg-white px-6 py-3 font-semibold text-primary transition hover:bg-primary-50 focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-primary/20">
+                        <RefreshCw className="h-5 w-5" aria-hidden /> Update to v{release?.version}
                       </a>
+                      <p className="mt-2 text-sm text-slate-500">The update installs over your current version and replaces it, so nothing old is left behind. The app also updates itself when it opens and offers to restart.</p>
                     </>
                   ) : (
                     <>

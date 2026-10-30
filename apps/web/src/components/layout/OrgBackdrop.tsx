@@ -18,9 +18,9 @@ const LIGHT = 'linear-gradient(180deg, rgba(255,255,255,.88), rgba(255,255,255,.
 
 /**
  * Full-bleed background that follows the visitor's local time (morning, day, night).
- * `org` is the organisation set used across the website; `student` is used on the Download page.
+ * The photo set follows the visitor's role: `student` for candidates, `proctor` for proctors, `org` for the organisation.
  */
-export function OrgBackdrop({ look = 'org', tone = 'brand' }: { look?: 'org' | 'student'; tone?: 'brand' | 'light' }) {
+export function OrgBackdrop({ look = 'org', tone = 'brand' }: { look?: 'org' | 'student' | 'proctor'; tone?: 'brand' | 'light' }) {
   // Unknown on the server; the photo is requested only once the visitor's local time is known,
   // so a page never downloads two backgrounds.
   const [time, setTime] = useState<TimeTheme | null>(null)

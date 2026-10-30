@@ -71,7 +71,7 @@ function StatusBar() {
   return (
     <footer className="flex h-8 shrink-0 items-center justify-between gap-4 border-t border-border bg-surface px-4 text-[11px] text-muted">
       <div className="flex items-center gap-3">
-        <span className="font-medium text-primary">v0.1.0</span>
+        <span className="font-medium text-primary">v{__APP_VERSION__}</span>
         {!getProctor().native && <span className="rounded bg-amber-50 px-1.5 py-0.5 text-amber-700">Browser preview (no native guards)</span>}
         {auth && <span className="hidden lg:inline">{auth.name}</span>}
       </div>

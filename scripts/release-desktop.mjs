@@ -6,6 +6,7 @@
 import { execFileSync, spawnSync } from 'node:child_process';
 import { readFileSync } from 'node:fs';
 import { join, dirname } from 'node:path';
+import { tmpdir } from 'node:os';
 import { fileURLToPath } from 'node:url';
 
 const desktop = join(dirname(fileURLToPath(import.meta.url)), '..', 'apps', 'desktop');
@@ -42,7 +43,8 @@ if (!exists) {
   const r = spawnSync('gh', ['release', 'create', tag, '--target', 'main', '--title', tag, '--notes', `Where U Elevate desktop app ${version}.`, ...(beta ? ['--prerelease'] : [])], { stdio: 'inherit', env });
   if (r.status !== 0) process.exit(r.status ?? 1);
 }
-// A fresh output folder per version (gitignored as release-*/): Windows often keeps files of the previous build in
-// apps/desktop/release locked (Defender, indexing), which fails the build with EBUSY.
-run(['electron-builder', '--publish', 'always', `--config.publish.releaseType=${beta ? 'prerelease' : 'release'}`, `--config.directories.output=release-${version}`]);
+// Build outside the project in a fresh folder: Windows (Defender, indexing) often locks files under apps/desktop
+// while electron-builder renames them, which fails the build with EBUSY.
+const output = join(tmpdir(), `dev102-release-${version}-${Date.now()}`);
+run(['electron-builder', '--publish', 'always', `--config.publish.releaseType=${beta ? 'prerelease' : 'release'}`, `--config.directories.output=${output}`]);
 console.log(`[release] Published v${version}. Installed apps update on their next start or within 4 hours.`);
