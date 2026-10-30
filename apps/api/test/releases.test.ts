@@ -8,6 +8,13 @@ const rel = (tag: string, at: string, opts: { prerelease?: boolean; draft?: bool
 });
 
 describe('pickReleases', () => {
+  it('finds the extension zip on the newest release that has one', () => {
+    const zip = { name: 'Where-U-Elevate-Extension-0.2.0.zip', size: 1_048_576, browser_download_url: 'https://x/ext.zip' };
+    const older = rel('v0.1.0', '2026-10-01T00:00:00Z');
+    const r = pickReleases([rel('v0.2.0', '2026-10-10T00:00:00Z'), { ...older, assets: [...older.assets, zip] }]);
+    expect(r.extension).toMatchObject({ version: '0.2.0', sizeMb: 1, url: 'https://x/ext.zip' });
+  });
+
   it('returns the newest stable installer and a newer pre-release as the beta', () => {
     const r = pickReleases([
       rel('v0.1.0', '2026-10-01T00:00:00Z'),
@@ -30,7 +37,7 @@ describe('pickReleases', () => {
   });
 
   it('is empty when nothing is published', () => {
-    expect(pickReleases([])).toEqual({ stable: null, beta: null });
+    expect(pickReleases([])).toEqual({ stable: null, beta: null, extension: null });
   });
 });
 
@@ -55,7 +62,7 @@ describe('desktopReleases', () => {
     const fetchMock = vi.fn();
     vi.stubGlobal('fetch', fetchMock);
     const { desktopReleases } = await import('../src/lib/releases.js');
-    expect(await desktopReleases()).toEqual({ stable: null, beta: null });
+    expect(await desktopReleases()).toEqual({ stable: null, beta: null, extension: null });
     expect(fetchMock).not.toHaveBeenCalled();
   });
 });

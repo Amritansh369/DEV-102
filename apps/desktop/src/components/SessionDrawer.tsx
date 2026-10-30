@@ -2,7 +2,7 @@ import { useCallback, useEffect, useId, useMemo, useRef, useState, type Keyboard
 import { createPortal } from 'react-dom'
 import { AnimatePresence, motion } from 'framer-motion'
 import { z } from 'zod'
-import { AlertTriangle, Ban, Bot, Check, CornerDownRight, Globe, Loader2, MinusCircle, MonitorPlay, RefreshCw, Search, Send, Undo2, X } from 'lucide-react'
+import { AlertTriangle, Ban, Bot, Check, CornerDownRight, Globe, ImageOff, Loader2, MinusCircle, MonitorPlay, RefreshCw, Search, Send, Undo2, X } from 'lucide-react'
 import type { Severity, Violation } from '../lib/types'
 import { monitorApi, type MonitorSession, type SessionDetail } from '../lib/api'
 import { STATUS_LABEL, VIOLATION_META, formatClock, groupVisits, timeAgo, useNow } from '../lib/monitorUtils'
@@ -196,6 +196,13 @@ function LiveScreen({ sessionId, candidateName }: { sessionId: string; candidate
   )
 }
 
+/** A proof picture. Pictures from before evidence moved to the database were lost with the server's old disk. */
+function ProofImage({ src, alt, className }: { src?: string; alt: string; className: string }) {
+  const [failed, setFailed] = useState(false)
+  if (failed) return <p className="mt-3 flex aspect-video max-h-24 w-full items-center justify-center gap-2 rounded-lg bg-soft px-3 text-center text-xs text-muted"><ImageOff className="h-4 w-4 shrink-0" aria-hidden="true" />Picture not available</p>
+  return <img src={src} alt={alt} loading="lazy" onError={() => setFailed(true)} className={className} />
+}
+
 /** Confirming a flag takes marks off: the organization's amount for this severity, which the proctor can change. */
 function ReviewActions({ violation, suggested, onReview }: { violation: Violation; suggested: number; onReview: (v: Violation, verdict: 'CONFIRMED' | 'OVERRULED', marks?: number) => Promise<void> }) {
   const [marks, setMarks] = useState(String(suggested))
@@ -356,7 +363,7 @@ function DrawerBody({ session, liveImage, detailTick, onClose, onSendWarning, on
                     {proofs.map((v) => (
                       <li key={v.id}>
                         <button type="button" onClick={() => setTab('timeline')} title={v.message} className="block w-full overflow-hidden rounded-lg bg-white text-left ring-1 ring-border hover:ring-accent focus:outline-none focus-visible:ring-2 focus-visible:ring-accent">
-                          <img src={v.evidenceUrl} alt={`Proof: ${VIOLATION_META[v.code].label}`} loading="lazy" className="aspect-video w-full bg-slate-900 object-cover" />
+                          <ProofImage key={v.evidenceUrl} src={v.evidenceUrl} alt={`Proof: ${VIOLATION_META[v.code].label}`} className="aspect-video w-full bg-slate-900 object-cover" />
                           <span className="block truncate px-2 py-1 text-[11px] text-text">{VIOLATION_META[v.code].label}</span>
                         </button>
                       </li>
@@ -401,7 +408,7 @@ function DrawerBody({ session, liveImage, detailTick, onClose, onSendWarning, on
                     <time dateTime={v.at} className="ml-auto text-xs tabular-nums text-muted">{formatClock(v.at)} · {timeAgo(v.at, now)}</time>
                   </div>
                   <p className="mt-1 text-sm text-muted">{v.message}</p>
-                  {v.evidenceUrl && <img src={v.evidenceUrl} alt={`Evidence: ${VIOLATION_META[v.code].label}`} loading="lazy" className="mt-3 max-h-64 w-full rounded-lg border border-border bg-soft object-contain" />}
+                  {v.evidenceUrl && <ProofImage key={v.evidenceUrl} src={v.evidenceUrl} alt={`Evidence: ${VIOLATION_META[v.code].label}`} className="mt-3 max-h-64 w-full rounded-lg border border-border bg-soft object-contain" />}
                   {!v.reviewed && <ReviewActions violation={v} suggested={detail.penalties[v.severity]} onReview={review} />}
                 </li>
               ))}

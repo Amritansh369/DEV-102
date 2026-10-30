@@ -2,13 +2,17 @@
 
 Lets a candidate take a proctored exam in Chrome instead of the desktop app. The extension:
 
-- opens an exam tab (toolbar button) for sign-in, one-time code, face check, consent, the exam itself and the receipt;
-- uploads a webcam frame every 20 s, autosaves answers and sends heartbeats, like the desktop app;
-- reports every visited tab and tab switch to `/proctoring/browsing-logs`;
-- on AI sites, records text typed into inputs and chat boxes (on Enter, form submit, or a 2.5 s pause) and shows a notice bar;
-- sends `WINDOW_BLUR` when the candidate leaves the exam tab or Chrome loses focus (at most once per 10 s).
+- opens an exam tab (toolbar button) for sign-in, one-time code, face check, consent, screen share, the waiting room, the exam itself and the receipt;
+- uploads a webcam frame every 2 s and a screen frame every 20 s, autosaves answers and sends heartbeats, like the desktop app;
+- reports every visited tab, search and tab switch to `/proctoring/browsing-logs`;
+- on AI sites, records what is typed and what the AI answers, using the same code as the desktop app;
+- sends `WINDOW_BLUR` with a picture when the candidate leaves the exam tab or Chrome loses focus (at most once per 10 s).
 
 It signs in with `channel: "web"`, and sessions keep the same OTP and face requirements as the desktop app.
+
+## Release
+
+Bump `version` in `manifest.json`, then run `API_URL=https://<api> npm run release:extension`. The zip goes on the newest GitHub release, and `/download` offers it.
 
 ## Build and load
 
@@ -23,5 +27,6 @@ The manifest's `key` fixes the extension ID to `fgfompcfejncbbpbipjokoniblfihbnm
 
 ## Limits
 
-- Chrome can't lock the screen the way the desktop app's secure exam window does. The extension can only report what the candidate does.
+- Candidates install it with Load unpacked; it is not on the Chrome Web Store.
+- The proctor gets webcam frames and a screen picture every 20 s, but not the desktop app's live screen video.
 - Typing is tracked on the AI sites listed in `manifest.json`. A site already open when the exam starts begins tracking after it reloads.

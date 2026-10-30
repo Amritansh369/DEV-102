@@ -18,7 +18,7 @@ export const store = {
 };
 
 export class ApiError extends Error {
-  constructor(message: string, readonly code: string, readonly status: number) {
+  constructor(message: string, readonly code: string, readonly status: number, readonly details?: Record<string, unknown>) {
     super(message);
   }
 }
@@ -34,10 +34,10 @@ export async function call<T>(method: 'GET' | 'POST' | 'PUT', path: string, body
   } catch {
     throw new ApiError('Cannot reach the exam server. Check your connection.', 'NETWORK', 0);
   }
-  const json = (await res.json().catch(() => null)) as { ok?: boolean; data?: T; error?: { code: string; message: string } } | null;
-  if (!res.ok || !json?.ok) throw new ApiError(json?.error?.message ?? `Request failed (${res.status})`, json?.error?.code ?? 'SERVER', res.status);
+  const json = (await res.json().catch(() => null)) as { ok?: boolean; data?: T; error?: { code: string; message: string; details?: Record<string, unknown> } } | null;
+  if (!res.ok || !json?.ok) throw new ApiError(json?.error?.message ?? `Request failed (${res.status})`, json?.error?.code ?? 'SERVER', res.status, json?.error?.details);
   return json.data as T;
 }
 
 /** Messages content scripts send to the background worker. */
-export type ContentMessage = { type: 'typed'; text: string; url: string; title: string } | { type: 'status' };
+export type ContentMessage = { type: 'typed'; text: string; url: string; title: string } | { type: 'reply'; prompt: string; text: string; url: string; title: string } | { type: 'status' };

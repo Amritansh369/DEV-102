@@ -51,24 +51,17 @@ async function issuePassword(c: Pick<Candidate, 'id'>): Promise<string> {
 }
 
 /**
- * After a candidate's link is emailed, the organization (the exam's creator, else every admin) and every
- * proctor invited to the exam get a copy with the same link and password. A failed copy never fails the send.
+ * After a candidate's link is emailed, the organization (the exam's creator, else every admin) gets a copy
+ * with the same link and password. Proctors never do: they only get their own proctor link.
+ * A failed copy never fails the send.
  */
-async function copyToStaff(c: Candidate & { exam: { id: string; title: string; code: string; createdById: string | null } }, link: string, password: string, startTime: string) {
-  const [creator, admins, proctors] = await Promise.all([
+async function copyToOrganization(c: Candidate & { exam: { title: string; code: string; createdById: string | null } }, link: string, password: string, startTime: string) {
+  const [creator, admins] = await Promise.all([
     c.exam.createdById ? prisma.user.findFirst({ where: { id: c.exam.createdById, deletedAt: null }, select: { email: true, name: true } }) : null,
     prisma.user.findMany({ where: { role: 'ADMIN', deletedAt: null }, select: { email: true, name: true } }),
-    prisma.invite.findMany({
-      where: { examId: c.exam.id, role: 'MENTOR', revokedAt: null, expiresAt: { gt: new Date() } },
-      select: { user: { select: { email: true, name: true, deletedAt: true } } },
-    }),
   ]);
-  const organization = creator ? [creator] : admins;
-  const to = new Map<string, { name: string; role: 'organization' | 'proctor' }>();
-  for (const u of organization) to.set(u.email, { name: u.name, role: 'organization' });
-  for (const p of proctors) if (p.user && !p.user.deletedAt && !to.has(p.user.email)) to.set(p.user.email, { name: p.user.name, role: 'proctor' });
-  await Promise.all([...to].map(([email, who]) =>
-    sendMail({ to: email, ...templates.credentialsCopy(who.name, who.role, { name: c.name, email: c.email, userId: c.userId }, c.exam.title, c.exam.code, startTime, link, password), kind: 'credentials_copy', candidateId: c.id })
+  await Promise.all((creator ? [creator] : admins).map((u) =>
+    sendMail({ to: u.email, ...templates.credentialsCopy(u.name, { name: c.name, email: c.email, userId: c.userId }, c.exam.title, c.exam.code, startTime, link, password), kind: 'credentials_copy', candidateId: c.id })
       .catch(() => undefined)));
 }
 
@@ -95,7 +88,7 @@ Your exam link: {{inviteLink}}` : tpl.body || DEFAULT_BODY;
     where: { id: c.id },
     data: { emailStatus: r.ok ? 'SENT' : 'FAILED', ...(r.ok && c.status === 'INVITED' ? { status: 'EMAILED' } : {}) },
   });
-  if (r.ok) await copyToStaff(c, invite.link, password, vars.startTime);
+  if (r.ok) await copyToOrganization(c, invite.link, password, vars.startTime);
   return {
     candidateId, emailStatus: r.ok ? ('SENT' as const) : ('FAILED' as const), ...(r.error ? { error: r.error } : {}),
     // Development only: with no SMTP configured the link is returned so the flow can be tested locally.

@@ -163,8 +163,8 @@ ${steps(['Install the Smart Proctor app on the Windows computer you will use.', 
 <div style="margin-top:6px;font-size:12px;color:#64748b">Expires in ${ttlMin} minutes</div></td></tr></table>
 <p style="color:#475569">If you did not request this code, ignore this email. Nobody can sign in without it.</p>`, `Your code is ${code}. It expires in ${ttlMin} minutes.`),
   }),
-  credentialsCopy: (name: string, role: 'organization' | 'proctor', cand: { name: string; email: string; userId: string }, examTitle: string, examCode: string, startTime: string, link: string, password: string) => {
-    const why = role === 'proctor' ? 'You are proctoring this exam' : 'Your organization sent these exam details';
+  credentialsCopy: (name: string, cand: { name: string; email: string; userId: string }, examTitle: string, examCode: string, startTime: string, link: string, password: string) => {
+    const why = 'Your organization sent these exam details';
     return {
       subject: `Copy: exam link sent to ${cand.name} (${examCode})`,
       text: `Hello ${name},

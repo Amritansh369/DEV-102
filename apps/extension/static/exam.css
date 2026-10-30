@@ -60,3 +60,5 @@ aside { background: #fff; border: 1px solid var(--border); border-radius: 14px; 
   .layout { grid-template-columns: 1fr; }
   .exam header { flex-wrap: wrap; }
 }
+.preview { width: 100%; border-radius: 12px; background: #000; margin-top: 12px; }
+.countdown { font-size: 48px; font-weight: 700; text-align: center; color: var(--primary); font-variant-numeric: tabular-nums; margin: 20px 0; }
