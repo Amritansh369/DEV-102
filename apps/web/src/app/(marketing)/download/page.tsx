@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { AlertCircle, CheckCircle2, Download, ExternalLink, HardDrive, Loader2, MonitorCheck, RefreshCw, ShieldCheck, TriangleAlert } from "lucide-react";
+import { AlertCircle, CheckCircle2, Download, ExternalLink, HardDrive, Loader2, MonitorCheck, Puzzle, RefreshCw, ShieldCheck, TriangleAlert } from "lucide-react";
 import { Faq, type FaqItem } from "@/components/marketing/Faq";
 import { CtaBanner } from "@/components/marketing/CtaBanner";
 import { ExtensionSection } from "@/components/marketing/ExtensionSection";
@@ -42,8 +42,8 @@ function detectOS(ua: string): OS {
 const STEPS = [
   { t: "Download the installer", d: "Save the setup file. Windows may say it is from an unknown publisher: choose More info, then Run anyway." },
   { t: "Run the setup", d: "Double-click the file and choose Install. Administrator rights are not required." },
-  { t: "Sign in with your exam credentials", d: "Use the Exam ID, Candidate ID and password from your invitation email." },
-  { t: "Complete the system check", d: "Allow camera and microphone, close listed apps and test your network. Do this the day before." },
+  { t: "Join with your exam link", d: "Paste the exam link and enter the password from your invitation email." },
+  { t: "Complete the system check", d: "Allow camera and microphone and test your network. Do this the day before." },
 ];
 
 const FAQS: FaqItem[] = [
@@ -130,10 +130,10 @@ export default function DownloadPage() {
         <OrgBackdrop look="student" tone="light" />
         <div className="relative mx-auto max-w-3xl text-center">
           <span className="inline-flex items-center gap-2 rounded-full bg-white px-4 py-1.5 text-sm font-medium text-primary shadow-sm ring-1 ring-border">
-            <ShieldCheck className="h-4 w-4" aria-hidden /> Required for every exam
+            <ShieldCheck className="h-4 w-4" aria-hidden /> Two ways to take your exam
           </span>
           <h1 className="mt-5 font-heading text-4xl font-semibold text-slate-900 sm:text-5xl">Download the DEV102 Exam App</h1>
-          <p className="mt-4 text-lg text-slate-500">Your exam runs inside this secure app. Install it before exam day so the system check is not a last-minute surprise.</p>
+          <p className="mt-4 text-lg text-slate-500">Use the desktop app, or add the extension to your browser. Set up before exam day so the checks are not a last-minute surprise.</p>
 
           <div className="mx-auto mt-8 max-w-md rounded-2xl border border-border bg-white p-6 shadow-[0_24px_48px_-20px_rgba(10,77,166,0.35)]">
             {os === null ? (
@@ -168,6 +168,9 @@ export default function DownloadPage() {
                     {release || releaseError ? <><TriangleAlert className="h-4 w-4 text-warning" aria-hidden /> {releaseError ? "Could not reach the download server. Try again in a minute." : "The installer is not published yet. Ask your exam coordinator for the link."}</> : <><Loader2 className="h-4 w-4 animate-spin" aria-hidden /> Finding the latest version…</>}
                   </p>
                 )}
+                <a href="#extension" className="mt-3 inline-flex items-center gap-1.5 text-sm font-semibold text-primary underline-offset-4 hover:underline">
+                  <Puzzle className="h-4 w-4" aria-hidden /> Use the browser extension instead
+                </a>
                 {windows?.available && release && (
                   <p className="mt-3 flex items-center justify-center gap-3 text-sm text-slate-500">
                     <span>Version {release.version}</span>
