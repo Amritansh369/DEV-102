@@ -42,6 +42,7 @@ To remove these limits, change `plan: free` to `plan: starter` for both services
    | `APP_DOWNLOAD_URL` | `<website URL>/download` |
    | `SMTP_HOST`, `SMTP_USER`, `SMTP_PASS` | For Gmail, use `smtp.gmail.com:587`, your Gmail address, and a Google App Password (not your account password). |
    | `MAIL_FROM` | Optional. Leave blank to send from `SMTP_USER`; Gmail only permits a different sender address when it is a verified alias. |
+   | `TURN_URLS`, `TURN_USERNAME`, `TURN_CREDENTIAL` | A TURN relay so the proctor's live screen view works when the candidate is on another network (mobile data, campus Wi-Fi). Create a free one, for example on metered.ca, and paste its `turn:`/`turns:` URLs (comma-separated) and credentials. Without it, the screen view only connects on simple networks. |
    | `ALERT_WEBHOOK_URL`, `ALERT_WEBHOOK_KEY` | Optional. The n8n "Proctor violation alerts" webhook production URL and its header-auth value. The API posts CRITICAL violations and auto-submits there. |
 
    Save; Render redeploys the API.

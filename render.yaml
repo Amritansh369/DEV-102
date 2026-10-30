@@ -43,6 +43,12 @@ services:
         sync: false
       - key: ALERT_WEBHOOK_KEY
         sync: false
+      - key: TURN_URLS
+        sync: false
+      - key: TURN_USERNAME
+        sync: false
+      - key: TURN_CREDENTIAL
+        sync: false
 
   - type: web
     name: dev102-agent

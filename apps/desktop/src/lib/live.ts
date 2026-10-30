@@ -1,6 +1,6 @@
 import { io, type Socket } from 'socket.io-client';
 import { startAudioMonitor, type AudioEvent } from './audio';
-import { API_ORIGIN, HttpError, getToken, post, put } from './http';
+import { API_ORIGIN, HttpError, get, getToken, post, put } from './http';
 import { getScreenStream } from './proctorMock';
 import type { BrowsingLog, ViolationCode } from './types';
 
@@ -220,7 +220,11 @@ export function startLive(sessionId: string, h: LiveHandlers, opts: { audioMonit
 
 /* ---------------------------------------------------------------- live screen view (WebRTC) */
 
-const ICE_SERVERS: RTCIceServer[] = [{ urls: 'stun:stun.l.google.com:19302' }];
+const STUN: RTCIceServer[] = [{ urls: 'stun:stun.l.google.com:19302' }];
+let ice: Promise<RTCIceServer[]> | null = null;
+/** STUN plus the API's TURN relay, loaded once. Falls back to STUN alone, which works on the same network. */
+const iceServers = (): Promise<RTCIceServer[]> =>
+  (ice ??= get<{ iceServers: RTCIceServer[] }>('/auth/ice-servers').then((r) => r.iceServers, () => { ice = null; return STUN; }));
 type RtcMessage = { sessionId: string; from?: string; payload?: { type?: string; sdp?: string; candidate?: string } & RTCIceCandidateInit };
 export type ScreenState = 'connecting' | 'live' | 'unavailable' | 'ended';
 
@@ -301,11 +305,12 @@ export function shareScreenOnRequest(s: Socket, sessionId: string, withAudio = f
       s.emit('rtc:answer', { sessionId, to: from, payload: { type: 'unavailable' } });
       return;
     }
-    const pc = new RTCPeerConnection({ iceServers: ICE_SERVERS });
+    const pc = new RTCPeerConnection({ iceServers: STUN });
     stream.getVideoTracks().forEach((t) => pc.addTrack(t, stream));
     pc.onicecandidate = (e) => { if (e.candidate) s.emit('rtc:ice', { sessionId, to: from, payload: e.candidate.toJSON() }); };
     pc.onconnectionstatechange = () => { if (['failed', 'closed'].includes(pc.connectionState)) close(from); };
     const ready = (async () => {
+      pc.setConfiguration({ ...pc.getConfiguration(), iceServers: await iceServers() });
       await pc.setRemoteDescription({ type: 'offer', sdp: m.payload?.sdp });
       if (withAudio) (await microphone())?.getAudioTracks().forEach((t) => pc.addTrack(t, stream));
       const answer = await pc.createAnswer();
@@ -332,7 +337,7 @@ export function shareScreenOnRequest(s: Socket, sessionId: string, withAudio = f
 /** Mentor side: receive-only peer for one session's screen. The returned function hangs up. */
 export function watchScreen(sessionId: string, onStream: (stream: MediaStream) => void, onState: (state: ScreenState) => void): () => void {
   const s = io(`${API_ORIGIN}/monitor`, { path: '/socket.io', auth: (cb) => cb({ token: getToken() }), transports: ['websocket'], reconnectionDelayMax: 5000 });
-  const pc = new RTCPeerConnection({ iceServers: ICE_SERVERS });
+  const pc = new RTCPeerConnection({ iceServers: STUN });
   let answered: () => void = () => undefined;
   const remoteSet = new Promise<void>((resolve) => { answered = resolve; });
   let stopped = false;
@@ -361,6 +366,7 @@ export function watchScreen(sessionId: string, onStream: (stream: MediaStream) =
   onState('connecting');
   s.once('connect', () => {
     void (async () => {
+      pc.setConfiguration({ ...pc.getConfiguration(), iceServers: await iceServers() });
       const desc = await pc.createOffer();
       await pc.setLocalDescription(desc);
       s.emit('rtc:offer', { sessionId, payload: { type: desc.type, sdp: desc.sdp } });

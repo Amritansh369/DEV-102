@@ -28,6 +28,10 @@ const schema = z.object({
   PUBLIC_API_URL: z.string().url().default('http://localhost:4000'),
   /** Chrome extension IDs allowed to call the API; the default is the ID fixed by apps/extension/manifest.json's key. */
   EXTENSION_IDS: z.string().default('fgfompcfejncbbpbipjokoniblfihbnm'),
+  /** TURN relay for the live screen view across networks (comma-separated turn:/turns: URLs). STUN alone fails behind mobile or campus NAT. */
+  TURN_URLS: z.string().default(''),
+  TURN_USERNAME: z.string().default(''),
+  TURN_CREDENTIAL: z.string().default(''),
   /** n8n webhook that receives CRITICAL violations and auto-submits. Empty turns alerts off. */
   ALERT_WEBHOOK_URL: z.union([z.literal(''), z.string().url()]).default(''),
   ALERT_WEBHOOK_KEY: z.string().default(''),
@@ -41,6 +45,12 @@ if (!parsed.success) {
 }
 
 const env = parsed.data;
+
+function iceServers(e: typeof env): { urls: string | string[]; username?: string; credential?: string }[] {
+  const stun = { urls: 'stun:stun.l.google.com:19302' };
+  const urls = e.TURN_URLS.split(',').map((s) => s.trim()).filter((u) => /^turns?:/.test(u));
+  return urls.length ? [stun, { urls, username: e.TURN_USERNAME, credential: e.TURN_CREDENTIAL }] : [stun];
+}
 if (env.NODE_ENV === 'production' && ['change_me', 'dev-agent-key'].some((weak) => [env.JWT_SECRET, env.AGENT_API_KEY].includes(weak))) {
   console.error('Refusing to start in production with the default JWT_SECRET or AGENT_API_KEY.');
   process.exit(1);
@@ -53,6 +63,7 @@ export const config = {
   extensionOrigins: env.EXTENSION_IDS.split(',').map((s) => s.trim()).filter(Boolean).map((id) => `chrome-extension://${id}`),
   evidenceDir: resolve(ROOT_DIR, env.EVIDENCE_DIR),
   smtpEnabled: Boolean(env.SMTP_HOST && env.SMTP_USER && env.SMTP_PASS),
+  iceServers: iceServers(env),
 };
 
 for (const origin of config.clientOrigins) {
