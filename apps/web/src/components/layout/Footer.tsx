@@ -22,7 +22,6 @@ const COLUMNS: FooterColumn[] = [
       { href: '/features', label: 'Features' },
       { href: '/security', label: 'Security and privacy' },
       { href: '/download', label: 'Download the app' },
-      { href: '/download#extension', label: 'Use the extension' },
       { href: '/download#requirements', label: 'System requirements' },
     ],
   },

@@ -5,7 +5,7 @@ import dynamic from 'next/dynamic';
 import { useEffect, useRef, useState } from 'react';
 import { homeFor, useSession } from '@/lib/session';
 import { AnimatePresence, motion, useReducedMotion } from 'framer-motion';
-import { Activity, ArrowRight, Building2, Download, Eye, Fingerprint, Globe, Link2, Menu, MonitorCheck, ScanFace, ShieldCheck, Sparkles, Timer, UserCheck, X, Puzzle } from 'lucide-react';
+import { Activity, ArrowRight, Building2, Download, Eye, Fingerprint, Globe, Link2, Menu, MonitorCheck, ScanFace, ShieldCheck, Sparkles, Timer, UserCheck, X } from 'lucide-react';
 import { OrgBackdrop } from '@/components/layout/OrgBackdrop';
 import { OPTIONS, riskTone, useExamStory } from './examStory';
 
@@ -24,7 +24,6 @@ const NAV = [
   { href: '#features', label: 'Features' },
   { href: '/security', label: 'Security' },
   { href: '/download', label: 'Download App' },
-  { href: '/download#extension', label: 'Use Extension' },
 ];
 
 /** The logo is blue on transparent, so it sits on a white badge to stay visible over the hero image. */
@@ -339,9 +338,6 @@ export default function Hero() {
           >
             <Link href="/download" className="group inline-flex items-center gap-2 rounded-xl bg-cta px-6 py-3.5 text-sm font-bold text-slate-900 shadow-xl shadow-black/15 transition hover:brightness-105 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-white">
               <Download className="h-4 w-4" aria-hidden /> Download the app
-            </Link>
-            <Link href="/download#extension" className="group inline-flex items-center gap-2 rounded-xl bg-white px-6 py-3.5 text-sm font-bold text-primary shadow-lg transition hover:bg-soft focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-white">
-              <Puzzle className="h-4 w-4" aria-hidden /> Use extension
             </Link>
             <Link href="/login?role=organization" className="group inline-flex items-center gap-2 rounded-xl bg-white px-6 py-3.5 text-sm font-bold text-primary shadow-lg transition hover:bg-soft focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-white">
               <Building2 className="h-4 w-4" aria-hidden /> For organizations <ArrowRight className="h-4 w-4 transition group-hover:translate-x-0.5" aria-hidden />

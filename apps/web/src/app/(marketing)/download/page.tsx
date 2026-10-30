@@ -1,10 +1,9 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { AlertCircle, CheckCircle2, Download, ExternalLink, HardDrive, Loader2, MonitorCheck, Puzzle, RefreshCw, ShieldCheck, TriangleAlert } from "lucide-react";
+import { AlertCircle, CheckCircle2, Download, ExternalLink, HardDrive, Loader2, MonitorCheck, RefreshCw, ShieldCheck, TriangleAlert } from "lucide-react";
 import { Faq, type FaqItem } from "@/components/marketing/Faq";
 import { CtaBanner } from "@/components/marketing/CtaBanner";
-import { ExtensionSection } from "@/components/marketing/ExtensionSection";
 import { OrgBackdrop } from "@/components/layout/OrgBackdrop";
 import { getDesktopDownloads, type DesktopDownloads } from "@/lib/api";
 import { API_ORIGIN } from "@/lib/http";
@@ -130,10 +129,10 @@ export default function DownloadPage() {
         <OrgBackdrop look="student" tone="light" />
         <div className="relative mx-auto max-w-3xl text-center">
           <span className="inline-flex items-center gap-2 rounded-full bg-white px-4 py-1.5 text-sm font-medium text-primary shadow-sm ring-1 ring-border">
-            <ShieldCheck className="h-4 w-4" aria-hidden /> Two ways to take your exam
+            <ShieldCheck className="h-4 w-4" aria-hidden /> Required for every exam
           </span>
           <h1 className="mt-5 font-heading text-4xl font-semibold text-slate-900 sm:text-5xl">Download the DEV102 Exam App</h1>
-          <p className="mt-4 text-lg text-slate-500">Use the desktop app, or add the extension to your browser. Set up before exam day so the checks are not a last-minute surprise.</p>
+          <p className="mt-4 text-lg text-slate-500">Your exam runs inside this app. Install it before exam day so the checks are not a last-minute surprise.</p>
 
           <div className="mx-auto mt-8 max-w-md rounded-2xl border border-border bg-white p-6 shadow-[0_24px_48px_-20px_rgba(10,77,166,0.35)]">
             {os === null ? (
@@ -168,9 +167,6 @@ export default function DownloadPage() {
                     {release || releaseError ? <><TriangleAlert className="h-4 w-4 text-warning" aria-hidden /> {releaseError ? "Could not reach the download server. Try again in a minute." : "The installer is not published yet. Ask your exam coordinator for the link."}</> : <><Loader2 className="h-4 w-4 animate-spin" aria-hidden /> Finding the latest version…</>}
                   </p>
                 )}
-                <a href="#extension" className="mt-3 inline-flex items-center gap-1.5 text-sm font-semibold text-primary underline-offset-4 hover:underline">
-                  <Puzzle className="h-4 w-4" aria-hidden /> Use the browser extension instead
-                </a>
                 {windows?.available && release && (
                   <p className="mt-3 flex items-center justify-center gap-3 text-sm text-slate-500">
                     <span>Version {release.version}</span>
@@ -245,8 +241,6 @@ export default function DownloadPage() {
           </div>
         </div>
       </section>
-
-      <ExtensionSection release={release} failed={releaseError} />
 
       <section aria-labelledby="faq-h" className="px-4 py-16 sm:px-6">
         <div className="mx-auto max-w-3xl">

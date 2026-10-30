@@ -4,7 +4,7 @@ import { useEffect, useState } from 'react'
 import Link from 'next/link'
 import { useParams } from 'next/navigation'
 import { motion } from 'framer-motion'
-import { AlertCircle, CalendarClock, Check, ClipboardCopy, Download, GraduationCap, KeyRound, Loader2, MonitorSmartphone, Puzzle, ShieldCheck } from 'lucide-react'
+import { AlertCircle, CalendarClock, Check, ClipboardCopy, Download, GraduationCap, KeyRound, Loader2, MonitorSmartphone, ShieldCheck } from 'lucide-react'
 import { OrgBackdrop } from '@/components/layout/OrgBackdrop'
 import { previewInvite, type InvitePreview } from '@/lib/api'
 
@@ -98,9 +98,6 @@ export default function JoinPage() {
               </button>
               <Link href="/download" className="inline-flex flex-1 items-center justify-center gap-2 rounded-xl border border-border px-4 py-3 text-sm font-semibold text-primary hover:bg-soft focus-visible:outline-2 focus-visible:outline-accent">
                 <MonitorSmartphone className="h-4 w-4" aria-hidden /> Get the desktop app
-              </Link>
-              <Link href="/download#extension" className="inline-flex flex-1 items-center justify-center gap-2 rounded-xl border border-border px-4 py-3 text-sm font-semibold text-primary hover:bg-soft focus-visible:outline-2 focus-visible:outline-accent">
-                <Puzzle className="h-4 w-4" aria-hidden /> Use extension
               </Link>
             </div>
             <p className="mt-4 text-center text-xs text-muted">
