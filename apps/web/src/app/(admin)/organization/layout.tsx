@@ -7,7 +7,7 @@ import { usePathname, useRouter } from 'next/navigation'
 import { AnimatePresence, motion } from 'framer-motion'
 import {
   BarChart3, ChevronRight, ClipboardList, Keyboard, KeyRound, LayoutDashboard, Library, LogOut, Menu,
-  PanelLeftClose, PanelLeftOpen, Plus, Search, Settings, ShieldAlert, ShieldCheck, Upload, User, Users, X,
+  PanelLeftClose, PanelLeftOpen, Plus, Search, Settings, ShieldAlert, ShieldCheck, Upload, Users, X,
   type LucideIcon,
 } from 'lucide-react'
 import { NotificationPopover } from '@/components/admin/NotificationPopover'
@@ -46,6 +46,7 @@ const SEARCH_ENTRIES: SearchEntry[] = [
   { id: 'p-cred', label: 'Credentials and emails', hint: 'Page · send login details', href: '/organization/credentials', icon: KeyRound },
   { id: 'p-res', label: 'Results', hint: 'Page · scores and ranks', href: '/organization/results', icon: BarChart3 },
   { id: 'p-rep', label: 'Violation reports', hint: 'Page · review penalties', href: '/organization/reports', icon: ShieldAlert },
+  { id: 'p-set', label: 'Settings', hint: 'Page · name and password', href: '/organization/settings', icon: Settings },
   { id: 'a-new', label: 'Create exam', hint: 'Action · open the exam wizard', href: '/organization/exams/new', icon: Plus },
   { id: 'a-mcq', label: 'Import MCQs from CSV or Excel', hint: 'Action · question bank', href: '/organization/questions?import=1', icon: Upload },
   { id: 'a-cand', label: 'Import candidates', hint: 'Action · candidates', href: '/organization/candidates?import=1', icon: Upload },
@@ -316,10 +317,9 @@ function ProfileMenu() {
           >
             <div className="border-b border-border px-3 pb-3 pt-2">
               <p className="text-sm font-semibold text-text">{name}</p>
-              <p className="truncate text-xs text-muted">meenakshi.iyer@whereuelevate.in</p>
+              <p className="truncate text-xs text-muted">{user?.email}</p>
             </div>
             <div className="py-2">
-              <Link role="menuitem" href="/organization/profile" onClick={() => setOpen(false)} className={itemClass}><User className="h-4 w-4" aria-hidden="true" /> My profile</Link>
               <Link role="menuitem" href="/organization/settings" onClick={() => setOpen(false)} className={itemClass}><Settings className="h-4 w-4" aria-hidden="true" /> Organisation settings</Link>
               <button role="menuitem" type="button" className={itemClass} onClick={() => { setOpen(false); toast.info('Keyboard shortcuts', 'Ctrl K search · Ctrl B toggle sidebar · / search the exams table') }}>
                 <Keyboard className="h-4 w-4" aria-hidden="true" /> Keyboard shortcuts

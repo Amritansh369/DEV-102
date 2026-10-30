@@ -5,7 +5,7 @@ import { useRouter, useSearchParams } from 'next/navigation'
 import { AlertCircle, ArrowRight, Loader2, ShieldCheck } from 'lucide-react'
 import { BrandMark } from '@/components/layout/BrandMark'
 import { OrgBackdrop } from '@/components/layout/OrgBackdrop'
-import { DEMO_CREDENTIALS, login } from '@/lib/api'
+import { DEMO_ORGANIZATION, login } from '@/lib/api'
 import { homeFor, useSession } from '@/lib/session'
 
 type LoginRole = 'candidate' | 'mentor' | 'admin'
@@ -31,10 +31,8 @@ function LoginContent() {
   const [submitting, setSubmitting] = useState(false)
 
   const fillDemo = () => {
-    const credentials = role === 'candidate' ? DEMO_CREDENTIALS.candidate : DEMO_CREDENTIALS[role]
-    setIdentifier(credentials.identifier)
-    setPassword(credentials.password)
-    if (role === 'candidate') setExamId(DEMO_CREDENTIALS.candidate.examId)
+    setIdentifier(DEMO_ORGANIZATION.identifier)
+    setPassword(DEMO_ORGANIZATION.password)
   }
 
   const submit = async (event: FormEvent<HTMLFormElement>) => {
@@ -111,12 +109,13 @@ function LoginContent() {
               {submitting ? <Loader2 className="h-4 w-4 animate-spin" aria-hidden /> : <ArrowRight className="h-4 w-4" aria-hidden />}
               {submitting ? 'Signing in…' : 'Sign in'}
             </button>
-            <button type="button" onClick={fillDemo} className="w-full text-center text-xs font-semibold text-primary hover:underline">
-              Use demo credentials
-            </button>
+            {role === 'admin' && (
+              <button type="button" onClick={fillDemo} className="w-full text-center text-xs font-semibold text-primary hover:underline">
+                Use demo credentials
+              </button>
+            )}
           </form>
 
-          <p className="mt-6 text-center text-xs text-muted">Demo mode is enabled for local development.</p>
         </section>
       </div>
     </main>

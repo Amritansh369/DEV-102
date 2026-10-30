@@ -241,12 +241,13 @@ function localInstaller(): string | undefined {
 adminRouter.get('/downloads/latest', handle(async () => {
   const dir = join(ROOT_DIR, 'apps', 'desktop', 'release');
   const exe = localInstaller();
-  const { stable, beta } = exe ? { stable: null, beta: null } : await desktopReleases();
+  const { stable, beta, extension } = await desktopReleases();
   const size = exe ? Math.round((statSync(join(dir, exe)).size / 1_048_576) * 10) / 10 : stable?.sizeMb ?? 0;
   const version = exe?.match(/(\d+\.\d+\.\d+(?:-[a-z]+(?:\.\d+)?)?)/)?.[1] ?? stable?.version ?? '0.1.0';
   return {
     version,
     releasedAt: exe ? statSync(join(dir, exe)).mtime.toISOString() : stable?.releasedAt ?? new Date().toISOString(),
+    extension: extension ? { version: extension.version, file: extension.file, sizeMb: extension.sizeMb, url: extension.url } : null,
     // A newer test build for testers, when one is published as a GitHub pre-release.
     beta: beta ? { version: beta.version, file: beta.file, sizeMb: beta.sizeMb, url: beta.url, releasedAt: beta.releasedAt } : null,
     builds: [

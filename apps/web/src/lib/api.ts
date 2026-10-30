@@ -57,12 +57,8 @@ export const SEVERITY_COLOR: Record<Severity, string> = { LOW: '#94A3B8', MEDIUM
 
 export interface AuthUser { id: string; name: string; email: string; role: Role; examId?: string; candidateId?: string }
 
-/** Seeded demo accounts (database/prisma/seed.ts). */
-export const DEMO_CREDENTIALS = {
-  admin: { identifier: 'admin@wue.in', password: 'Admin@123' },
-  mentor: { identifier: 'mentor@wue.in', password: 'Mentor@123' },
-  candidate: { examId: 'CPA-26', identifier: 'WUE26DEMO', password: 'Demo@2026' },
-} as const
+/** Seeded demo organization account (database/prisma/seed.ts). */
+export const DEMO_ORGANIZATION = { identifier: 'admin@wue.in', password: 'Admin@123' } as const
 
 /** Candidates sign in with an exam code; staff with an email. */
 export async function login(input: { identifier: string; password: string; examId?: string }): Promise<{ token: string; user: AuthUser }> {
@@ -168,7 +164,11 @@ export interface ProctorProfileLookup { profile: { name: string; email: string }
 export interface InviteSent { inviteId: string; devLink?: string; password?: string; outbox?: boolean }
 export interface DesktopBuild { os: string; label: string; file: string; sizeMb: number; url: string; available: boolean }
 /** The installer the website offers; beta is a newer test build, when one is published. */
-export interface DesktopDownloads { version: string; releasedAt: string; beta?: { version: string; file: string; sizeMb: number; url: string } | null; builds: DesktopBuild[] }
+export interface DesktopDownloads { extension?: { version: string; file: string; sizeMb: number; url: string } | null; version: string; releasedAt: string; beta?: { version: string; file: string; sizeMb: number; url: string } | null; builds: DesktopBuild[] }
+export const updateProfile = (name: string) => call(patch<{ name: string }>('/auth/profile', { name }))
+/** The server signs out other devices, so the new token replaces this device's. */
+export const changePassword = (current: string, next: string) =>
+  call(post<{ token: string }>('/auth/change-password', { current, next })).then((r) => setToken(r.token))
 export const getDesktopDownloads = () => call(get<DesktopDownloads>('/downloads/latest'))
 export const listProctors = (examId: string) => call(get<ProctorInvite[]>(`/exams/${examId}/proctors`))
 export const lookupProctorEmail = (examId: string, email: string) => call(get<ProctorProfileLookup>(`/exams/${examId}/proctors/lookup?email=${encodeURIComponent(email)}`))

@@ -63,6 +63,8 @@ if (env.NODE_ENV === 'production' && ['change_me', 'dev-agent-key'].some((weak) 
 
 export const config = {
   ...env,
+  // Evidence and photo links must point at this API; Render knows its own address, so a mistyped setting cannot break them.
+  PUBLIC_API_URL: process.env.RENDER_EXTERNAL_URL || env.PUBLIC_API_URL,
   isProd: env.NODE_ENV === 'production',
   clientOrigins: env.CLIENT_URL.split(',').map((s) => s.trim().replace(/\/+$/, '')).filter(Boolean),
   extensionOrigins: env.EXTENSION_IDS.split(',').map((s) => s.trim()).filter(Boolean).map((id) => `chrome-extension://${id}`),
