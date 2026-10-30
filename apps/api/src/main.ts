@@ -48,7 +48,7 @@ initRealtime(server);
 async function start(): Promise<void> {
   await prisma.$connect();
   server.listen(config.PORT, () => {
-    logger.info(`API listening on http://localhost:${config.PORT}/api/v1 (${config.NODE_ENV}, mail: ${config.smtpEnabled ? 'smtp' : 'dev outbox'})`);
+    logger.info(`API listening on http://localhost:${config.PORT}/api/v1 (${config.NODE_ENV}, mail: ${config.mailProvider ?? 'dev outbox'})`);
   });
   startJobs();
 }
