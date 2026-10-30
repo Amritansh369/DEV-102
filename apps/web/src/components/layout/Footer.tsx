@@ -4,7 +4,7 @@ import Link from 'next/link';
 import { useState, type FormEvent } from 'react';
 import { ArrowRight, Instagram, Linkedin, Mail, Twitter, Youtube, type LucideIcon } from 'lucide-react';
 import { z } from 'zod';
-import { Button, Input, useToast } from '@/components/ui/primitives';
+import { Avatar, Button, Input, useToast } from '@/components/ui/primitives';
 import { BrandMark } from '@/components/layout/BrandMark';
 
 const emailSchema = z.string().trim().min(1, 'Please enter your email').email('Enter a valid email address');
@@ -51,6 +51,12 @@ const COLUMNS: FooterColumn[] = [
       { href: '/privacy#retention', label: 'Data retention' },
     ],
   },
+];
+
+/** The team that built the platform, shown as "Powered by Tech Knights" with each member's GitHub photo. */
+const TEAM = [
+  { name: 'Mallavarapu Krishna Koushik Reddy', github: 'KKPRO2007' },
+  { name: 'Amritansh Rai', github: 'Amritansh369' },
 ];
 
 const SOCIALS: { label: string; href: string; icon: LucideIcon }[] = [
@@ -173,6 +179,28 @@ export function Footer() {
                   className="flex h-10 w-10 items-center justify-center rounded-xl border border-border text-muted transition hover:border-accent hover:bg-primary-50 hover:text-primary focus-ring"
                 >
                   <Icon className="h-4 w-4" aria-hidden />
+                </a>
+              </li>
+            ))}
+          </ul>
+        </div>
+
+        <div className="mt-6 flex flex-wrap items-center gap-3 text-sm text-muted">
+          <span>
+            Powered by <span className="font-heading font-semibold text-ink">Tech Knights</span>
+          </span>
+          <ul className="flex items-center gap-2" aria-label="Tech Knights team">
+            {TEAM.map(({ name, github }) => (
+              <li key={github}>
+                <a
+                  href={`https://github.com/${github}`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  title={`${name} on GitHub`}
+                  className="inline-flex items-center gap-2 rounded-full border border-border py-1 pl-1 pr-3 transition hover:border-accent hover:bg-primary-50 hover:text-primary focus-ring"
+                >
+                  <Avatar name={name} size="sm" src={`https://github.com/${github}.png?size=64`} />
+                  <span className="text-xs font-medium">@{github}</span>
                 </a>
               </li>
             ))}
