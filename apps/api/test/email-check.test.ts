@@ -1,11 +1,14 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 const dns = vi.hoisted(() => ({
+  os: vi.fn<(d: string) => Promise<{ address: string }>>(),
   mx: vi.fn<(d: string) => Promise<{ exchange: string; priority: number }[]>>(),
   a4: vi.fn<(d: string) => Promise<string[]>>(),
   a6: vi.fn<(d: string) => Promise<string[]>>(),
 }));
+vi.mock('../src/lib/core.js', () => ({ logger: { warn: vi.fn() } }));
 vi.mock('node:dns/promises', () => ({
+  lookup: dns.os,
   Resolver: class {
     resolveMx = dns.mx;
     resolve4 = dns.a4;
@@ -48,8 +51,15 @@ describe('mailDomainOk', () => {
     expect(await check('a@small-host.example')).toBe(true);
   });
 
+  it('still rejects a typo domain when the MX lookup times out, using the system resolver', async () => {
+    dns.mx.mockRejectedValue(fail('ETIMEOUT'));
+    dns.os.mockRejectedValue(fail('ENOTFOUND'));
+    expect(await check('a@gmial.con')).toBe(false);
+  });
+
   it('answers null when DNS itself fails, and asks again next time', async () => {
     dns.mx.mockRejectedValue(fail('ETIMEOUT'));
+    dns.os.mockResolvedValue({ address: '203.0.113.5' });
     const { mailDomainOk } = await import('../src/lib/email-check.js');
     expect(await mailDomainOk('a@slow.example')).toBeNull();
     dns.mx.mockResolvedValue([{ exchange: 'mx.slow.example', priority: 10 }]);

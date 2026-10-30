@@ -1,5 +1,6 @@
-import { Resolver } from 'node:dns/promises';
+import { Resolver, lookup as osLookup } from 'node:dns/promises';
 import { createHash } from 'node:crypto';
+import { logger } from './core.js';
 
 const resolver = new Resolver({ timeout: 3000, tries: 2 });
 const cache = new Map<string, { ok: boolean | null; until: number }>();
@@ -13,7 +14,12 @@ async function lookup(domain: string): Promise<boolean | null> {
     return !(mx.length === 1 && mx[0]?.exchange === '');
   } catch (err) {
     const code = (err as NodeJS.ErrnoException).code ?? '';
-    if (!GONE.has(code)) return null;
+    if (!GONE.has(code)) {
+      // The DNS server did not answer (a cold start can time out). The operating system resolver can still tell
+      // whether the domain exists at all, which is what catches typos like gmial.com.
+      logger.warn({ domain, code }, 'MX lookup failed; checking the domain with the system resolver');
+      return osLookup(domain).then(() => null, (e: NodeJS.ErrnoException) => (GONE.has(e.code ?? '') ? false : null));
+    }
   }
   // No MX record: mail falls back to the domain's own address (RFC 5321 implicit MX).
   const hasAddress = await Promise.any([resolver.resolve4(domain), resolver.resolve6(domain)]).then(() => true, () => false);
