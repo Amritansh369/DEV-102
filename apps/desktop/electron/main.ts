@@ -4,7 +4,6 @@ import { pathToFileURL } from 'node:url';
 import { CH, registerIpc } from './ipc';
 import { ExamWindow } from './security/exam-window';
 import { setRelaxed } from './security/guards';
-import { SANDBOX_PARTITION, attachGuard, hardenSandbox } from './browser-sandbox/sandbox';
 import { startAutoUpdates } from './updater';
 import { isAppPage } from './trust';
 
@@ -64,7 +63,6 @@ function lockDownSession(): void {
     cb({ video: primary });
   }, { useSystemPicker: false });
   ses.on('will-download', (e) => e.preventDefault());
-  hardenSandbox();
 }
 
 async function createWindow(): Promise<void> {
@@ -83,7 +81,6 @@ async function createWindow(): Promise<void> {
       contextIsolation: true,
       nodeIntegration: false,
       sandbox: true,
-      webviewTag: true,
       spellcheck: false,
       devTools: isDev,
       // Read by the preload as window.proctor.relaxed.
@@ -125,7 +122,6 @@ async function createWindow(): Promise<void> {
   win.webContents.on('will-navigate', (e, url) => {
     if (!isAppPage(url, rendererBase())) e.preventDefault();
   });
-  attachGuard(win.webContents);
 
   try {
     if (devUrl) await win.loadURL(devUrl);
@@ -149,9 +145,8 @@ app.whenReady().then(() => {
 });
 
 app.on('web-contents-created', (_e, contents) => {
-  // Defence in depth: no web contents (including sandbox tabs) may open new native windows.
+  // Defence in depth: no web contents may open new native windows.
   contents.setWindowOpenHandler(() => ({ action: 'deny' }));
-  if (contents.getType() === 'webview' && contents.session !== session.fromPartition(SANDBOX_PARTITION)) contents.close();
 });
 
 app.on('window-all-closed', () => {

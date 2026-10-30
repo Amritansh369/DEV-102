@@ -4,10 +4,10 @@ import { Suspense, useCallback, useMemo, useState, type KeyboardEvent, type Reac
 import Link from 'next/link'
 import { useParams, useRouter, useSearchParams } from 'next/navigation'
 import { motion, useReducedMotion } from 'framer-motion'
-import { AlertTriangle, ArrowLeft, CalendarClock, CheckCircle2, Clock, FileQuestion, Globe, Loader2, Mail, Plus, Radio, Rocket, Save, Send, ShieldAlert, Users, XCircle, type LucideIcon } from 'lucide-react'
+import { AlertTriangle, ArrowLeft, CalendarClock, CheckCircle2, Clock, FileQuestion, Loader2, Mail, Plus, Radio, Rocket, Save, Send, ShieldAlert, Users, XCircle, type LucideIcon } from 'lucide-react'
 import { ConfirmDialog } from '@/components/admin/Dialogs'
 import { ExamStatusBadge } from '@/components/admin/ExamStatusBadge'
-import { Toggle, btnGhost, btnPrimary, cardCls, inputCls, inputState } from '@/components/admin/FormControls'
+import { Toggle, btnGhost, btnPrimary, cardCls } from '@/components/admin/FormControls'
 import { PolicyEditor } from '@/components/admin/PolicyEditor'
 import { EmptyState, ErrorState, Skeleton } from '@/components/admin/States'
 import { updateExam } from '@/lib/api'
@@ -29,7 +29,6 @@ const TABS = [
 ] as const
 type TabKey = (typeof TABS)[number]['key']
 const parseTab = (v: string | null): TabKey => TABS.find((t) => t.key === v)?.key ?? 'overview'
-const DOMAIN = /^(?!-)(?:[a-z0-9-]{1,63}\.)+[a-z]{2,}$/i
 
 type Loaded = ExamDetail & { questions: Question[] }
 
@@ -236,20 +235,10 @@ function SettingsTab({ d, onSaved }: { d: Loaded; onSaved: (exam: Exam, policy: 
   const readOnly = exam.status === 'LIVE' || exam.status === 'COMPLETED'
   const [settings, setSettings] = useState(exam.settings)
   const [policy, setPolicy] = useState(savedPolicy)
-  const [site, setSite] = useState('')
-  const [siteErr, setSiteErr] = useState<string | undefined>()
   const [saving, setSaving] = useState(false)
   const dirty = JSON.stringify([settings, policy]) !== JSON.stringify([exam.settings, savedPolicy])
   const policyOk = policySchema.safeParse(policy).success
 
-  const addSite = () => {
-    const s = site.trim().toLowerCase().replace(/^https?:\/\//, '').replace(/\/.*$/, '')
-    if (!s) return
-    if (!DOMAIN.test(s)) return setSiteErr('Enter a valid domain such as docs.python.org')
-    if (!settings.allowedSites.includes(s)) setSettings({ ...settings, allowedSites: [...settings.allowedSites, s] })
-    setSite('')
-    setSiteErr(undefined)
-  }
   const save = async () => {
     setSaving(true)
     try {
@@ -275,18 +264,6 @@ function SettingsTab({ d, onSaved }: { d: Loaded; onSaved: (exam: Exam, policy: 
         <Toggle checked={Boolean(settings.proctorOnly)} onChange={(v) => setSettings({ ...settings, proctorOnly: v })} label="Proctor-only alerts" description="On by default. The candidate can use anything and sees no warnings; every flag, picture and AI chat goes to the proctor, who can deduct marks. Off: warnings and auto-submit apply." disabled={readOnly} />
         <Toggle checked={Boolean(settings.oneWay)} onChange={(v) => setSettings({ ...settings, oneWay: v })} label="One-way questions" description="Questions are answered in order; a candidate cannot go back after Next." disabled={readOnly} />
         <Toggle checked={Boolean(settings.liveAudio)} onChange={(v) => setSettings({ ...settings, liveAudio: v })} label="Live microphone to proctors" description="Proctors watching the screen can also listen live. Nothing is recorded; candidates are told on the consent screen." disabled={readOnly} />
-        <div>
-          <p className="flex items-center gap-2 text-sm font-medium text-text"><Globe className="h-4 w-4 text-accent" aria-hidden="true" /> Allowed websites</p>
-          <div className="mt-2 flex gap-2">
-            <input value={site} onChange={(e) => setSite(e.target.value)} onKeyDown={(e: KeyboardEvent<HTMLInputElement>) => { if (e.key === 'Enter') { e.preventDefault(); addSite() } }} disabled={readOnly} aria-label="Add an allowed website" aria-invalid={Boolean(siteErr)} placeholder="docs.python.org" className={cx(inputCls, inputState(siteErr))} />
-            <button type="button" onClick={addSite} disabled={readOnly} className={btnGhost}>Add</button>
-          </div>
-          {siteErr && <p role="alert" className="mt-1.5 text-xs font-medium text-danger">{siteErr}</p>}
-          <div className="mt-3 flex flex-wrap gap-2">
-            {settings.allowedSites.length === 0 && <span className="text-xs text-muted">No sites are suggested.</span>}
-            {settings.allowedSites.map((s) => <span key={s} className="inline-flex items-center gap-1.5 rounded-full bg-primary/10 px-3 py-1 text-xs font-semibold text-primary">{s}{!readOnly && <button type="button" aria-label={`Remove ${s}`} onClick={() => setSettings({ ...settings, allowedSites: settings.allowedSites.filter((x) => x !== s) })} className="rounded-full outline-none hover:text-danger focus-visible:ring-2 focus-visible:ring-accent">×</button>}</span>)}
-          </div>
-        </div>
       </section>
       <PolicyEditor value={policy} onChange={setPolicy} readOnly={readOnly} />
       {!readOnly && (

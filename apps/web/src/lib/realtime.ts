@@ -24,7 +24,7 @@ type Handlers = {
   'session:status': (e: StatusEvent) => void
   'session:progress': (e: ProgressEvent) => void
   'frame:snapshot': (e: { sessionId: string; image: string; at: string }) => void
-  /** Sites opened and text typed or pasted in the candidate's sandbox tabs, as it happens. */
+  /** AI tools and searches seen on the candidate's computer, as it happens. */
   'browsing:new': (e: { sessionId: string; entries: BrowsingLog[] }) => void
 }
 

@@ -11,7 +11,7 @@ interface Row {
 }
 
 const ROWS: Row[] = [
-  { feature: "Dedicated secure desktop app", detail: "Monitored exam browser instead of a browser tab", ours: "yes", typical: "partial", typicalNote: "Browser extension only" },
+  { feature: "Dedicated secure desktop app", detail: "Monitored exam app instead of a browser tab", ours: "yes", typical: "partial", typicalNote: "Browser extension only" },
   { feature: "Face verification + OTP at entry", detail: "Matches the registered candidate before the exam starts", ours: "yes", typical: "partial", typicalNote: "OTP only" },
   { feature: "Multiple-face and gaze detection", detail: "Continuous webcam analysis with severity levels", ours: "yes", typical: "partial", typicalNote: "Snapshots every few minutes" },
   { feature: "Entire-screen sharing enforced", detail: "Exam pauses if sharing stops", ours: "yes", typical: "partial", typicalNote: "Tab sharing allowed" },
