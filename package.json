@@ -24,6 +24,7 @@
     "db:studio": "prisma studio --schema database/prisma/schema.prisma",
     "python:install": "node scripts/python.cjs install",
     "smoke": "node scripts/smoke.mjs",
+    "release:desktop": "node scripts/release-desktop.mjs",
     "share": "node scripts/share.mjs",
     "share:tunnel": "node scripts/share.mjs --tunnel",
     "build": "npm run build --workspaces --if-present",

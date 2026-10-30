@@ -4,6 +4,7 @@ import { CH, registerIpc } from './ipc';
 import { Kiosk } from './security/kiosk';
 import { setRelaxed } from './security/guards';
 import { SANDBOX_PARTITION, attachGuard, hardenSandbox } from './browser-sandbox/sandbox';
+import { startAutoUpdates } from './updater';
 
 const PROTOCOL = 'dev102';
 const AI_HOSTS = [
@@ -138,6 +139,7 @@ app.whenReady().then(() => {
   const link = process.argv.find((a) => a.startsWith(`${PROTOCOL}://`));
   if (link) pendingDeepLink = link;
   void createWindow();
+  startAutoUpdates();
 });
 
 app.on('web-contents-created', (_e, contents) => {

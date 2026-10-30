@@ -5,6 +5,8 @@ import { AlertCircle, CheckCircle2, Download, HardDrive, Loader2, MonitorCheck, 
 import { Faq, type FaqItem } from "@/components/marketing/Faq";
 import { CtaBanner } from "@/components/marketing/CtaBanner";
 import { OrgBackdrop } from "@/components/layout/OrgBackdrop";
+import { getDesktopDownloads, type DesktopDownloads } from "@/lib/api";
+import { API_ORIGIN } from "@/lib/http";
 
 type OS = "Windows" | "macOS" | "Linux" | "Other";
 type CheckStatus = "ok" | "warn" | "fail";
@@ -21,9 +23,8 @@ interface NavigatorExtras extends Navigator {
   connection?: { downlink?: number; effectiveType?: string };
 }
 
-const VERSION = "1.0.0";
-const SIZE_MB = 94;
-const FILE = `/downloads/DEV102-Proctor-Setup-${VERSION}.exe`;
+/** API-relative installer links (a local build) go to the API; GitHub Releases links are absolute. */
+const absolute = (url: string) => (url.startsWith("/") ? `${API_ORIGIN}${url}` : url);
 
 function detectOS(ua: string): OS {
   if (/Windows/i.test(ua)) return "Windows";
@@ -33,7 +34,7 @@ function detectOS(ua: string): OS {
 }
 
 const STEPS = [
-  { t: "Download the installer", d: `Save DEV102-Proctor-Setup-${VERSION}.exe. It is signed, so Windows will show the publisher name.` },
+  { t: "Download the installer", d: "Save the setup file. Windows may say it is from an unknown publisher: choose More info, then Run anyway." },
   { t: "Run the setup", d: "Double-click the file and choose Install. Administrator rights are not required." },
   { t: "Sign in with your exam credentials", d: "Use the Exam ID, Candidate ID and password from your invitation email." },
   { t: "Complete the system check", d: "Allow camera and microphone, close listed apps and test your network. Do this the day before." },
@@ -41,7 +42,7 @@ const STEPS = [
 
 const FAQS: FaqItem[] = [
   { id: "os", q: "Does the app run on Mac, Linux or a phone?", a: "Not yet. The secure exam browser currently supports Windows 10 and 11 only. Please use a Windows laptop or ask your institute for a lab machine." },
-  { id: "av", q: "My antivirus warns about the installer. Is it safe?", a: "The installer is code-signed. Some antivirus tools flag any app that closes other programs. If this happens, contact your exam coordinator before turning protection off." },
+  { id: "av", q: "My antivirus warns about the installer. Is it safe?", a: "The installer is not code-signed yet, so Windows SmartScreen may show an unknown-publisher warning, and some antivirus tools flag any app that closes other programs. Download it only from this page. If your antivirus blocks it, contact your exam coordinator before turning protection off." },
   { id: "cam", q: "Why does the app need my camera and microphone?", a: "The camera verifies your identity and detects multiple people. The microphone only measures sound level. The consent screen lists everything before the exam begins." },
   { id: "apps", q: "Which apps will be closed automatically?", a: "Screen recorders, remote desktop tools, messaging apps, VPNs and virtual machines. You will see the exact list during the system check and can close them yourself first." },
   { id: "net", q: "What if my internet drops during the exam?", a: "Your timer keeps running and answers are saved on your device. They sync when you reconnect. Long outages are reported to the proctor." },
@@ -60,6 +61,15 @@ function StatusIcon({ status }: { status: CheckStatus }) {
 export default function DownloadPage() {
   const [os, setOs] = useState<OS | null>(null);
   const [checks, setChecks] = useState<HintCheck[] | null>(null);
+  const [release, setRelease] = useState<DesktopDownloads | null>(null);
+  const [releaseError, setReleaseError] = useState(false);
+
+  useEffect(() => {
+    let alive = true;
+    getDesktopDownloads().then((r) => { if (alive) setRelease(r); }, () => { if (alive) setReleaseError(true); });
+    return () => { alive = false; };
+  }, []);
+  const windows = release?.builds.find((b) => b.os === "windows");
 
   useEffect(() => {
     document.title = "Download the Exam App | DEV102 Smart Proctoring";
@@ -117,14 +127,26 @@ export default function DownloadPage() {
               </div>
             ) : (
               <>
-                <a href={FILE} download className="inline-flex w-full items-center justify-center gap-2 rounded-xl bg-cta px-6 py-3.5 font-semibold text-slate-900 shadow-md transition hover:-translate-y-0.5 hover:brightness-105 focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-cta/40">
-                  <Download className="h-5 w-5" aria-hidden /> Download for Windows
-                </a>
-                <p className="mt-3 flex items-center justify-center gap-3 text-sm text-slate-500">
-                  <span>Version {VERSION}</span>
-                  <span aria-hidden>•</span>
-                  <span className="inline-flex items-center gap-1"><HardDrive className="h-3.5 w-3.5" aria-hidden /> {SIZE_MB} MB</span>
-                </p>
+                {windows?.available ? (
+                  <a href={absolute(windows.url)} className="inline-flex w-full items-center justify-center gap-2 rounded-xl bg-cta px-6 py-3.5 font-semibold text-slate-900 shadow-md transition hover:-translate-y-0.5 hover:brightness-105 focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-cta/40">
+                    <Download className="h-5 w-5" aria-hidden /> Download for Windows
+                  </a>
+                ) : (
+                  <p role="status" className="flex items-center justify-center gap-2 rounded-xl bg-slate-50 px-4 py-3.5 text-sm text-slate-600">
+                    {release || releaseError ? <><TriangleAlert className="h-4 w-4 text-warning" aria-hidden /> {releaseError ? "Could not reach the download server. Try again in a minute." : "The installer is not published yet. Ask your exam coordinator for the link."}</> : <><Loader2 className="h-4 w-4 animate-spin" aria-hidden /> Finding the latest version…</>}
+                  </p>
+                )}
+                {windows?.available && release && (
+                  <p className="mt-3 flex items-center justify-center gap-3 text-sm text-slate-500">
+                    <span>Version {release.version}</span>
+                    {windows.sizeMb > 0 && <><span aria-hidden>•</span><span className="inline-flex items-center gap-1"><HardDrive className="h-3.5 w-3.5" aria-hidden /> {windows.sizeMb} MB</span></>}
+                  </p>
+                )}
+                {release?.beta && (
+                  <p className="mt-2 text-xs text-slate-500">
+                    Testing a new version? <a href={release.beta.url} className="font-medium text-primary underline-offset-2 hover:underline">Download test version {release.beta.version}</a> (it updates to newer test versions automatically).
+                  </p>
+                )}
                 {!supported && (
                   <p role="alert" className="mt-4 flex gap-2 rounded-xl bg-amber-50 p-3 text-left text-sm text-slate-900">
                     <TriangleAlert className="mt-0.5 h-4 w-4 shrink-0 text-warning" aria-hidden />

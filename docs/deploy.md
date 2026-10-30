@@ -83,20 +83,28 @@ Evidence images are written to `EVIDENCE_DIR` (`/tmp/evidence` on the free plan,
 
 4. Deploy, then put the Vercel URL into the API's `CLIENT_URL` (step 2.3) if you haven't yet. Without it, the API's CORS rules block the website.
 
-## 4. Build and publish the Windows installer
+## 4. Publish the Windows installer and updates
 
-The installer talks to the API URL baked in at build time:
+Installers are published to this repository's GitHub Releases. The API reads them (`DESKTOP_RELEASE_REPO`, already set in `render.yaml`), the website's `/download` page shows the newest one, and installed apps update themselves from it.
 
-```bash
-VITE_API_URL=https://<api> npm run build -w apps/desktop
-```
+1. Set the version in `apps/desktop/package.json`: `0.2.0` for a normal release, or `0.2.0-beta.1` for a test version.
+2. Publish, signed in with `gh auth login` (or with `GH_TOKEN` set):
 
-The installer lands in `apps/desktop/release/` (`Where U Elevate Setup <version>.exe`). The API serves the newest `.exe` in that folder at `/api/v1/downloads/windows`, and the website's `/download` page links to it.
+   ```bash
+   VITE_API_URL=https://<api> npm run release:desktop
+   ```
 
-On Render the folder is not part of the image. Either:
+   A version with `-beta` goes out as a GitHub pre-release. `/download` offers it as "Download test version", and it only replaces a stable release once a newer stable one exists.
 
-- upload the `.exe` somewhere public (for example a GitHub release) and set `APP_DOWNLOAD_URL` and `NEXT_PUBLIC_APP_DOWNLOAD_URL` to that link; or
-- on a paid plan with a disk, copy it to the API's disk (`/data`) using the Render shell, and symlink `/app/apps/desktop/release` to that folder.
+How updates reach people:
+
+- An installed app checks GitHub on start and every 4 hours, downloads a newer version in the background, and installs it when the app closes, so an exam is never interrupted.
+- A stable install only takes stable releases. A test install also takes newer test versions.
+- `PROCTOR_NO_UPDATES=1` turns update checks off on a machine.
+
+The installer is not code-signed, so Windows SmartScreen shows "unknown publisher" (More info → Run anyway). A code-signing certificate removes that warning.
+
+For a local test build without publishing, `VITE_API_URL=https://<api> npm run build -w apps/desktop` writes the installer to `apps/desktop/release/`, and a locally running API serves it at `/api/v1/downloads/windows`.
 
 ## 5. Check the deployment
 
