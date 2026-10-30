@@ -34,7 +34,6 @@ const PUBLIC_LINKS: NavLink[] = [
   { href: '/features', label: 'Features' },
   { href: '/security', label: 'Security' },
   { href: '/download', label: 'Download App' },
-  { href: '/download#extension', label: 'Use Extension' },
 ];
 
 const ROLE_LINKS: Record<Role, NavLink[]> = {
