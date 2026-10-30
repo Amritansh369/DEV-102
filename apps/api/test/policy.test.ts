@@ -7,10 +7,12 @@ const db = vi.hoisted(() => ({
   session: {} as Record<string, unknown>,
   candidate: {} as Record<string, unknown>,
   violations: [] as Array<Record<string, unknown>>,
+  questions: [] as Array<Record<string, unknown>>,
+  answers: [] as Array<Record<string, unknown>>,
 }));
 
 vi.mock('../src/lib/db.js', () => {
-  const sessionView = () => ({ ...db.session, exam: db.exam, candidate: { name: 'Asha Rao', userId: 'asha01' }, answers: [] });
+  const sessionView = () => ({ ...db.session, exam: db.exam, candidate: { name: 'Asha Rao', userId: 'asha01' }, answers: db.answers });
   return {
     prisma: {
       examSession: {
@@ -25,6 +27,7 @@ vi.mock('../src/lib/db.js', () => {
           db.violations.push(row);
           return row;
         }),
+        aggregate: vi.fn(async () => ({ _sum: { penaltyMarks: db.violations.filter((v) => v.reviewed === 'CONFIRMED').reduce((sum, v) => sum + Number(v.penaltyMarks ?? 0), 0) || null } })),
         groupBy: vi.fn(async () => {
           const counts = new Map<Severity, number>();
           for (const v of db.violations) {
@@ -35,7 +38,7 @@ vi.mock('../src/lib/db.js', () => {
         }),
       },
       riskPoint: { create: vi.fn(async () => ({})) },
-      question: { findMany: vi.fn(async () => []) },
+      question: { findMany: vi.fn(async () => db.questions) },
       candidate: { update: vi.fn(async ({ data }: { data: Record<string, unknown> }) => Object.assign(db.candidate, data)) },
     },
   };
@@ -44,7 +47,7 @@ vi.mock('../src/lib/db.js', () => {
 vi.mock('../src/lib/realtime.js', () => ({ realtime: { toExam: vi.fn(), toSession: vi.fn() } }));
 vi.mock('../src/lib/alerts.js', () => ({ sendAlert: vi.fn(async () => {}) }));
 
-const { recordViolation } = await import('../src/lib/policy.js');
+const { applyPenalties, finalizeSession, netScore, recordViolation } = await import('../src/lib/policy.js');
 const { realtime } = await import('../src/lib/realtime.js');
 const { sendAlert } = await import('../src/lib/alerts.js');
 
@@ -58,13 +61,16 @@ function record(code: ViolationCode, at = new Date(START.getTime() + ++minute * 
 
 function setup(policy: Record<string, unknown> = {}, settings: Record<string, unknown> = {}) {
   minute = 0;
-  db.exam = { id: 'exam-1', title: 'Campus Placement Test', policy, settings, extras: {} };
+  // These tests cover the warning and auto-submit rules, which apply when an exam turns proctor-only alerts off.
+  db.exam = { id: 'exam-1', title: 'Campus Placement Test', policy, settings: { proctorOnly: false, ...settings }, extras: {} };
   db.session = {
     id: 'sess-1', examId: 'exam-1', candidateId: 'cand-1', status: 'LIVE', warnings: 0, riskScore: 0,
     progress: 40, startedAt: START, receiptId: null, deadlineAt: new Date(START.getTime() + 3_600_000),
   };
   db.candidate = { id: 'cand-1', status: 'IN_EXAM' };
   db.violations = [];
+  db.questions = [];
+  db.answers = [];
 }
 
 describe('recordViolation with the default policy (2 warnings, warn from MEDIUM, auto-submit from HIGH)', () => {
@@ -209,6 +215,45 @@ describe('recordViolation with a configured threshold', () => {
     expect(db.session.warnings).toBe(0);
     expect(vi.mocked(realtime.toSession)).not.toHaveBeenCalled();
     expect(vi.mocked(realtime.toExam)).toHaveBeenCalledWith('exam-1', 'violation:new', expect.objectContaining({ outcome: 'LOGGED' }));
+  });
+});
+
+describe('marks deducted for confirmed violations', () => {
+  const confirm = (penaltyMarks: number) => db.violations.push({ id: `c${db.violations.length}`, code: 'PHONE_DETECTED', severity: 'HIGH', at: START, reviewed: 'CONFIRMED', penaltyMarks });
+
+  beforeEach(() => {
+    setup();
+    db.questions = [{ id: 'q1', marks: 4, correctIds: ['a'], type: 'MCQ' }, { id: 'q2', marks: 4, correctIds: ['b'], type: 'MCQ' }];
+    db.answers = [{ questionId: 'q1', optionIds: ['a'], value: null }, { questionId: 'q2', optionIds: ['b'], value: null }];
+  });
+
+  it('never takes a score below zero', () => {
+    expect(netScore(5, 2.5)).toBe(2.5);
+    expect(netScore(1, 5)).toBe(0);
+  });
+
+  it('takes confirmed marks off at submission', async () => {
+    confirm(3);
+    await finalizeSession('sess-1', 'MANUAL');
+    expect(db.session).toMatchObject({ score: 5, penaltyMarks: 3 });
+  });
+
+  it('updates a finished session when a proctor reviews it, and restores marks when overruled', async () => {
+    await finalizeSession('sess-1', 'MANUAL');
+    expect(db.session.score).toBe(8);
+    confirm(2);
+    await applyPenalties('sess-1');
+    expect(db.session).toMatchObject({ score: 6, penaltyMarks: 2 });
+    db.violations.length = 0;
+    await applyPenalties('sess-1');
+    expect(db.session).toMatchObject({ score: 8, penaltyMarks: 0 });
+  });
+
+  it('keeps a running session without a score until it ends', async () => {
+    confirm(2);
+    await applyPenalties('sess-1');
+    expect(db.session.penaltyMarks).toBe(2);
+    expect(db.session.score).toBeUndefined();
   });
 });
 

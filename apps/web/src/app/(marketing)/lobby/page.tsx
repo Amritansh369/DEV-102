@@ -126,7 +126,7 @@ function ResultCard({ summary, release }: { summary: ResultSummary; release?: Re
           <p className="mt-3 font-heading text-4xl font-bold tabular-nums text-ink">
             {summary.score}<span className="text-xl font-semibold text-muted"> / {summary.totalMarks} marks</span>
           </p>
-          <p className="mt-1 text-sm text-muted">{summary.percent}%{summary.negativeMarking.enabled ? ` · includes −${summary.negativeMarking.value} of a question's marks per wrong answer` : ''}</p>
+          <p className="mt-1 text-sm text-muted">{summary.percent}%{summary.negativeMarking.enabled ? ` · includes −${summary.negativeMarking.value} of a question's marks per wrong answer` : ''}{summary.penaltyMarks ? ` · ${summary.penaltyMarks} marks deducted after proctor review` : ''}</p>
         </div>
         <dl className="grid grid-cols-3 gap-3 text-center">
           {counts.map((c) => (

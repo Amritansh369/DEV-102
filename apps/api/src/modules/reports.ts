@@ -40,14 +40,14 @@ reportsRouter.get('/exams/:id/results.xlsx', handle(async (req, res) => {
   const results = wb.addWorksheet('Results');
   results.columns = [
     { header: 'Rank', key: 'rank', width: 7 }, { header: 'Name', key: 'name', width: 26 }, { header: 'User ID', key: 'userId', width: 14 },
-    { header: 'Email', key: 'email', width: 32 }, { header: 'Score', key: 'score', width: 9 }, { header: 'Out of', key: 'total', width: 8 },
+    { header: 'Email', key: 'email', width: 32 }, { header: 'Score', key: 'score', width: 9 }, { header: 'Marks deducted', key: 'deducted', width: 14 }, { header: 'Out of', key: 'total', width: 8 },
     { header: '%', key: 'pct', width: 7 }, { header: 'Answered', key: 'answered', width: 10 }, { header: 'Risk', key: 'risk', width: 7 },
     { header: 'Violations', key: 'violations', width: 11 }, { header: 'Session', key: 'status', width: 12 }, { header: 'Reason', key: 'reason', width: 22 },
     { header: 'Started', key: 'started', width: 22 }, { header: 'Submitted', key: 'submitted', width: 22 }, { header: 'Receipt', key: 'receipt', width: 16 },
   ];
   sessions.forEach((s, i) => {
     const row = results.addRow({
-      rank: i + 1, name: s.candidate.name, userId: s.candidate.userId, email: s.candidate.email, score: s.score ?? 0, total: view.totalMarks,
+      rank: i + 1, name: s.candidate.name, userId: s.candidate.userId, email: s.candidate.email, score: s.score ?? 0, deducted: s.penaltyMarks, total: view.totalMarks,
       pct: view.totalMarks ? Math.round(((s.score ?? 0) / view.totalMarks) * 100) : 0, answered: s._count.answers, risk: s.riskScore,
       violations: s.violations.filter((v) => v.reviewed !== 'OVERRULED').length, status: s.status, reason: s.submitReason ?? '',
       started: fmt(s.startedAt), submitted: fmt(s.submittedAt), receipt: s.receiptId ?? '',
@@ -123,7 +123,7 @@ reportsRouter.get('/sessions/:id/report.pdf', handle(async (req, res) => {
   kv('Candidate', `${s.candidate.name} (${s.candidate.userId}, ${s.candidate.email})`);
   kv('Exam', `${s.exam.title} (${s.exam.code})`);
   kv('Status', `${s.status}${s.submitReason ? ` · ${s.submitReason.replace(/_/g, ' ').toLowerCase()}` : ''}`);
-  kv('Score', `${s.score ?? 0} / ${view.totalMarks}`);
+  kv('Score', `${s.score ?? 0} / ${view.totalMarks}${s.penaltyMarks ? ` (${s.penaltyMarks} marks deducted for confirmed violations)` : ''}`);
   kv('Risk score', `${s.riskScore} / 100 · warnings ${s.warnings}`);
   kv('Started', fmt(s.startedAt));
   kv('Submitted', fmt(s.submittedAt) || 'In progress');

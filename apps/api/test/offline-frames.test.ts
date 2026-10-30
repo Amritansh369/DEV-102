@@ -26,6 +26,7 @@ vi.mock('../src/lib/evidence.js', () => ({
   decodeImage: () => ({ buffer: Buffer.from('jpeg'), mime: 'image/jpeg' }),
   evidencePath: (p: string) => p,
   saveEvidence: vi.fn(async () => 'ev-1'),
+  readFacePhoto: vi.fn(async () => null),
 }));
 vi.mock('../src/lib/agent.js', () => ({
   agent: { analyzeFrame: vi.fn(async () => ({ violations: [{ code: 'PHONE_DETECTED', severity: 'HIGH', message: 'Phone in view', confidence: 0.9 }], metrics: {} })) },

@@ -24,7 +24,7 @@ Before submitting:
 - Name the file the way the organisers ask, and check it opens on another machine.
 
 Wording rules for the deck and Q&A:
-- Say **secure exam window**, not "kiosk". The exam window is locked full screen, always on top and excluded from screen capture, while tab switching inside the app's sandbox tabs stays allowed, as the PS asks.
+- Say **monitored exam**, not "kiosk". Nothing is locked: candidates share their entire screen and can switch tabs and use AI tools, and everything goes to the proctor with pictures as proof.
 - Only claim what runs: the test counts are from 30 Oct 2026 runs, and the impact slide makes no numeric impact claims.
 - The cheating figures are self-reported survey data. Say "self-reported" if asked.
 

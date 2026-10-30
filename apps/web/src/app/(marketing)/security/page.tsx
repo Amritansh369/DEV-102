@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import { Camera, Eye, FileSearch, Fingerprint, Globe, Lock, Monitor, ScanFace, Scale, ShieldCheck, UserCheck, type LucideIcon } from "lucide-react";
+import { Camera, Eye, FileSearch, Fingerprint, Globe, Monitor, ScanFace, Scale, ShieldCheck, UserCheck, type LucideIcon } from "lucide-react";
 import { CtaBanner } from "@/components/marketing/CtaBanner";
 
 export const metadata: Metadata = {
@@ -10,7 +10,7 @@ export const metadata: Metadata = {
 const LAYERS: { icon: LucideIcon; name: string; what: string }[] = [
   { icon: Fingerprint, name: "Identity", what: "Credentials from email, OTP and live face match against the registered photo." },
   { icon: Monitor, name: "Environment", what: "Blacklisted apps closed, VMs and remote desktops refused, one display, no mirroring." },
-  { icon: Lock, name: "Kiosk", what: "Full-screen locked window, blocked shortcuts and clipboard, sandboxed browser tabs." },
+  { icon: Monitor, name: "Monitored exam", what: "Entire-screen sharing on every display, isolated browser tabs, and a picture kept with each flag." },
   { icon: Camera, name: "Behaviour", what: "Faces, gaze and screen-share continuity analysed during the exam." },
   { icon: Globe, name: "Browsing", what: "Allow-listed sites only; every URL and query logged; AI sites flagged." },
   { icon: UserCheck, name: "Human review", what: "Proctors watch live and confirm or overrule every penalty." },
@@ -40,7 +40,7 @@ const LIMITS = [
 
 const REVIEW_STEPS = [
   { t: "Event detected", d: "A violation is logged with severity, time and a snapshot." },
-  { t: "Policy applied", d: "Warning or auto-submit follows the exam's configured policy." },
+  { t: "Policy applied", d: "The event adds to the risk score, and the proctor sees it at once with its proof." },
   { t: "Proctor review", d: "The proctor sees evidence and the browsing log in session detail." },
   { t: "Confirmed or overruled", d: "Overruled penalties are reversed and recorded in the audit trail." },
 ];

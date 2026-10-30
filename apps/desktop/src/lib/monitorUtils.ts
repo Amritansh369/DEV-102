@@ -72,7 +72,7 @@ export interface SiteVisit {
   ai: boolean
   /** The candidate had been on this site earlier and switched back to it. */
   returned: boolean
-  queries: { id: string; at: string; text: string }[]
+  queries: { id: string; at: string; text: string; reply?: string }[]
 }
 
 /**
@@ -93,7 +93,10 @@ export function groupVisits(logs: BrowsingLog[]): SiteVisit[] {
     }
     if (l.flaggedAi) visit.ai = true
     // The tracker reports text after a typing pause and again on Enter, so the same message can arrive twice.
-    if (l.query && visit.queries[visit.queries.length - 1]?.text !== l.query) visit.queries.push({ id: l.id, at: l.at, text: l.query })
+    // A reply arrives as its own entry, and a long one again as it grows: the newest text belongs to its question.
+    const asked = l.query ? visit.queries.find((q) => q.text === l.query) : undefined
+    if (asked && l.reply) asked.reply = l.reply
+    else if (l.query && visit.queries[visit.queries.length - 1]?.text !== l.query) visit.queries.push({ id: l.id, at: l.at, text: l.query, ...(l.reply ? { reply: l.reply } : {}) })
   }
   return visits
 }

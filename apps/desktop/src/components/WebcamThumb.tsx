@@ -48,29 +48,33 @@ export default function WebcamThumb({ constraintsRef, faceStatus, quality, onCam
     }
     let cancelled = false
     let stream: MediaStream | null = null
-    media
-      .getUserMedia({ video: { width: 320, height: 240 }, audio: false })
-      .then((s) => {
-        if (cancelled) {
-          s.getTracks().forEach((t) => t.stop())
-          return
-        }
-        stream = s
-        if (videoRef.current) videoRef.current.srcObject = s
-        setLive(true)
-        s.getVideoTracks()[0]?.addEventListener('ended', () => {
-          setLive(false)
-          lostRef.current?.()
+    let retry = 0
+    // A lost camera is reported, then reopened: a dropped webcam must not stay off for the rest of the exam.
+    const lost = () => {
+      if (cancelled) return
+      setLive(false)
+      lostRef.current?.()
+      retry = window.setTimeout(open, 2000)
+    }
+    const open = () => {
+      void media
+        .getUserMedia({ video: { width: 320, height: 240 }, audio: false })
+        .then((s) => {
+          if (cancelled) {
+            s.getTracks().forEach((t) => t.stop())
+            return
+          }
+          stream = s
+          if (videoRef.current) videoRef.current.srcObject = s
+          setLive(true)
+          s.getVideoTracks()[0]?.addEventListener('ended', lost)
         })
-      })
-      .catch(() => {
-        if (!cancelled) {
-          setLive(false)
-          lostRef.current?.()
-        }
-      })
+        .catch(lost)
+    }
+    open()
     return () => {
       cancelled = true
+      window.clearTimeout(retry)
       stream?.getTracks().forEach((t) => t.stop())
     }
   }, [])

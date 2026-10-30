@@ -1,12 +1,12 @@
 import type { Metadata } from "next";
 import type { ReactNode } from "react";
-import { AlertTriangle, BarChart3, Globe, Lock, ScanFace, ShieldAlert, WifiOff, type LucideIcon } from "lucide-react";
+import { AlertTriangle, BarChart3, Eye, Globe, ScanFace, ShieldAlert, WifiOff, type LucideIcon } from "lucide-react";
 import { CtaBanner } from "@/components/marketing/CtaBanner";
 import { ComparisonTable } from "@/components/marketing/ComparisonTable";
 
 export const metadata: Metadata = {
   title: "Features | DEV102 Smart Proctoring",
-  description: "AI proctoring, secure kiosk exam browser, search tracking, warnings, offline mode and reports for MCQ assessments.",
+  description: "AI proctoring, a monitored exam browser, AI chat and search tracking, evidence-backed flags, offline mode and reports for MCQ assessments.",
 };
 
 function Panel({ title, children }: { title: string; children: ReactNode }) {
@@ -58,9 +58,9 @@ function ProctorPanel() {
   );
 }
 
-function KioskPanel() {
+function ExamPanel() {
   return (
-    <Panel title="Exam · Kiosk mode">
+    <Panel title="Exam · Screen shared">
       <div className="flex items-center justify-between">
         <p className="text-sm font-semibold text-slate-900">Question 14 of 60</p>
         <span className="rounded-lg bg-primary px-2.5 py-1 font-mono text-sm text-white">42:18</span>
@@ -78,7 +78,7 @@ function KioskPanel() {
         ))}
       </div>
       <p className="mt-3 flex items-center gap-1.5 text-xs text-slate-500">
-        <Lock className="h-3.5 w-3.5 text-primary" aria-hidden /> Task switching, clipboard and shortcuts are blocked
+        <Eye className="h-3.5 w-3.5 text-primary" aria-hidden /> Every tab, app and AI chat is seen by the proctor
       </p>
     </Panel>
   );
@@ -175,7 +175,7 @@ interface Feature {
 
 const FEATURES: Feature[] = [
   { id: "ai-proctoring", icon: ScanFace, title: "AI proctoring that watches the room, not the person", body: "MediaPipe-based analysis runs on the candidate's webcam stream and raises graded events instead of blunt pass or fail verdicts.", points: ["Multiple faces, no face, face mismatch and gaze away", "Risk score recalculated every few seconds", "Evidence snapshots attached to each event"], panel: <ProctorPanel /> },
-  { id: "kiosk", icon: Lock, title: "Secure kiosk exam browser", body: "The exam opens in a locked full-screen window. Everything a candidate could use to look things up is closed before the first question.", points: ["Blacklisted apps found and closed at system check", "VM, remote desktop and extra monitors detected", "Clipboard, shortcuts and window switching blocked"], panel: <KioskPanel /> },
+  { id: "exam", icon: Eye, title: "Monitored exam browser", body: "Candidates share their entire screen and work freely. Nothing is blocked or interrupted: every tab, search and AI chat goes to the proctor with a picture as proof.", points: ["Which AI was used, what was asked and what it replied", "Tab switches, other apps and extra monitors flagged at once", "No warnings on screen, marks deducted after proctor review"], panel: <ExamPanel /> },
   { id: "search", icon: Globe, title: "Search and browsing tracking", body: "Candidates can use only the sites you allow, inside sandboxed tabs. Every address and every search or chat query is recorded.", points: ["Allow-list per exam", "AI sites flagged instantly", "Full log available to proctors during and after the exam"], panel: <SearchPanel /> },
   { id: "warnings", icon: AlertTriangle, title: "Warnings and disqualification", body: "A clear, configurable policy so candidates know where they stand and proctors do not have to improvise.", points: ["Default: two warnings, then auto-submit", "Critical events can submit immediately", "Proctors can send manual warnings or terminate"], panel: <WarningPanel /> },
   { id: "offline", icon: WifiOff, title: "Offline mode for unstable networks", body: "A dropped connection should not ruin an exam. Answers autosave locally and sync once the network returns.", points: ["Network loss logged as a low-severity event", "Timer stays authoritative", "Sync status always visible"], panel: <OfflinePanel /> },

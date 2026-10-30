@@ -1,8 +1,8 @@
 import { describe, expect, it, vi } from 'vitest'
 
 vi.mock('../src/lib/api', () => ({ api: { reportViolation: vi.fn() } }))
-vi.mock('../src/lib/live', () => ({ grabScreen: vi.fn() }))
-const { aiWindow } = await import('../src/lib/away')
+vi.mock('../src/lib/live', () => ({ proofShot: vi.fn() }))
+const { aiWindow, outsideEntry } = await import('../src/lib/away')
 
 describe('aiWindow', () => {
   it('names the AI tool open in a browser tab, from the window title', () => {
@@ -20,5 +20,20 @@ describe('aiWindow', () => {
   it('ignores ordinary windows', () => {
     expect(aiWindow([{ app: 'chrome', title: 'Prime number - Wikipedia - Google Chrome' }, { app: 'WhatsApp.Root', title: 'WhatsApp' }, { app: 'explorer', title: 'Downloads' }])).toBeNull()
     expect(aiWindow([])).toBeNull()
+  })
+})
+
+describe('outsideEntry', () => {
+  it('logs an AI tool open outside the exam under its real address, so it is flagged like any other visit', () => {
+    expect(outsideEntry({ app: 'chrome', title: 'ChatGPT - Google Chrome' })).toEqual({ url: 'https://chatgpt.com/', title: 'ChatGPT - Google Chrome (outside the exam, chrome)' })
+  })
+
+  it('reads a search from the browser title', () => {
+    expect(outsideEntry({ app: 'chrome', title: 'is 91 prime - Google Search - Google Chrome' })).toMatchObject({ query: 'is 91 prime', url: 'https://www.google.com/search?q=is%2091%20prime' })
+    expect(outsideEntry({ app: 'msedge', title: 'hash table - Bing - Microsoft Edge' })?.query).toBe('hash table')
+  })
+
+  it('ignores ordinary windows', () => {
+    expect(outsideEntry({ app: 'chrome', title: 'Prime number - Wikipedia - Google Chrome' })).toBeNull()
   })
 })

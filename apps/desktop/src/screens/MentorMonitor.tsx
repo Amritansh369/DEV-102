@@ -56,12 +56,15 @@ export default function MentorMonitor({ notify, onExit }: MentorMonitorProps) {
   const [selected, setSelected] = useState<Set<string>>(new Set())
   const [snapshots, setSnapshots] = useState<Record<string, string>>({})
   const [drawerId, setDrawerId] = useState<string | null>(null)
+  const [detailTick, setDetailTick] = useState(0)
   const [warnTargets, setWarnTargets] = useState<MonitorSession[] | null>(null)
   const [toasts, setToasts] = useState<{ id: number; kind: ToastKind; message: string }[]>([])
   const searchRef = useRef<HTMLInputElement>(null)
   const toastSeq = useRef(0)
   const reqRef = useRef(0)
   const busyRef = useRef(false)
+  const drawerRef = useRef<string | null>(null)
+  drawerRef.current = drawerId
 
   const say = useCallback<Notify>((kind, message) => {
     if (notify) { notify(kind, message); return }
@@ -135,6 +138,7 @@ export default function MentorMonitor({ notify, onExit }: MentorMonitorProps) {
     }
     const stop = watchExam(examId, {
       onChange: schedule,
+      onDetail: (id) => { if (id === drawerRef.current) setDetailTick((t) => t + 1) },
       onSnapshot: (e) => setSnapshots((cur) => ({ ...cur, [e.sessionId]: e.image })),
       onConnection: (connected) => setLiveError(!connected),
     })
@@ -322,7 +326,7 @@ export default function MentorMonitor({ notify, onExit }: MentorMonitorProps) {
         </div>
       </main>
 
-      <SessionDrawer session={drawerSession} onClose={() => setDrawerId(null)} onSendWarning={(s, m) => warn([s], m)} onTerminate={terminate} onSessionPatch={patchSession} notify={say} />
+      <SessionDrawer liveImage={drawerId ? snapshots[drawerId] : undefined} detailTick={detailTick} session={drawerSession} onClose={() => setDrawerId(null)} onSendWarning={(s, m) => warn([s], m)} onTerminate={terminate} onSessionPatch={patchSession} notify={say} />
       {warnTargets && <WarnDialog targets={warnTargets} onSend={(m) => warn(warnTargets, m)} onClose={() => setWarnTargets(null)} />}
 
       {!notify && (

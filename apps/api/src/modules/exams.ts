@@ -27,7 +27,7 @@ const host = z.string().trim().toLowerCase().regex(/^[a-z0-9.-]+\.[a-z]{2,}$/, '
 const settingsSchema = z.object({
   shuffle: z.boolean(), negativeMarking: z.boolean(), allowedSites: z.array(host).max(50),
   maxWarnings: z.number().int().min(0).max(10), autoSubmit: z.boolean(), audioMonitoring: z.boolean(),
-  proctorOnly: z.boolean().default(false), oneWay: z.boolean().default(false), liveAudio: z.boolean().default(false),
+  proctorOnly: z.boolean().default(true), oneWay: z.boolean().default(false), liveAudio: z.boolean().default(false),
 });
 const extrasSchema = z.object({
   category: z.string().max(80), description: z.string().max(2000), instructions: z.string().max(5000),
@@ -35,8 +35,10 @@ const extrasSchema = z.object({
   negativeValue: z.number().min(0).max(1), allowCalculator: z.boolean(), releaseResults: z.enum(['IMMEDIATE', 'AFTER_REVIEW', 'MANUAL']),
 });
 const weight = z.number().int().min(0).max(100);
+const penalty = z.number().min(0).max(100);
 export const policySchema = z.object({
   weights: z.object({ LOW: weight, MEDIUM: weight, HIGH: weight, CRITICAL: weight }),
+  penalties: z.object({ LOW: penalty, MEDIUM: penalty, HIGH: penalty, CRITICAL: penalty }).default(DEFAULT_POLICY.penalties),
   maxWarnings: z.number().int().min(0).max(5), warnFrom: sev, autoSubmit: z.boolean(), autoSubmitFrom: sev,
   autoSubmitOnCritical: z.boolean(), riskFlagAt: z.number().int().min(10).max(100), cooldownSec: z.number().int().min(0).max(300),
 })

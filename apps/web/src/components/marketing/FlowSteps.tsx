@@ -42,9 +42,9 @@ const STEPS: Step[] = [
     bullets: ['Plain-language list of monitoring', 'Entire-screen share enforced', 'Stopping the share is flagged instantly'],
   },
   {
-    id: 'exam', title: 'Secure kiosk exam', short: 'Exam', icon: Camera,
-    detail: 'The exam runs full-screen with a timer, question palette, mark-for-review and autosave. Research happens only inside a sandboxed browser where every URL and search is logged.',
-    bullets: ['AI sites flagged on open', 'Warnings, then auto-submit by policy', 'Proctors watch live and can intervene'],
+    id: 'exam', title: 'Monitored exam', short: 'Exam', icon: Camera,
+    detail: 'The exam runs with a timer, question palette, mark-for-review and autosave. The entire screen stays shared, and every URL, search and AI chat in the exam browser is logged.',
+    bullets: ['AI sites flagged on open', 'Flags reach the proctor with a picture as proof', 'Proctors watch live and can intervene'],
   },
   {
     id: 'done', title: 'Submitted and reviewed', short: 'Done', icon: FileCheck2,

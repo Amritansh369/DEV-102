@@ -16,7 +16,7 @@ export interface ReleaseInput {
   sessionStatus: SessionStatus;
   candidateStatus: CandidateStatus;
   decision: DecisionOutcome | null;
-  /** Warnings and auto-submits in this session that no mentor has confirmed or overruled. */
+  /** Flags above LOW in this session that no mentor has confirmed or overruled. */
   pendingFlags: number;
   now: Date;
 }
@@ -56,6 +56,8 @@ export interface ResultSummary {
   score: number;
   totalMarks: number;
   percent: number;
+  /** Marks taken off for confirmed violations; `score` and `percent` already include it. */
+  penaltyMarks: number;
   correct: number;
   wrong: number;
   unanswered: number;
@@ -82,11 +84,12 @@ function inOrder(order: string[], questions: ReviewQuestion[]): ReviewQuestion[]
   return order.map((id) => byId.get(id)).filter((q): q is ReviewQuestion => Boolean(q));
 }
 
-export function summarize(order: string[], questions: ReviewQuestion[], answers: Map<string, string[]>, negative: Negative, values: Map<string, number> = new Map()): ResultSummary {
+export function summarize(order: string[], questions: ReviewQuestion[], answers: Map<string, string[]>, negative: Negative, values: Map<string, number> = new Map(), penaltyMarks = 0): ResultSummary {
   const qs = inOrder(order, questions);
   const r = scoreAnswers(qs, answers, negative, values);
   const totalMarks = qs.reduce((s, q) => s + q.marks, 0);
-  return { ...r, totalMarks, percent: totalMarks ? round2((r.score / totalMarks) * 100) : 0, negativeMarking: negative };
+  const score = Math.max(0, round2(r.score - penaltyMarks));
+  return { ...r, score, totalMarks, percent: totalMarks ? round2((score / totalMarks) * 100) : 0, penaltyMarks, negativeMarking: negative };
 }
 
 export function buildReview(order: string[], questions: ReviewQuestion[], answers: Map<string, string[]>, negative: Negative, values: Map<string, number> = new Map()): ReviewItem[] {
@@ -113,7 +116,8 @@ export async function loadResult(candidateId: string, opts: { review?: boolean }
   const session = await prisma.examSession.findFirst({ where: { candidateId }, orderBy: { startedAt: 'desc' }, include: { answers: true } });
   if (!session) return null;
   const extras = readExtras(cand.exam.extras, cand.exam.title);
-  const pendingFlags = await prisma.violation.count({ where: { sessionId: session.id, outcome: { in: ['WARNING', 'AUTO_SUBMIT'] }, reviewed: null } });
+  // Flags can cost marks, so anything above LOW waits for a proctor before an "after review" result is released.
+  const pendingFlags = await prisma.violation.count({ where: { sessionId: session.id, outcome: { not: 'SUPPRESSED' }, severity: { not: 'LOW' }, reviewed: null } });
   const decision = (session.decision as { outcome?: DecisionOutcome } | null)?.outcome ?? null;
   const state = resultRelease({
     release: extras.releaseResults, manualReleasedAt: extras.resultsReleasedAt ?? null, examEndsAt: cand.exam.endsAt,
@@ -129,7 +133,7 @@ export async function loadResult(candidateId: string, opts: { review?: boolean }
   const negative = { enabled: readSettings(cand.exam.settings).negativeMarking, value: extras.negativeValue };
   return {
     cand, session, state,
-    summary: summarize(session.questionOrder, questions, answers, negative, values),
+    summary: summarize(session.questionOrder, questions, answers, negative, values, session.penaltyMarks),
     review: opts.review && state.reviewReleased ? buildReview(session.questionOrder, questions, answers, negative, values) : undefined,
   };
 }

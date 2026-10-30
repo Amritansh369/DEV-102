@@ -195,19 +195,19 @@ export const getExamReport = (examId: string) => call(get<ExamReport>(`/reports/
 /* ------------------------------------------------------------------ mentor */
 
 export type FinalOutcome = 'CLEAR' | 'WARN' | 'RETEST' | 'DISQUALIFY'
-export interface ReviewRecord { violationId: string; verdict: 'CONFIRMED' | 'OVERRULED'; reason: string; at: string }
+export interface ReviewRecord { violationId: string; verdict: 'CONFIRMED' | 'OVERRULED'; reason: string; at: string; marks?: number }
 export interface FinalDecision { sessionId: string; outcome: FinalOutcome; note: string; decidedAt: string }
 export interface RiskPoint { at: string; score: number }
 export interface QueueItem { session: Session; candidate: Candidate; examTitle: string; examCode: string; violations: Violation[] }
 export interface AssignedExam { exam: Exam; sessionCount: number; liveCount: number; flaggedCount: number }
 export interface MentorDashboardData { mentorName: string; exams: AssignedExam[]; queue: QueueItem[] }
-export interface SessionDetail { session: Session; candidate: Candidate; exam: Exam; violations: Violation[]; browsing: BrowsingLog[]; riskHistory: RiskPoint[]; decision?: FinalDecision }
+export interface SessionDetail { penalties: Record<Violation['severity'], number>; session: Session; candidate: Candidate; exam: Exam; violations: Violation[]; browsing: BrowsingLog[]; riskHistory: RiskPoint[]; decision?: FinalDecision }
 export interface LiveEvent { sessionId: string; candidateName: string; violation: Violation; riskScore: number; warnings: number }
 
 export const getMentorDashboard = () => call(get<MentorDashboardData>('/mentor/dashboard'))
 export const getSessionDetail = (sessionId: string) => call(get<SessionDetail>(`/sessions/${encodeURIComponent(sessionId)}/detail`))
-export const submitViolationReview = (input: { violationId: string; verdict: ReviewRecord['verdict']; reason: string }) =>
-  call(post<{ record: ReviewRecord }>(`/violations/${encodeURIComponent(input.violationId)}/review`, { verdict: input.verdict, reason: input.reason })).then((r) => r.record)
+export const submitViolationReview = (input: { violationId: string; verdict: ReviewRecord['verdict']; reason: string; marks?: number }) =>
+  call(post<{ record: ReviewRecord }>(`/violations/${encodeURIComponent(input.violationId)}/review`, { verdict: input.verdict, reason: input.reason, ...(input.marks !== undefined ? { marks: input.marks } : {}) })).then((r) => r.record)
 export const submitFinalDecision = (input: { sessionId: string; outcome: FinalOutcome; note: string }) =>
   call(post<FinalDecision>(`/sessions/${encodeURIComponent(input.sessionId)}/decision`, { outcome: input.outcome, note: input.note }))
 
@@ -243,6 +243,8 @@ export const getLobby = () => call(get<Lobby>('/candidate/lobby'))
 export interface ResultRelease { scoreReleased: boolean; reviewReleased: boolean; blockedBy: string | null; reviewOpensAt: string | null }
 export interface ResultSummary {
   score: number; totalMarks: number; percent: number; correct: number; wrong: number; unanswered: number
+  /** Marks taken off for confirmed violations; `score` and `percent` already include it. */
+  penaltyMarks?: number
   negativeMarking: { enabled: boolean; value: number }
 }
 export interface ReviewItem {

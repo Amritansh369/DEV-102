@@ -1,7 +1,7 @@
 import { z } from 'zod';
 import { API_ORIGIN, HttpError, get, post, put, setToken } from './http';
 import { enqueue, restoreQueue } from './live';
-import type { AuthUser, BrowsingLog, Exam, LoginInput, MentorLoginInput, OtpChallenge, Question, Session, Violation, ViolationCode } from './types';
+import type { AuthUser, BrowsingLog, Exam, LoginInput, MentorLoginInput, OtpChallenge, Question, Session, Violation, ViolationCode, Severity } from './types';
 
 /** Seeded demo accounts (database/prisma/seed.ts). */
 export const DEMO_CREDENTIALS: LoginInput = { examId: 'CPA-26', userId: 'WUE26DEMO', password: 'Demo@2026' };
@@ -129,7 +129,6 @@ export const api = {
     const p = await post<ExamPaper>('/sessions/start', { consent: true });
     if (current) current.sessionId = p.sessionId;
     await restoreQueue(p.sessionId);
-    if (window.proctor) await window.proctor.sandbox.setPolicy(p.exam.settings.allowedSites);
     return p;
   },
 
@@ -158,7 +157,7 @@ export const api = {
   /** `screenshot` (a picture of the AI tab) is evidence for a live entry only; the offline queue keeps the entry without it. */
   async logBrowsing(_examId: string, entry: BrowsingLog, screenshot?: string | null): Promise<void> {
     if (!/^https?:/i.test(entry.url)) return; // sandbox:// pages are local placeholders, not real navigations
-    const body = { url: entry.url, title: entry.title, ...(entry.query ? { query: entry.query } : {}), at: entry.at, flaggedAi: entry.flaggedAi };
+    const body = { url: entry.url, title: entry.title, ...(entry.query ? { query: entry.query } : {}), ...(entry.reply ? { reply: entry.reply } : {}), at: entry.at, flaggedAi: entry.flaggedAi };
     try {
       await post('/proctoring/browsing-logs', { sessionId: sid(entry.sessionId), entries: [{ ...body, ...(screenshot ? { screenshot } : {}) }] });
     } catch (e) {
@@ -244,7 +243,7 @@ export interface MonitorSession extends Session {
   photoUrl?: string;
 }
 export interface FeedViolation extends Violation { candidateName: string; userId: string }
-export interface SessionDetail { violations: Violation[]; logs: BrowsingLog[] }
+export interface SessionDetail { violations: Violation[]; logs: BrowsingLog[]; penaltyMarks: number; penalties: Record<Severity, number> }
 
 const seenFeed = new Map<string, Set<string>>();
 const snapshotOf = (examId: string) => get<{ sessions: MonitorSession[]; feed: FeedViolation[] }>(`/monitor/exams/${encodeURIComponent(examId)}`);
@@ -277,9 +276,10 @@ export const monitorApi = {
     return findSession(sessionId);
   },
   getSessionDetail: (sessionId: string) => get<SessionDetail>(`/monitor/sessions/${encodeURIComponent(sessionId)}`),
-  async reviewViolation(violationId: string, verdict: 'CONFIRMED' | 'OVERRULED') {
+  async reviewViolation(violationId: string, verdict: 'CONFIRMED' | 'OVERRULED', marks?: number) {
     const r = await post<{ violation: Violation; session: { id: string } }>(`/violations/${encodeURIComponent(violationId)}/review`, {
       verdict, reason: verdict === 'OVERRULED' ? 'Overruled from the live monitor after reviewing the evidence.' : 'Confirmed from the live monitor.',
+      ...(marks !== undefined ? { marks } : {}),
     });
     return { violation: r.violation, session: await findSession(r.session.id) };
   },

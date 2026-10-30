@@ -265,7 +265,10 @@ model ExamSession {
   networkLost     Boolean       @default(false)
   submittedAt     DateTime?
   submitReason    SubmitReason?
+  /// Final marks, after penaltyMarks are taken off.
   score           Float?
+  /// Sum of the marks deducted for confirmed violations.
+  penaltyMarks    Float         @default(0)
   receiptId       String?       @unique
   /// Mentor's final decision { outcome, note, decidedAt }
   decision        Json?
@@ -316,6 +319,8 @@ model Violation {
   reviewedAt   DateTime?
   /// Outcome the policy engine applied: LOGGED, SUPPRESSED, WARNING, AUTO_SUBMIT
   outcome      String        @default("LOGGED")
+  /// Marks taken off when a proctor confirmed this violation.
+  penaltyMarks Float?
 
   session    ExamSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
   evidence   Evidence?   @relation(fields: [evidenceId], references: [id], onDelete: SetNull)
@@ -326,12 +331,21 @@ model Violation {
   @@index([code])
 }
 
+/// Reference face photos of candidates and staff, by owner id. In the database because hosted disks do not survive a restart.
+model FacePhoto {
+  ownerId   String   @id
+  data      Bytes
+  createdAt DateTime @default(now())
+}
+
 model Evidence {
   id        String   @id @default(cuid())
   sessionId String
   kind      String
   path      String
   mime      String
+  /// The image itself. Older rows and seeded frames are files at `path`.
+  data      Bytes?
   createdAt DateTime @default(now())
 
   session   ExamSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
@@ -347,6 +361,8 @@ model BrowsingLog {
   url       String
   title     String
   query     String?
+  /// The AI assistant's answer to `query`, read from the page.
+  reply     String?
   flaggedAi Boolean  @default(false)
 
   session ExamSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)

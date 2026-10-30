@@ -42,7 +42,7 @@ interface WizardForm {
 const EMPTY: WizardForm = {
   title: '', code: '', category: CATEGORIES[0], description: '', instructions: DEFAULT_INSTRUCTIONS, questionCount: '60', totalMarks: '60',
   date: '', time: '10:00', durationMin: '90', lateEntryMin: '10', checkInMin: '30',
-  shuffle: true, negativeMarking: true, negativeValue: '0.25', allowedSites: [], allowCalculator: false, audioMonitoring: false, proctorOnly: false, oneWay: false, liveAudio: false, releaseResults: 'AFTER_REVIEW',
+  shuffle: true, negativeMarking: true, negativeValue: '0.25', allowedSites: [], allowCalculator: false, audioMonitoring: false, proctorOnly: true, oneWay: false, liveAudio: false, releaseResults: 'AFTER_REVIEW',
   policy: DEFAULT_POLICY,
 }
 
@@ -455,13 +455,13 @@ export default function NewExamPage() {
                     )}
                     <Toggle checked={form.allowCalculator} onChange={(v) => set('allowCalculator', v)} label="On-screen calculator" description="A basic calculator inside the secure exam window." />
                     <Toggle checked={form.audioMonitoring} onChange={(v) => set('audioMonitoring', v)} label="Audio monitoring" description="Flags talking and a muted microphone. Sound is analysed on the candidate's computer and never recorded or sent." />
-                    <Toggle checked={form.proctorOnly} onChange={(v) => set('proctorOnly', v)} label="Proctor-only alerts" description="Violations only flag to proctors: the candidate sees no warnings and the exam is never ended automatically." />
+                    <Toggle checked={form.proctorOnly} onChange={(v) => set('proctorOnly', v)} label="Proctor-only alerts" description="On by default. The candidate can use anything and sees no warnings; every flag, picture and AI chat goes to the proctor, who can deduct marks. Off: warnings and auto-submit apply." />
                     <Toggle checked={form.oneWay} onChange={(v) => set('oneWay', v)} label="One-way questions" description="Questions are answered in order; a candidate cannot go back after Next." />
                     <Toggle checked={form.liveAudio} onChange={(v) => set('liveAudio', v)} label="Live microphone to proctors" description="Proctors watching the screen can also listen live. Nothing is recorded; candidates are told on the consent screen." />
                   </div>
                   <div className="rounded-xl border border-border p-5">
-                    <p className="flex items-center gap-2 text-sm font-semibold text-text"><Globe className="h-4 w-4 text-accent" aria-hidden="true" /> Allowed websites in the sandbox browser</p>
-                    <p className="mt-1 text-xs text-muted">Every URL and search query is logged. AI sites are always flagged, even if listed here.</p>
+                    <p className="flex items-center gap-2 text-sm font-semibold text-text"><Globe className="h-4 w-4 text-accent" aria-hidden="true" /> Suggested websites in the exam browser</p>
+                    <p className="mt-1 text-xs text-muted">Shown on the new-tab page. Candidates can open any other site too: every URL, search and AI chat is logged, and AI sites are always flagged.</p>
                     <div className="mt-3 flex gap-2">
                       <input value={siteInput} onChange={(ev) => setSiteInput(ev.target.value)} onKeyDown={(ev) => { if (ev.key === 'Enter') { ev.preventDefault(); addSite(siteInput) } }} aria-label="Add an allowed website" aria-invalid={Boolean(e.allowedSites)} placeholder="docs.python.org" className={cx(inputCls, inputState(e.allowedSites))} />
                       <button type="button" onClick={() => addSite(siteInput)} className={btnGhost}><Plus className="h-4 w-4" aria-hidden="true" /> Add</button>

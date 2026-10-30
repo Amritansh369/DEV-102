@@ -193,7 +193,7 @@ export function PolicyEditor({ value, onChange, readOnly = false, showSimulator 
 
   return (
     <div className="space-y-5">
-      <Panel title="Severity weights" subtitle="Each detected event adds risk points to the candidate's score. What happens next depends on the thresholds below.">
+      <Panel title="Risk points and marks" subtitle="Each detected event adds risk points to the candidate's score. When a proctor confirms a flag, these marks are taken off the result. The proctor can change the marks for a single flag.">
         <div className="overflow-x-auto">
           <table ref={tableRef} className="w-full min-w-[640px] text-left text-sm">
             <caption className="sr-only">Risk points and consequences per severity</caption>
@@ -202,6 +202,7 @@ export function PolicyEditor({ value, onChange, readOnly = false, showSimulator 
                 <th scope="col" className="pb-2 pr-3 font-semibold">Severity</th>
                 <th scope="col" className="pb-2 pr-3 font-semibold">Typical events</th>
                 <th scope="col" className="pb-2 pr-3 font-semibold">Risk points</th>
+                <th scope="col" className="pb-2 pr-3 font-semibold">Marks deducted</th>
                 <th scope="col" className="pb-2 font-semibold">What happens</th>
               </tr>
             </thead>
@@ -225,6 +226,20 @@ export function PolicyEditor({ value, onChange, readOnly = false, showSimulator 
                         className="h-9 w-20 rounded-lg border border-border px-2 text-sm tabular-nums outline-none focus:border-accent focus:ring-2 focus:ring-accent/30 disabled:bg-soft"
                       />
                     </td>
+                    <td className="py-3 pr-3">
+                      <input
+                        type="number"
+                        inputMode="decimal"
+                        min={0}
+                        max={100}
+                        step={0.25}
+                        disabled={readOnly}
+                        aria-label={`Marks deducted for a confirmed ${s.toLowerCase()} flag`}
+                        value={value.penalties[s]}
+                        onChange={(e) => patch({ penalties: { ...value.penalties, [s]: Number.isFinite(e.target.valueAsNumber) ? e.target.valueAsNumber : 0 } })}
+                        className="h-9 w-20 rounded-lg border border-border px-2 text-sm tabular-nums outline-none focus:border-accent focus:ring-2 focus:ring-accent/30 disabled:bg-soft"
+                      />
+                    </td>
                     <td className="py-3"><span className={cx('inline-block rounded-full px-2.5 py-1 text-xs font-semibold', eff.cls)}>{eff.label}</span></td>
                   </tr>
                 )
@@ -232,11 +247,11 @@ export function PolicyEditor({ value, onChange, readOnly = false, showSimulator 
             </tbody>
           </table>
         </div>
-        {errs.weights && <p role="alert" className="mt-2 flex items-center gap-1.5 text-xs font-medium text-danger"><ShieldAlert className="h-3.5 w-3.5" aria-hidden="true" />{errs.weights}</p>}
+        {(errs.weights ?? errs.penalties) && <p role="alert" className="mt-2 flex items-center gap-1.5 text-xs font-medium text-danger"><ShieldAlert className="h-3.5 w-3.5" aria-hidden="true" />{errs.weights ?? errs.penalties}</p>}
       </Panel>
 
       <div className="grid gap-5 lg:grid-cols-2">
-        <Panel title="Warning thresholds" subtitle="When the candidate is warned and when sessions are flagged for review.">
+        <Panel title="Warning thresholds" subtitle="When sessions are flagged for review. Candidate warnings apply only when Proctor-only alerts is off.">
           <div className="space-y-5">
             <Slider label="Warnings before action" value={value.maxWarnings} min={0} max={5} disabled={readOnly} onChange={(v) => patch({ maxWarnings: v })} display={value.maxWarnings === 0 ? 'No warnings' : `${value.maxWarnings} warning${value.maxWarnings > 1 ? 's' : ''}`} error={errs.maxWarnings} />
             <div>
@@ -248,7 +263,7 @@ export function PolicyEditor({ value, onChange, readOnly = false, showSimulator 
           </div>
         </Panel>
 
-        <Panel title="Auto-submit rules" subtitle="Ends the exam and submits saved answers without waiting for a proctor.">
+        <Panel title="Auto-submit rules" subtitle="Applies only when Proctor-only alerts is off. Ends the exam and submits saved answers without waiting for a proctor.">
           <div className="space-y-5">
             <Toggle checked={value.autoSubmit} onChange={(v) => patch({ autoSubmit: v })} label="Auto-submit on repeated violations" description="When off, only proctors can terminate a session." disabled={readOnly} />
             <div className={cx(!value.autoSubmit && 'pointer-events-none opacity-50')}>
