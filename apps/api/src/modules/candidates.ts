@@ -89,7 +89,7 @@ async function deliverCredentials(candidateId: string, tpl: { subject?: string |
   const body = tpl.body && !tpl.body.includes('{{inviteLink}}') ? `${tpl.body}
 
 Your exam link: {{inviteLink}}` : tpl.body || DEFAULT_BODY;
-  const mail = templates.credentials(renderTemplate(tpl.subject || DEFAULT_SUBJECT, vars), renderTemplate(body, vars));
+  const mail = templates.credentials(renderTemplate(tpl.subject || DEFAULT_SUBJECT, vars), renderTemplate(body, vars), vars);
   const r = await sendMail({ to: c.email, ...mail, kind: 'credentials', candidateId: c.id });
   await prisma.candidate.update({
     where: { id: c.id },
