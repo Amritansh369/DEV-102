@@ -49,10 +49,10 @@ To remove these limits, change `plan: free` to `plan: starter` for both services
 5. Seed the first admin account once, from your machine, against the Neon database:
 
    ```bash
-   DATABASE_URL="<external database url>" npm run db:seed
+   DATABASE_URL="<external database url>" ORG_ADMIN_EMAIL="you@example.com" ORG_ADMIN_PASSWORD="<10+ characters>" npm run db:seed:admin
    ```
 
-   This loads the demo data, including `admin@wue.in` / `Admin@123`. Sign in and change that password before sharing the site.
+   This wipes the database and creates only your organization account. Sign in and create exams on the website. (`npm run db:seed` adds a ready-made test exam `LIVE-01` instead, and `npm run db:seed:demo` loads the full demo dataset with the public `admin@wue.in` / `Admin@123`.)
 
 The API refuses to start in production with the default `JWT_SECRET` or `AGENT_API_KEY`, so a missing secret shows up as a failed deploy rather than an insecure one.
 
@@ -118,7 +118,7 @@ npm run db:migrate -- --name <what-changed>
 
 The same containers run on one EC2 host with Docker Compose. Caddy provides HTTPS and passes WebSockets through. Files are in `docs/deploy/aws/`.
 
-1. **Neon:** create a project in `aws-ap-southeast-1` and copy the **direct** connection string (the host without `-pooler`, ending in `?sslmode=require`). The API runs `prisma migrate deploy` on start, which needs the direct URL. Seed it once with `DATABASE_URL="<url>" npm run db:seed`.
+1. **Neon:** create a project in `aws-ap-southeast-1` and copy the **direct** connection string (the host without `-pooler`, ending in `?sslmode=require`). The API runs `prisma migrate deploy` on start, which needs the direct URL. Seed it once with `DATABASE_URL="<url>" ORG_ADMIN_EMAIL=... ORG_ADMIN_PASSWORD=... npm run db:seed:admin`.
 2. **EC2:** launch Ubuntu 24.04 on a `t3.medium` (4 GB; the agent's vision models need the memory) with a 30 GB disk. Open ports 80 and 443, and 22 for your IP only. Attach an Elastic IP. Without a domain, use `api.<ip-with-dashes>.sslip.io` as the hostname.
 3. On the host, install `docker.io docker-compose-v2 git`, clone the repo, and copy `docs/deploy/aws/.env.example` to `docs/deploy/aws/.env`. Fill it in, generating the secrets with `openssl rand -hex 32`. Then run:
 

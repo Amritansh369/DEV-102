@@ -20,6 +20,7 @@
     "db:deploy": "prisma migrate deploy --schema database/prisma/schema.prisma",
     "db:seed": "tsx database/prisma/seed.ts",
     "db:seed:demo": "tsx database/prisma/seed.ts --demo",
+    "db:seed:admin": "tsx database/prisma/seed.ts --admin-only",
     "db:studio": "prisma studio --schema database/prisma/schema.prisma",
     "python:install": "node scripts/python.cjs install",
     "smoke": "node scripts/smoke.mjs",

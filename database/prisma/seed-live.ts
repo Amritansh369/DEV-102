@@ -44,6 +44,17 @@ const QUESTIONS: Q[] = [
 
 const IDS = ['a', 'b', 'c', 'd'] as const;
 
+/** Production: just the organization account, from ORG_ADMIN_EMAIL and ORG_ADMIN_PASSWORD. Exams are created on the website. */
+export async function seedAdmin(prisma: PrismaClient): Promise<void> {
+  if (!process.env.ORG_ADMIN_EMAIL || !process.env.ORG_ADMIN_PASSWORD || process.env.ORG_ADMIN_PASSWORD.length < 10) {
+    throw new Error('Set ORG_ADMIN_EMAIL and ORG_ADMIN_PASSWORD (10+ characters) for an admin-only seed; the demo password is public.');
+  }
+  await prisma.user.create({
+    data: { email: LIVE_ORG.email, name: LIVE_ORG.name, role: 'ADMIN', passwordHash: await hashPassword(LIVE_ORG.password) },
+  });
+  console.log(`[seed] Empty database with one organization account: ${LIVE_ORG.email}. Create exams on the website.`);
+}
+
 export async function seedLive(prisma: PrismaClient): Promise<void> {
   const admin = await prisma.user.create({
     data: { email: LIVE_ORG.email, name: LIVE_ORG.name, role: 'ADMIN', passwordHash: await hashPassword(LIVE_ORG.password) },

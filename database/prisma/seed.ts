@@ -1,6 +1,7 @@
 /**
  * Default: live testing data only (one organization account and one real exam; seed-live.ts).
  * `--demo`: the full demo dataset below, which the smoke test uses.
+ * `--admin-only`: an empty database with one organization account (production).
  *
  * The demo dataset is the same one the web UI used in mock mode, so every screen looks
  * identical after wiring: 6 exams, 120 questions, 60 candidates, 30 sessions, 150 violations and
@@ -17,7 +18,7 @@ import {
 } from './seed-data';
 import { encrypt, hashPassword } from '../../apps/api/src/lib/crypto';
 import { DEFAULT_POLICY, VIOLATION_META, defaultExtras, readExtras, scoreAnswers } from '../../apps/api/src/lib/domain';
-import { seedLive } from './seed-live';
+import { seedAdmin, seedLive } from './seed-live';
 
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '../..');
 loadDotenv({ path: join(ROOT, '.env') });
@@ -304,7 +305,13 @@ async function live(): Promise<void> {
   await seedLive(prisma);
 }
 
-(process.argv.includes('--refresh-demo') ? refreshDemo() : process.argv.includes('--demo') ? main() : live())
+async function adminOnly(): Promise<void> {
+  await wipe();
+  await seedAdmin(prisma);
+}
+
+const mode = process.argv.includes('--refresh-demo') ? refreshDemo : process.argv.includes('--demo') ? main : process.argv.includes('--admin-only') ? adminOnly : live;
+mode()
   .catch((error: unknown) => {
     console.error('Database seed failed:', error);
     process.exitCode = 1;
