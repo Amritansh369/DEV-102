@@ -33,6 +33,7 @@ The database schema is managed by Prisma migrations in `database/prisma/migratio
    | `APP_DOWNLOAD_URL` | `<website URL>/download` |
    | `SMTP_HOST`, `SMTP_USER`, `SMTP_PASS` | For Gmail, use `smtp.gmail.com:587`, your Gmail address, and a Google App Password (not your account password). |
    | `MAIL_FROM` | Optional. Leave blank to send from `SMTP_USER`; Gmail only permits a different sender address when it is a verified alias. |
+   | `ALERT_WEBHOOK_URL`, `ALERT_WEBHOOK_KEY` | Optional. The n8n "Proctor violation alerts" webhook production URL and its header-auth value. The API posts CRITICAL violations and auto-submits there. |
 
    Save; Render redeploys the API.
 4. Check `https://<api>/health` returns `{"ok":true,...}`.
