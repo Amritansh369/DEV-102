@@ -1,9 +1,9 @@
 import { KeyboardEvent as ReactKeyboardEvent, useCallback, useEffect, useMemo, useRef, useState, type JSX } from 'react'
 import { create } from 'zustand'
 import { AnimatePresence, motion } from 'framer-motion'
-import { AlertTriangle, ArrowLeft, ArrowRight, Check, CheckCircle2, CloudOff, Eraser, Flag, Globe, Keyboard, Loader2, Lock, RefreshCw, Send, WifiOff, X } from 'lucide-react'
+import { AlertTriangle, ArrowLeft, ArrowRight, Check, CheckCircle2, CloudOff, Eraser, Flag, Globe, Keyboard, Loader2, Monitor, RefreshCw, Send, WifiOff, X } from 'lucide-react'
 import { api, type ExamPaper, type ViolationResult } from '../lib/api'
-import { captureWindow, startLive } from '../lib/live'
+import { proofShot, startLive } from '../lib/live'
 import { watchAway } from '../lib/away'
 import { getProctor } from '../lib/proctorMock'
 import type { BrowsingLog, Question, Severity, ViolationCode } from '../lib/types'
@@ -223,7 +223,6 @@ export default function Exam({ examId, userId, onSubmitted }: ExamProps) {
   const save = useExamStore((s) => s.save)
   const warnings = useExamStore((s) => s.warnings)
   const events = useExamStore((s) => s.events)
-  const log = useExamStore((s) => s.log)
   const { choose, type, clear, toggleFlag, go } = useExamStore.getState()
 
   const stageRef = useRef<HTMLElement>(null)
@@ -309,7 +308,8 @@ export default function Exam({ examId, userId, onSubmitted }: ExamProps) {
           setActiveWarning((cur) => (cur?.kind === 'submit' ? cur : { id: uid(), code, severity, message, kind, warningNumber: r.warnings }))
         } else if (r.outcome !== 'SUPPRESSED') pushToast(`Noted: ${message}`, 'info')
       }
-      void api.reportViolation({ examId: p.exam.id, sessionId: p.sessionId, code, severity, message, at }).then((r) => {
+      // A picture of the screen goes with every event as proof; a failed capture must not lose the event.
+      void proofShot().catch(() => null).then((screenshot) => api.reportViolation({ examId: p.exam.id, sessionId: p.sessionId, code, severity, message, at, ...(screenshot ? { screenshot } : {}) })).then((r) => {
         if (silent) return
         if (r) applyServer(r)
         else applyLocal()
@@ -336,7 +336,7 @@ export default function Exam({ examId, userId, onSubmitted }: ExamProps) {
         while (!navigator.onLine) await wait(1000)
         const res = await api.submitExam({ examId: p.exam.id, answers: s.answers, values: valuesOf(s.questions, s.numeric), flagged: flaggedIds, auto, reason, browsing: s.log })
         const isDisqualified = disqualified || res.status === 'TERMINATED'
-        void getProctor().exitKiosk().catch(() => undefined)
+        void getProctor().exam.stop().catch(() => undefined)
         onSubmitted({ answered, total: s.questions.length, flagged: flaggedIds.length, autoSubmitted: auto, disqualified: isDisqualified, reason, receiptId: res.receiptId, submittedAt: res.submittedAt })
       } catch (e) {
         setSubmitError(e instanceof Error ? e.message : 'Submission failed. Please try again.')
@@ -448,12 +448,12 @@ export default function Exam({ examId, userId, onSubmitted }: ExamProps) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [phase, paper?.sessionId])
 
-  /* kiosk mode only while the exam runs: a loading or error screen must stay closable */
+  /* leaving and closing the window are reported only while the exam runs, not on a loading or error screen */
   useEffect(() => {
     if (phase !== 'active') return
     const proctor = getProctor()
-    void proctor.enterKiosk().catch(() => undefined)
-    return () => { void proctor.exitKiosk().catch(() => undefined) }
+    void proctor.exam.start().catch(() => undefined)
+    return () => { void proctor.exam.stop().catch(() => undefined) }
   }, [phase])
 
   /* native guards and native proctor events */
@@ -475,41 +475,17 @@ export default function Exam({ examId, userId, onSubmitted }: ExamProps) {
     }
   }, [report])
 
-  /* window focus loss: brief blurs are LOW, longer absences MEDIUM */
+  /* clipboard and keyboard: everything works and is noted; only reloading is stopped, as it would drop the exam */
   useEffect(() => {
-    let blurredAt: number | null = null
-    const onBlur = () => { blurredAt = Date.now() }
-    const onFocus = () => {
-      if (blurredAt === null) return
-      const away = Date.now() - blurredAt
-      blurredAt = null
-      if (away > 1500) report('WINDOW_BLUR', { severity: away > 5000 ? 'MEDIUM' : 'LOW', message: `The exam window lost focus for ${Math.round(away / 1000)} seconds.` })
-    }
-    window.addEventListener('blur', onBlur)
-    window.addEventListener('focus', onFocus)
-    return () => {
-      window.removeEventListener('blur', onBlur)
-      window.removeEventListener('focus', onFocus)
-    }
-  }, [report])
-
-  /* clipboard, context menu and keyboard */
-  useEffect(() => {
-    const block = (e: Event) => {
-      e.preventDefault()
-      if (e.type !== 'contextmenu') report('CLIPBOARD_USE')
+    const noteCopy = (e: Event) => {
+      const text = document.getSelection()?.toString().replace(/\s+/g, ' ').trim().slice(0, 300)
+      report('CLIPBOARD_USE', { message: text ? `Copied from the exam: "${text}"` : `${e.type === 'paste' ? 'Pasted into' : 'Copied from'} the exam.` })
     }
     const onKey = (e: KeyboardEvent) => {
       const ctrl = e.ctrlKey || e.metaKey
       const k = e.key.toLowerCase()
 
-      if (ctrl && ['c', 'x', 'v'].includes(k)) { e.preventDefault(); report('CLIPBOARD_USE'); return }
-      const restricted = (ctrl && ['p', 's', 'u', 'r', 'f'].includes(k)) || (ctrl && e.shiftKey && ['i', 'j'].includes(k)) || ['F5', 'F12', 'PrintScreen'].includes(e.key)
-      if (restricted) {
-        e.preventDefault()
-        report('SHORTCUT_BLOCKED', { message: `Blocked shortcut: ${[ctrl ? 'Ctrl' : '', e.shiftKey ? 'Shift' : '', e.key].filter(Boolean).join('+')}` })
-        return
-      }
+      if ((ctrl && k === 'r') || e.key === 'F5') { e.preventDefault(); return }
       if (e.key === 'Escape') { setHelpOpen(false); return }
       if (uiRef.current.modalOpen) return
       if (ctrl && e.key === 'Enter') { e.preventDefault(); setSubmitOpen(true); return }
@@ -531,16 +507,14 @@ export default function Exam({ examId, userId, onSubmitted }: ExamProps) {
         if (opt) s.choose(q.id, opt.id, q.multi)
       }
     }
-    document.addEventListener('copy', block)
-    document.addEventListener('cut', block)
-    document.addEventListener('paste', block)
-    document.addEventListener('contextmenu', block)
+    document.addEventListener('copy', noteCopy)
+    document.addEventListener('cut', noteCopy)
+    document.addEventListener('paste', noteCopy)
     document.addEventListener('keydown', onKey)
     return () => {
-      document.removeEventListener('copy', block)
-      document.removeEventListener('cut', block)
-      document.removeEventListener('paste', block)
-      document.removeEventListener('contextmenu', block)
+      document.removeEventListener('copy', noteCopy)
+      document.removeEventListener('cut', noteCopy)
+      document.removeEventListener('paste', noteCopy)
       document.removeEventListener('keydown', onKey)
     }
   }, [report])
@@ -550,15 +524,14 @@ export default function Exam({ examId, userId, onSubmitted }: ExamProps) {
     (entry: Omit<BrowsingLog, 'id' | 'sessionId'>) => {
       const full: BrowsingLog = { ...entry, id: uid(), sessionId: paperRef.current?.sessionId ?? '' }
       useExamStore.setState((s) => ({ log: [full, ...s.log] }))
-      if (!entry.flaggedAi || !window.proctor) {
+      if (!entry.flaggedAi || entry.reply || !window.proctor) {
         void api.logBrowsing(examId, full).catch(() => undefined)
         return
       }
       // A picture of the AI tab goes with the entry as evidence; a page that just opened gets a moment to load.
       void (async () => {
         if (!entry.query) await new Promise((r) => window.setTimeout(r, 1500))
-        const shot = await captureWindow()
-        await api.logBrowsing(examId, full, shot)
+        await api.logBrowsing(examId, full, await proofShot().catch(() => null))
       })().catch(() => undefined)
     },
     [examId],
@@ -605,15 +578,14 @@ export default function Exam({ examId, userId, onSubmitted }: ExamProps) {
             <h1 className="truncate font-heading text-sm font-semibold">{exam.title}</h1>
             <p className="text-xs text-muted">{exam.code} · {questions.length} questions · {exam.totalMarks} marks</p>
           </div>
-          <span className="ml-2 hidden items-center gap-1 rounded-full bg-blue-50 px-2.5 py-1 text-[11px] font-medium text-primary xl:inline-flex"><Lock className="h-3 w-3" aria-hidden /> Kiosk mode</span>
+          <span className="ml-2 hidden items-center gap-1.5 rounded-full bg-green-50 px-2.5 py-1 text-[11px] font-medium text-success lg:inline-flex" title="Your entire screen is shared with your proctor until you finish"><Monitor className="h-3 w-3" aria-hidden /><span className="h-1.5 w-1.5 animate-pulse rounded-full bg-success" aria-hidden /> Screen shared</span>
         </div>
 
         <nav className="flex rounded-xl bg-soft p-1" aria-label="Workspace">
-          {([['exam', 'Questions', null], ['browser', 'Sandbox browser', log.length]] as const).map(([id, label, count]) => (
+          {([['exam', 'Questions'], ['browser', 'Browser']] as const).map(([id, label]) => (
             <button key={id} type="button" aria-pressed={view === id} onClick={() => setView(id)} className={`inline-flex items-center gap-1.5 rounded-lg px-3.5 py-1.5 text-xs font-medium transition focus-visible:outline-2 focus-visible:outline-accent ${view === id ? 'bg-white text-primary shadow-sm' : 'text-muted hover:text-ink'}`}>
               {id === 'browser' && <Globe className="h-3.5 w-3.5" aria-hidden />}
               {label}
-              {count !== null && count > 0 && <span className="rounded-full bg-primary/10 px-1.5 text-[10px] tabular-nums">{count}</span>}
             </button>
           ))}
         </nav>
@@ -648,7 +620,7 @@ export default function Exam({ examId, userId, onSubmitted }: ExamProps) {
                 <p className="text-sm text-muted">Contact your invigilator. This exam has no questions yet.</p>
               </div>
             ) : (
-              <div className="flex h-full select-none flex-col">
+              <div className="flex h-full flex-col">
                 <div className="flex flex-wrap items-center gap-2 border-b border-border px-6 py-3 text-xs">
                   <span className="rounded-full bg-primary px-3 py-1 font-semibold text-white tabular-nums">Question {index + 1} of {questions.length}</span>
                   <span className="rounded-full bg-soft px-2.5 py-1 font-medium text-muted">{sectionOf(q)}</span>
@@ -712,10 +684,9 @@ export default function Exam({ examId, userId, onSubmitted }: ExamProps) {
           <div className={view === 'browser' ? 'h-full' : 'hidden'}>
             <BrowserTabs
               allowedSites={exam.settings.allowedSites}
-              log={log}
               onLog={handleLog}
-              onAiSite={(url) => report('AI_SITE_OPENED', { message: `An AI assistant site was opened in the sandbox browser (${safeHost(url)}).` })}
-              onAiQuery={(query) => report('AI_QUERY_DETECTED', { message: `A search resembling an AI prompt was detected: “${query.slice(0, 60)}”.` })}
+              onAiSite={(url) => report('AI_SITE_OPENED', { message: `An AI assistant site was opened (${safeHost(url)}).` })}
+              onAiQuery={(query) => report('AI_QUERY_DETECTED', { message: `Typed into an AI assistant or search: "${query.slice(0, 200)}"` })}
             />
           </div>
 
@@ -779,7 +750,7 @@ export default function Exam({ examId, userId, onSubmitted }: ExamProps) {
           <motion.aside initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }} className="fixed bottom-4 left-4 z-40 w-72 rounded-2xl border border-border bg-white p-4 shadow-xl" aria-label="Keyboard shortcuts">
             <div className="flex items-center justify-between"><h2 className="font-heading text-sm font-semibold">Keyboard shortcuts</h2><button type="button" onClick={() => setHelpOpen(false)} aria-label="Close shortcuts" className="rounded p-1 text-muted hover:bg-soft"><X className="h-4 w-4" /></button></div>
             <dl className="mt-3 space-y-1.5 text-xs">
-              {[['← / → or P / N', 'Previous / next question'], ['1 – 9', 'Select option'], ['M', 'Mark for review'], ['C', 'Clear response'], ['Alt + B', 'Toggle sandbox browser'], ['Ctrl + Enter', 'Review & submit'], ['?', 'Show or hide this panel']].map(([k, d]) => (
+              {[['← / → or P / N', 'Previous / next question'], ['1 – 9', 'Select option'], ['M', 'Mark for review'], ['C', 'Clear response'], ['Alt + B', 'Toggle browser'], ['Ctrl + Enter', 'Review & submit'], ['?', 'Show or hide this panel']].map(([k, d]) => (
                 <div key={k} className="flex justify-between gap-3"><dt><kbd className="rounded bg-soft px-1.5 py-0.5 font-mono text-[11px]">{k}</kbd></dt><dd className="text-muted">{d}</dd></div>
               ))}
             </dl>

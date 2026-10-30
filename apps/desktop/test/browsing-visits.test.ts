@@ -40,6 +40,16 @@ describe('groupVisits', () => {
     expect(visits.map((v) => [v.site, v.queries[0]?.text, v.ai])).toEqual([['Google', 'binary search', false], ['Sandbox search', 'sorting', false]])
   })
 
+  it('puts an AI reply under its question and keeps the newest version of a growing answer', () => {
+    const base = { sessionId: 's', url: 'https://chatgpt.com/c/1', title: 'ChatGPT', flaggedAi: true }
+    const [visit] = groupVisits([
+      { ...base, id: '1', at: '2026-10-30T10:00:00Z', query: 'what is 2+2' },
+      { ...base, id: '2', at: '2026-10-30T10:00:05Z', query: 'what is 2+2', reply: 'It is' },
+      { ...base, id: '3', at: '2026-10-30T10:00:09Z', query: 'what is 2+2', reply: 'It is 4.' },
+    ])
+    expect(visit?.queries).toEqual([{ id: '1', at: '2026-10-30T10:00:00Z', text: 'what is 2+2', reply: 'It is 4.' }])
+  })
+
   it('shows a message once when the tracker reported it after a pause and again on Enter', () => {
     const visits = groupVisits([
       entry(1, 'https://claude.ai/', { flaggedAi: true }),

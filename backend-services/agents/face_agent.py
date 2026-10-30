@@ -130,16 +130,17 @@ def verify(image_b64: str, registered_b64: str | None) -> FaceVerifyResult:
     faces = len(facts.faces)
     # Basic liveness: a lit, textured frame with a detected face and landmarks, not a flat image.
     liveness = faces == 1 and not facts.blocked and facts.contrast > 18 and (facts.yaw is not None)
+    eyes = facts.eyes_open
     if faces != 1:
-        return FaceVerifyResult(match=False, similarity=0, faces=faces, liveness=liveness)
+        return FaceVerifyResult(match=False, similarity=0, faces=faces, liveness=liveness, eyesOpen=eyes)
     if not registered_b64:
-        return FaceVerifyResult(match=True, similarity=1.0, faces=1, liveness=liveness)
+        return FaceVerifyResult(match=True, similarity=1.0, faces=1, liveness=liveness, eyesOpen=eyes)
     ref_img = vision.decode(registered_b64)
     ref_faces = vision.detect_faces(ref_img) if ref_img is not None else []
     if not ref_faces or ref_img is None:
-        return FaceVerifyResult(match=True, similarity=1.0, faces=1, liveness=liveness)
+        return FaceVerifyResult(match=True, similarity=1.0, faces=1, liveness=liveness, eyesOpen=eyes)
     a, b = vision.embedding(ref_img, ref_faces[0]), vision.embedding(img, facts.faces[0])
     if a is None or b is None:
-        return FaceVerifyResult(match=True, similarity=0.0, faces=1, liveness=liveness)
+        return FaceVerifyResult(match=True, similarity=0.0, faces=1, liveness=liveness, eyesOpen=eyes)
     sim = vision.similarity(a, b)
-    return FaceVerifyResult(match=sim >= settings.match_threshold, similarity=round(sim, 3), faces=1, liveness=liveness)
+    return FaceVerifyResult(match=sim >= settings.match_threshold, similarity=round(sim, 3), faces=1, liveness=liveness, eyesOpen=eyes)

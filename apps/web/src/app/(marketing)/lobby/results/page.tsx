@@ -124,6 +124,7 @@ export default function ResultsPage() {
           {summary.negativeMarking.enabled && (
             <p className="mt-2 text-sm text-white/70">Negative marking: each wrong answer loses {summary.negativeMarking.value} of that question&apos;s marks.</p>
           )}
+          {Boolean(summary.penaltyMarks) && <p className="mt-2 text-sm text-white/70">{summary.penaltyMarks} marks were deducted after proctor review.</p>}
           {data.receiptId && <p className="mt-2 font-mono text-xs text-white/60">Reference {data.receiptId}</p>}
         </div>
       </section>

@@ -5,9 +5,11 @@ import type { Severity, ViolationCode } from './types'
 export const SEVERITIES: readonly Severity[] = ['LOW', 'MEDIUM', 'HIGH', 'CRITICAL']
 export const SEVERITY_RANK: Record<Severity, number> = { LOW: 0, MEDIUM: 1, HIGH: 2, CRITICAL: 3 }
 
-/** Per-exam violation policy. Default: two MEDIUM+ events warn, the third HIGH or any CRITICAL auto-submits. */
+/** Per-exam violation policy. Warnings and auto-submit apply only when the exam turns proctor-only alerts off. */
 export interface ViolationPolicy {
   weights: Record<Severity, number>
+  /** Marks taken off for each flag a proctor confirms. The proctor can change it per flag. */
+  penalties: Record<Severity, number>
   maxWarnings: number
   warnFrom: Severity
   autoSubmit: boolean
@@ -19,6 +21,7 @@ export interface ViolationPolicy {
 
 export const DEFAULT_POLICY: ViolationPolicy = {
   weights: { LOW: 2, MEDIUM: 8, HIGH: 20, CRITICAL: 50 },
+  penalties: { LOW: 0, MEDIUM: 1, HIGH: 2, CRITICAL: 5 },
   maxWarnings: 2,
   warnFrom: 'MEDIUM',
   autoSubmit: true,
@@ -28,14 +31,16 @@ export const DEFAULT_POLICY: ViolationPolicy = {
   cooldownSec: 30,
 }
 
-export const clonePolicy = (p: ViolationPolicy): ViolationPolicy => ({ ...p, weights: { ...p.weights } })
+export const clonePolicy = (p: ViolationPolicy): ViolationPolicy => ({ ...p, weights: { ...p.weights }, penalties: { ...p.penalties } })
 
 const sev = z.enum(['LOW', 'MEDIUM', 'HIGH', 'CRITICAL'])
 const weight = z.number().int('Use whole numbers').min(0, 'Weights cannot be negative').max(100, 'Weights are capped at 100')
+const penalty = z.number().min(0, 'Marks cannot be negative').max(100, 'Marks are capped at 100')
 
 export const policySchema = z
   .object({
     weights: z.object({ LOW: weight, MEDIUM: weight, HIGH: weight, CRITICAL: weight }),
+    penalties: z.object({ LOW: penalty, MEDIUM: penalty, HIGH: penalty, CRITICAL: penalty }),
     maxWarnings: z.number().int().min(0, 'Warnings cannot be negative').max(5, 'Allow at most 5 warnings'),
     warnFrom: sev,
     autoSubmit: z.boolean(),
@@ -62,6 +67,7 @@ export function describePolicy(p: ViolationPolicy): string[] {
       ? `Auto-submits on ${p.autoSubmitFrom.toLowerCase()} events once warnings are used up${p.autoSubmitOnCritical ? ', and immediately on any critical event' : ''}.`
       : 'Auto-submit is off. Proctors terminate sessions manually.',
     `Sessions are flagged for proctor review at a risk score of ${p.riskFlagAt}.`,
+    `Each confirmed flag deducts ${p.penalties.LOW} / ${p.penalties.MEDIUM} / ${p.penalties.HIGH} / ${p.penalties.CRITICAL} marks (low / medium / high / critical).`,
   ]
   if (p.cooldownSec > 0) lines.push(`Identical events within ${p.cooldownSec} seconds count once.`)
   return lines

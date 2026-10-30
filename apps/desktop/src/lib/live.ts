@@ -228,17 +228,8 @@ const iceServers = (): Promise<RTCIceServer[]> =>
 type RtcMessage = { sessionId: string; from?: string; payload?: { type?: string; sdp?: string; candidate?: string } & RTCIceCandidateInit };
 export type ScreenState = 'connecting' | 'live' | 'unavailable' | 'ended';
 
-/**
- * The installed app hides the exam window from every screen capture (content protection), so the
- * entire-screen stream shows it black. There the app pictures its own window instead, sandbox tabs included.
- */
-const inAppCapture = (): boolean => Boolean(window.proctor && !window.proctor.relaxed);
-
-/** A JPEG data URL of the exam window (sandbox tabs included), or null outside the desktop app. */
-export const captureWindow = (): Promise<string | null> => window.proctor?.window.capture().catch(() => null) ?? Promise.resolve(null);
-
 let realScreen: HTMLVideoElement | null = null;
-/** A picture of the real screen: other programs show, the exam window is black in the installed app. */
+/** A picture of the shared screen. */
 export async function grabScreen(width: number, quality: number): Promise<string | null> {
   const stream = getScreenStream();
   if (!stream) return null;
@@ -250,12 +241,55 @@ export async function grabScreen(width: number, quality: number): Promise<string
   return grab(realScreen, width, quality);
 }
 
-/** What the candidate is looking at: the exam window (sandbox tabs included) while it has focus, else the real screen. */
-const viewShot = (width: number, quality: number): Promise<string | null> =>
-  inAppCapture() && document.hasFocus() ? captureWindow() : grabScreen(width, quality);
+const loadImage = (src: string): Promise<HTMLImageElement | null> =>
+  new Promise((resolve) => {
+    const img = new Image();
+    img.onload = () => resolve(img);
+    img.onerror = () => resolve(null);
+    img.src = src;
+  });
 
-/** A live video of the exam window, redrawn from captures while one proctor watches. */
-function windowStream(): { stream: MediaStream; stop: () => void } {
+/** Displays seen in the last capture; above one, the live view shows all of them side by side. */
+let displaysSeen = 1;
+
+/** A picture of everything on screen: all displays side by side, or the shared stream outside the desktop app. */
+export async function allScreens(width: number, quality: number): Promise<string | null> {
+  const shots = await window.proctor?.captureScreens().catch(() => null);
+  if (!shots?.length) return grabScreen(width, quality);
+  displaysSeen = shots.length;
+  if (shots.length === 1) return shots[0] ?? null;
+  const images = (await Promise.all(shots.map(loadImage))).filter((i): i is HTMLImageElement => Boolean(i));
+  const canvas = document.createElement('canvas');
+  canvas.width = images.reduce((w, i) => w + i.naturalWidth, 0);
+  canvas.height = Math.max(...images.map((i) => i.naturalHeight));
+  const ctx = canvas.getContext('2d');
+  let x = 0;
+  for (const img of images) {
+    ctx?.drawImage(img, x, 0);
+    x += img.naturalWidth;
+  }
+  return canvas.toDataURL('image/jpeg', quality);
+}
+
+/** Proof for a flag: everything on screen with the webcam in the corner, so one picture shows the screen and the candidate. */
+export async function proofShot(): Promise<string | null> {
+  const screen = await allScreens(1280, 0.6);
+  const camera = document.querySelector<HTMLVideoElement>('[data-proctor-camera]');
+  const shot = screen ? await loadImage(screen) : null;
+  if (!shot || !camera?.videoWidth) return screen;
+  const canvas = document.createElement('canvas');
+  canvas.width = shot.naturalWidth;
+  canvas.height = shot.naturalHeight;
+  const ctx = canvas.getContext('2d');
+  ctx?.drawImage(shot, 0, 0);
+  const w = Math.round(canvas.width * 0.22);
+  const h = Math.round((camera.videoHeight / camera.videoWidth) * w);
+  ctx?.drawImage(camera, canvas.width - w - 12, canvas.height - h - 12, w, h);
+  return canvas.toDataURL('image/jpeg', 0.6);
+}
+
+/** A live video redrawn from captures: every display at once, or the screen when no stream was granted. */
+function capturedStream(): { stream: MediaStream; stop: () => void } {
   const canvas = document.createElement('canvas');
   canvas.width = 1280;
   canvas.height = 720;
@@ -265,7 +299,7 @@ function windowStream(): { stream: MediaStream; stop: () => void } {
   void (async () => {
     const img = new Image();
     while (running) {
-      const frame = await viewShot(1280, 0.6);
+      const frame = await allScreens(1280, 0.6);
       if (frame && ctx && running) {
         img.src = frame;
         await img.decode().catch(() => undefined);
@@ -299,8 +333,9 @@ export function shareScreenOnRequest(s: Socket, sessionId: string, withAudio = f
     const from = m.from;
     if (!from || m.sessionId !== sessionId || m.payload?.type !== 'offer') return;
     close(from);
-    const own = inAppCapture() ? windowStream() : null;
-    const stream = own?.stream ?? getScreenStream();
+    const granted = getScreenStream();
+    const own = window.proctor && (displaysSeen > 1 || !granted?.active) ? capturedStream() : null;
+    const stream = own?.stream ?? granted;
     if (!stream?.active) {
       s.emit('rtc:answer', { sessionId, to: from, payload: { type: 'unavailable' } });
       return;
@@ -386,6 +421,8 @@ export function watchScreen(sessionId: string, onStream: (stream: MediaStream) =
 export interface MonitorHandlers {
   /** Something about the exam's sessions changed (status, progress, violation, presence). */
   onChange(): void;
+  /** A session got a new flag or browsing entry: its open details should reload. */
+  onDetail(sessionId: string): void;
   onSnapshot(e: { sessionId: string; image: string; at: string }): void;
   onConnection(connected: boolean): void;
 }
@@ -402,7 +439,10 @@ export function watchExam(examId: string, h: MonitorHandlers): () => void {
   });
   s.on('disconnect', () => h.onConnection(false));
   s.on('connect_error', () => h.onConnection(false));
-  for (const event of MONITOR_EVENTS) s.on(event, () => h.onChange());
+  for (const event of MONITOR_EVENTS) s.on(event, (e?: { sessionId?: string }) => {
+    h.onChange();
+    if (e?.sessionId) h.onDetail(e.sessionId);
+  });
   s.on('frame:snapshot', (e: { sessionId: string; image: string; at: string }) => h.onSnapshot(e));
   return () => {
     s.emit('session:leave', { examId });
@@ -475,10 +515,10 @@ function startFrameUploads(sessionId: string): () => void {
   const screenTimer = window.setInterval(() => {
     screenTick += 1;
     if (isOffline()) {
-      if (screenTick % 3 === 0) void viewShot(960, 0.5).then((kept) => { if (kept) void enqueueFrame(sessionId, 'screen', kept); });
+      if (screenTick % 3 === 0) void allScreens(960, 0.5).then((kept) => { if (kept) void enqueueFrame(sessionId, 'screen', kept); });
       return;
     }
-    void viewShot(1280, 0.6).then((frame) => {
+    void allScreens(1280, 0.6).then((frame) => {
       if (frame) void post('/proctoring/screen', { sessionId, image: frame }).catch(keepOnNetworkError('screen', frame));
     });
   }, 20_000);

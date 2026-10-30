@@ -4,6 +4,8 @@ const clipboard = vi.hoisted(() => ({ clear: vi.fn(), readText: vi.fn(() => ''),
 vi.mock('electron', () => ({ clipboard, screen: { on: vi.fn(), off: vi.fn(), removeListener: vi.fn(), getAllDisplays: () => [] } }))
 vi.mock('systeminformation', () => ({
   default: {
+    usb: async () => [],
+    blockDevices: async () => [],
     processes: async () => ({ list: [{ name: 'claude.exe', pid: 11 }, { name: 'Cursor.exe', pid: 12 }, { name: 'AnyDesk.exe', pid: 13 }, { name: 'notepad.exe', pid: 14 }] }),
   },
 }))
@@ -11,6 +13,22 @@ vi.mock('systeminformation', () => ({
 const { GuardMonitor, scanProcesses, setRelaxed } = await import('../electron/security/guards')
 
 afterEach(() => setRelaxed(false))
+
+describe('clipboard', () => {
+  it('reports what was copied and leaves the clipboard alone', async () => {
+    vi.useFakeTimers()
+    const emit = vi.fn()
+    const monitor = new GuardMonitor(emit)
+    await monitor.start()
+    clipboard.readText.mockReturnValue('Which of these is a NoSQL database?')
+    await vi.advanceTimersByTimeAsync(1600)
+    monitor.stop()
+    vi.useRealTimers()
+    clipboard.readText.mockReturnValue('')
+    expect(emit).toHaveBeenCalledWith(expect.objectContaining({ code: 'CLIPBOARD_USE', message: 'Copied: "Which of these is a NoSQL database?"' }))
+    expect(clipboard.clear).not.toHaveBeenCalled()
+  })
+})
 
 describe('developer mode (relaxed)', () => {
   it('flags coding assistants in strict builds', async () => {

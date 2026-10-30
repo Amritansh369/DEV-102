@@ -5,7 +5,7 @@ import { logger } from './core.js';
 
 export interface AgentViolation { code: ViolationCode; severity: Severity; confidence: number; message: string }
 export interface AgentResult { violations: AgentViolation[]; metrics: Record<string, unknown>; riskDelta: number; degraded?: boolean }
-export interface FaceMatch { match: boolean; similarity: number; faces: number; liveness: boolean; degraded?: boolean }
+export interface FaceMatch { match: boolean; similarity: number; faces: number; liveness: boolean; eyesOpen?: boolean | null; degraded?: boolean }
 
 const http: AxiosInstance = axios.create({
   baseURL: config.AGENT_URL,

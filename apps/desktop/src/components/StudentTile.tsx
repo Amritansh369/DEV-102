@@ -1,4 +1,4 @@
-import { useEffect, useId, useRef, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { motion } from 'framer-motion'
 import { Bot, Eye, Send } from 'lucide-react'
 import type { MonitorSession } from '../lib/api'
@@ -13,63 +13,25 @@ const FRAME_BADGE: Record<MonitorSession['frame'], { text: string; cls: string }
 }
 
 /**
- * Candidate camera tile: the candidate's photo with the agent's latest flag drawn over it
- * (an illustrated stand-in is used when no photo is on file).
+ * Candidate picture: the live webcam frame when there is one, else the verified photo taken with open eyes,
+ * else an open-eye icon. The agent's latest flag is drawn over it.
  */
-export function FakeWebcam({ hue, frame, photo, liveImage, className = '' }: { hue: number; frame: MonitorSession['frame']; photo?: string; liveImage?: string; className?: string }) {
-  const gid = useId()
+export function CandidatePicture({ frame, photo, liveImage, className = '' }: { frame: MonitorSession['frame']; photo?: string; liveImage?: string; className?: string }) {
+  const [failed, setFailed] = useState<string | null>(null)
   const badge = FRAME_BADGE[frame]
-  if (liveImage) {
-    return (
-      <div className={`relative overflow-hidden bg-slate-900 ${className}`}>
-        <img src={liveImage} alt="Live webcam snapshot" className="h-full w-full object-cover" />
-        <div className="pointer-events-none absolute inset-0 bg-gradient-to-t from-slate-950/60 via-transparent to-transparent" />
-        {badge && <span className={`absolute left-1.5 top-1.5 rounded-md px-1.5 py-0.5 text-[10px] font-semibold text-white ${badge.cls}`}>{badge.text}</span>}
-        <span className="absolute right-1.5 top-1.5 flex items-center gap-1 rounded-md bg-black/50 px-1.5 py-0.5 text-[9px] font-bold text-white"><span className="h-1.5 w-1.5 animate-pulse rounded-full bg-red-500" />LIVE</span>
-      </div>
-    )
-  }
-  if (photo) {
-    return (
-      <div className={`relative overflow-hidden bg-slate-900 ${className}`}>
-        <img src={photo} alt="" className={`h-full w-full object-cover transition ${frame === 'NO_FACE' ? 'opacity-0' : frame === 'AWAY' ? 'scale-105 -translate-x-2' : ''}`} />
-        <div className="pointer-events-none absolute inset-0 bg-gradient-to-t from-slate-950/60 via-transparent to-transparent" />
-        {frame !== 'NO_FACE' && <div className={`pointer-events-none absolute left-1/2 top-[18%] h-[58%] w-[46%] -translate-x-1/2 rounded-xl border-2 ${frame === 'NORMAL' ? 'border-emerald-400/80' : 'border-amber-400'}`} />}
-        {frame === 'MULTI' && <div className="pointer-events-none absolute right-[6%] top-[26%] h-[44%] w-[30%] rounded-xl border-2 border-danger bg-slate-800/50" />}
-        {badge && <span className={`absolute left-1.5 top-1.5 rounded-md px-1.5 py-0.5 text-[10px] font-semibold text-white ${badge.cls}`}>{badge.text}</span>}
-        <span className="absolute right-1.5 top-1.5 flex items-center gap-1 rounded-md bg-black/50 px-1.5 py-0.5 text-[9px] font-bold text-white"><span className="h-1.5 w-1.5 animate-pulse rounded-full bg-red-500" />REC</span>
-      </div>
-    )
-  }
-  const skin = `hsl(${22 + (hue % 18)} 48% ${42 + (hue % 22)}%)`
-  const shirt = `hsl(${hue} 38% 34%)`
-  const person = (x: number, s: number, turn: number) => (
-    <g transform={`translate(${x} 18) scale(${s})`}>
-      <path d="M-44 102 C-44 78 -24 70 0 70 C24 70 44 78 44 102 Z" fill={shirt} />
-      <rect x="-7" y="56" width="14" height="18" rx="5" fill={skin} />
-      <g transform={`rotate(${turn} 0 50)`}>
-        <ellipse cx="0" cy="40" rx="19" ry="23" fill={skin} />
-        <path d="M-20 38 C-22 12 22 12 20 38 C13 26 -13 26 -20 38 Z" fill="#1F1A17" />
-        <circle cx={-7 + turn * 0.5} cy="42" r="2" fill="#1F1A17" />
-        <circle cx={7 + turn * 0.5} cy="42" r="2" fill="#1F1A17" />
-      </g>
-    </g>
-  )
-  const label = { NORMAL: 'Candidate in frame', NO_FACE: 'No face in frame', MULTI: 'Two people in frame', AWAY: 'Candidate looking away' }[frame]
+  const usable = photo && photo !== failed ? photo : undefined
+  const src = liveImage ?? usable
   return (
-    <svg viewBox="0 0 160 120" preserveAspectRatio="xMidYMid slice" role="img" aria-label={`Simulated webcam snapshot: ${label}`} className={className}>
-      <defs>
-        <linearGradient id={gid} x1="0" y1="0" x2="0" y2="1">
-          <stop offset="0" stopColor={`hsl(${hue} 28% 84%)`} />
-          <stop offset="1" stopColor={`hsl(${hue} 22% 62%)`} />
-        </linearGradient>
-      </defs>
-      <rect width="160" height="120" fill={`url(#${gid})`} />
-      <rect y="96" width="160" height="24" fill={`hsl(${hue} 20% 40% / 0.35)`} />
-      {frame === 'NORMAL' && person(80, 1, 0)}
-      {frame === 'AWAY' && person(84, 1, 14)}
-      {frame === 'MULTI' && <>{person(54, 0.92, 0)}{person(112, 0.78, -6)}</>}
-    </svg>
+    <div className={`relative overflow-hidden bg-slate-900 ${className}`}>
+      {src ? (
+        <img src={src} alt={liveImage ? 'Live webcam snapshot' : 'Candidate photo'} onError={() => setFailed(src)} className="h-full w-full object-cover" />
+      ) : (
+        <div className="grid h-full w-full place-items-center text-slate-400"><Eye className="h-1/3 max-h-16 min-h-5 w-auto" aria-label="No picture yet" /></div>
+      )}
+      {src && <div className="pointer-events-none absolute inset-0 bg-gradient-to-t from-slate-950/60 via-transparent to-transparent" />}
+      {badge && <span className={`absolute left-1.5 top-1.5 rounded-md px-1.5 py-0.5 text-[10px] font-semibold text-white ${badge.cls}`}>{badge.text}</span>}
+      {liveImage && <span className="absolute right-1.5 top-1.5 flex items-center gap-1 rounded-md bg-black/50 px-1.5 py-0.5 text-[9px] font-bold text-white"><span className="h-1.5 w-1.5 animate-pulse rounded-full bg-red-500" />LIVE</span>}
+    </div>
   )
 }
 
@@ -101,7 +63,7 @@ export function StudentTile({ session: s, liveImage, selected, now, onToggle, on
   return (
     <article aria-label={`${s.candidateName}, ${STATUS_LABEL[s.status]}, risk ${Math.round(s.riskScore)}`} onDoubleClick={() => onOpen(s)} className={`relative overflow-hidden rounded-2xl border bg-white shadow-sm ring-2 transition hover:shadow-md ${ring} ${selected ? 'border-accent' : 'border-border'}`}>
       <div className="relative aspect-[4/3] bg-slate-900">
-        <FakeWebcam hue={s.hue} frame={s.frame} photo={s.photoUrl} liveImage={live ? liveImage : undefined} className={`h-full w-full ${live ? '' : 'opacity-50 grayscale'}`} />
+        <CandidatePicture frame={s.frame} photo={s.photoUrl} liveImage={live ? liveImage : undefined} className={`h-full w-full ${live ? '' : 'opacity-50 grayscale'}`} />
         {flash && <motion.span initial={{ opacity: 0.7 }} animate={{ opacity: 0 }} transition={{ duration: 1.2 }} className="pointer-events-none absolute inset-0 bg-danger/30" />}
         <label className="absolute left-2 top-2 grid h-7 w-7 cursor-pointer place-items-center rounded-lg bg-white/90 shadow-sm focus-within:ring-2 focus-within:ring-accent">
           <input type="checkbox" checked={selected} onChange={() => onToggle(s.id)} aria-label={`Select ${s.candidateName}`} className="h-4 w-4 accent-primary-600 focus:outline-none" />

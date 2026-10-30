@@ -6,6 +6,7 @@ import type { Server } from 'node:http';
 const mocks = vi.hoisted(() => ({
   recordViolation: vi.fn(),
   saveEvidence: vi.fn(),
+  inCooldown: vi.fn(),
   toExam: vi.fn(),
 }));
 
@@ -32,7 +33,7 @@ vi.mock('../src/lib/evidence.js', () => ({
   saveEvidence: mocks.saveEvidence,
 }));
 vi.mock('../src/lib/agent.js', () => ({ agent: { analyzeBrowsing: vi.fn(async () => ({ violations: [] })) } }));
-vi.mock('../src/lib/policy.js', () => ({ recordViolation: mocks.recordViolation }));
+vi.mock('../src/lib/policy.js', () => ({ recordViolation: mocks.recordViolation, inCooldown: mocks.inCooldown }));
 vi.mock('../src/lib/realtime.js', () => ({ realtime: { snapshot: vi.fn(), toExam: mocks.toExam } }));
 
 const { proctoringRouter } = await import('../src/modules/proctoring.js');
@@ -53,6 +54,7 @@ afterAll(() => new Promise<void>((r) => server.close(() => r())));
 beforeEach(() => {
   mocks.recordViolation.mockReset().mockResolvedValue({ status: 'LIVE' });
   mocks.saveEvidence.mockReset().mockResolvedValue('ev-1');
+  mocks.inCooldown.mockReset().mockResolvedValue(false);
 });
 
 const SHOT = `data:image/jpeg;base64,${'A'.repeat(200)}`;
@@ -70,7 +72,7 @@ describe('screenshots of AI tools', () => {
 
   it('attaches the screenshot to the visit when nothing was typed', async () => {
     await log({ url: 'https://claude.ai/new', title: 'Claude', screenshot: SHOT });
-    expect(call('AI_SITE_OPENED')).toMatchObject({ evidenceId: 'ev-1', message: 'Opened claude.ai (Claude) in a sandbox tab.' });
+    expect(call('AI_SITE_OPENED')).toMatchObject({ evidenceId: 'ev-1', message: 'Opened claude.ai (Claude).' });
     expect(call('AI_QUERY_DETECTED')).toBeUndefined();
   });
 

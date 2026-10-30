@@ -125,6 +125,8 @@ export interface Violation {
   message: string;
   evidenceUrl?: string;
   reviewed?: 'CONFIRMED' | 'OVERRULED';
+  /** Marks taken off when this flag was confirmed. */
+  penaltyMarks?: number;
 }
 
 export interface BrowsingLog {
@@ -134,5 +136,7 @@ export interface BrowsingLog {
   url: string;
   title: string;
   query?: string;
+  /** What the AI assistant answered to `query`. */
+  reply?: string;
   flaggedAi: boolean;
 }

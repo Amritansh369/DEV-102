@@ -1,13 +1,31 @@
 /**
  * Preload injected into every sandbox tab. Captures what the candidate types into search boxes,
- * text areas and AI chat inputs (when submitted or after a pause) and reports it to the exam
- * window, which logs it to the proctor. Shows a permanent notice so tracking is never hidden.
+ * text areas and AI chat inputs (when submitted or after a pause), and what an AI assistant answers,
+ * and reports it to the exam window, which logs it to the proctor. The candidate agreed to this on
+ * the consent screen, so nothing is shown inside the page.
  */
 import { ipcRenderer } from 'electron';
 
 const MIN_LEN = 3;
+const MAX_REPLY = 8000;
+/** Sites whose answers are read back, by the element holding one answer. Unknown markup falls back to the page's new text. */
+const AI_SITES: [RegExp, string][] = [
+  [/(^|\.)(chatgpt\.com|openai\.com)$/, '[data-message-author-role="assistant"]'],
+  [/(^|\.)claude\.ai$/, '.font-claude-response, .font-claude-message'],
+  [/(^|\.)(gemini|aistudio)\.google\.com$/, 'model-response, ms-chat-turn'],
+  [/(^|\.)copilot\.microsoft\.com$/, '[data-content="ai-message"]'],
+  [/(^|\.)perplexity\.ai$/, '.prose'],
+  [/(^|\.)deepseek\.com$/, '.ds-markdown'],
+  [/(^|\.)(grok\.com|meta\.ai|poe\.com|you\.com|phind\.com|character\.ai|mistral\.ai|qwen\.ai|kimi\.ai|pi\.ai)$/, '[data-testid*="message"], [class*="message"]'],
+];
+const site = AI_SITES.find(([host]) => host.test(location.hostname));
+
 let lastSent = '';
+let lastReply = '';
 let timer: ReturnType<typeof setTimeout> | undefined;
+let replyWatch: ReturnType<typeof setInterval> | undefined;
+let watchedPrompt = '';
+let lastField: Element | null = null;
 
 function fieldText(el: Element | null): string {
   if (!el) return '';
@@ -17,10 +35,42 @@ function fieldText(el: Element | null): string {
   return '';
 }
 
+const pageLines = (): string[] => (document.body?.innerText ?? '').split('\n').map((l) => l.trim()).filter(Boolean);
+
+function latestAnswer(): string {
+  const answers = site ? document.querySelectorAll<HTMLElement>(site[1]) : null;
+  return answers?.length ? answers[answers.length - 1]?.innerText ?? '' : '';
+}
+
+/** Follows the answer to a prompt while it streams and reports each version that stays still for three seconds. */
+function watchReply(prompt: string): void {
+  if (!site || prompt === watchedPrompt) return;
+  watchedPrompt = prompt;
+  clearInterval(replyWatch);
+  const before = new Set(pageLines());
+  const oldAnswer = latestAnswer();
+  let seen = '';
+  let still = 0;
+  let ticks = 0;
+  replyWatch = setInterval(() => {
+    const answer = latestAnswer();
+    const text = (answer && answer !== oldAnswer ? answer : pageLines().filter((l) => !before.has(l) && !prompt.includes(l)).join('\n')).trim();
+    still = text && text === seen ? still + 1 : 0;
+    seen = text;
+    if (still === 3 && text !== lastReply) {
+      lastReply = text;
+      ipcRenderer.sendToHost('sandbox:reply', { prompt, text: text.slice(0, MAX_REPLY), url: location.href, title: document.title });
+    }
+    if (++ticks >= 180) clearInterval(replyWatch);
+  }, 1000);
+}
+
 function send(text: string, trigger: 'submit' | 'pause'): void {
   if (timer) clearTimeout(timer);
   const value = text.replace(/\s+/g, ' ').trim().slice(0, 2000);
-  if (value.length < MIN_LEN || value === lastSent) return;
+  if (value.length < MIN_LEN) return;
+  if (trigger === 'submit') watchReply(value);
+  if (value === lastSent) return;
   lastSent = value;
   ipcRenderer.sendToHost('sandbox:typed', { text: value, trigger, url: location.href, title: document.title });
 }
@@ -41,8 +91,21 @@ document.addEventListener(
   () => {
     if (timer) clearTimeout(timer);
     const el = document.activeElement;
+    lastField = el;
     // A short pause is enough: the proctor sees typing almost as it happens.
     timer = setTimeout(() => send(fieldText(el), 'pause'), 800);
+  },
+  true,
+);
+
+// Chat pages send with a button too: the box empties once the message has gone.
+document.addEventListener(
+  'click',
+  () => {
+    if (!lastField || !lastSent) return;
+    setTimeout(() => {
+      if (!fieldText(lastField).trim()) watchReply(lastSent);
+    }, 200);
   },
   true,
 );
@@ -62,18 +125,3 @@ document.addEventListener('submit', (e) => {
   const field = form?.querySelector('input[type=search], input[type=text], textarea, [contenteditable=true]') ?? null;
   send(fieldText(field), 'submit');
 }, true);
-
-// Copy and paste into tabs is blocked so exam questions cannot be pasted into a chat.
-for (const type of ['copy', 'cut', 'paste'] as const) {
-  document.addEventListener(type, (e) => {
-    e.preventDefault();
-    ipcRenderer.sendToHost('sandbox:clipboard', { type, url: location.href });
-  }, true);
-}
-
-window.addEventListener('DOMContentLoaded', () => {
-  const bar = document.createElement('div');
-  bar.textContent = 'Proctored exam browser · everything you type here is recorded and visible to your invigilator';
-  bar.setAttribute('style', 'position:fixed;z-index:2147483647;left:0;right:0;bottom:0;padding:4px 10px;font:12px Segoe UI,Arial,sans-serif;color:#fff;background:rgba(29,78,216,.92);text-align:center;pointer-events:none');
-  document.documentElement.appendChild(bar);
-});

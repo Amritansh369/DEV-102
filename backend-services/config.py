@@ -36,6 +36,8 @@ class Settings:
     yaw_limit_deg: float = _f("YAW_LIMIT_DEG", 28.0)
     pitch_limit_deg: float = _f("PITCH_LIMIT_DEG", 22.0)
     iris_offset_limit: float = _f("IRIS_OFFSET_LIMIT", 0.32)
+    # Eyelid gap as a share of the eye's width; a wide smile still sits above this, closed eyes below it.
+    eye_open_ratio: float = _f("EYE_OPEN_RATIO", 0.09)
     match_threshold: float = _f("FACE_MATCH_THRESHOLD", 0.363)
     mismatch_frames: int = int(_f("FACE_MISMATCH_FRAMES", 2))
     dark_mean: float = _f("CAMERA_DARK_MEAN", 28.0)

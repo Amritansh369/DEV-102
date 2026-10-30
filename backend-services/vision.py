@@ -128,6 +128,7 @@ class FrameFacts:
     yaw: float | None = None
     pitch: float | None = None
     iris_offset: float | None = None
+    eyes_open: bool | None = None
 
     @property
     def looking_away(self) -> bool:
@@ -176,8 +177,8 @@ def _pose_from_points(pts2d: np.ndarray, w: int, h: int) -> tuple[float, float] 
     return yaw, pitch
 
 
-def head_and_gaze(img: np.ndarray, face: Face) -> tuple[float | None, float | None, float | None]:
-    """Returns (yaw°, pitch°, horizontal iris offset in -1..1) for the main face."""
+def head_and_gaze(img: np.ndarray, face: Face) -> tuple[float | None, float | None, float | None, bool | None]:
+    """Returns (yaw°, pitch°, horizontal iris offset in -1..1, eyes open) for the main face."""
     h, w = img.shape[:2]
     if _mesh is not None:
         import mediapipe as mp
@@ -193,16 +194,21 @@ def head_and_gaze(img: np.ndarray, face: Face) -> tuple[float | None, float | No
                 span = lm[outer].x - lm[inner].x
                 return 0.0 if abs(span) < 1e-6 else ((lm[iris].x - lm[inner].x) / span - 0.5) * 2
 
+            def openness(upper: int, lower: int, inner: int, outer: int) -> float:
+                span = np.hypot(lm[outer].x - lm[inner].x, lm[outer].y - lm[inner].y)
+                return 0.0 if span < 1e-6 else float(np.hypot(lm[upper].x - lm[lower].x, lm[upper].y - lm[lower].y) / span)
+
             iris = (ratio(468, 133, 33) + ratio(473, 362, 263)) / 2 if len(lm) > 473 else None
-            return (pose[0], pose[1], iris) if pose else (None, None, iris)
+            eyes = (openness(159, 145, 133, 33) + openness(386, 374, 362, 263)) / 2 >= settings.eye_open_ratio
+            return (pose[0], pose[1], iris, eyes) if pose else (None, None, iris, eyes)
     if face.raw is not None:
         # YuNet landmarks: right eye, left eye, nose, right mouth, left mouth.
         re, le, nose = face.raw[4:6], face.raw[6:8], face.raw[8:10]
         eye_mid = (re + le) / 2
         eye_dist = float(np.linalg.norm(le - re)) or 1.0
         yaw = float((nose[0] - eye_mid[0]) / eye_dist) * 90
-        return yaw, None, None
-    return None, None, None
+        return yaw, None, None, None
+    return None, None, None, None
 
 
 def analyze(img: np.ndarray) -> FrameFacts:
@@ -217,7 +223,7 @@ def _analyze(img: np.ndarray) -> FrameFacts:
     facts.faces = detect_faces(img)
     if len(facts.faces) >= 1:
         main = max(facts.faces, key=lambda f: f.box[2] * f.box[3])
-        facts.yaw, facts.pitch, facts.iris_offset = head_and_gaze(img, main)
+        facts.yaw, facts.pitch, facts.iris_offset, facts.eyes_open = head_and_gaze(img, main)
     facts.objects = detect_objects(img)
     return facts
 

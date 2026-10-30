@@ -188,7 +188,7 @@ function ExamShowcase() {
             </div>
             {[
               [ScanFace, 'Face verified'],
-              [MonitorCheck, 'Kiosk locked'],
+              [MonitorCheck, 'Screen shared'],
               [Link2, 'Link on this PC'],
             ].map(([Icon, label]) => {
               const I = Icon as typeof ScanFace;
@@ -293,7 +293,7 @@ function HeroVisual() {
 const TRUST = [
   { icon: Link2, label: 'Personal links, one computer each' },
   { icon: ScanFace, label: 'Face and OTP for candidates and proctors' },
-  { icon: ShieldCheck, label: 'Kiosk-mode secure exam app' },
+  { icon: ShieldCheck, label: 'Monitored secure exam app' },
   { icon: Activity, label: 'Live monitoring with human review' },
 ];
 

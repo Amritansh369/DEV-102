@@ -7,7 +7,7 @@ import { fail, handle, must } from '../lib/core.js';
 import { prisma } from '../lib/db.js';
 import { adminOnly, auth, candidateOnly, staff } from '../lib/auth.js';
 import { SEVERITIES, VIOLATION_META, examInclude, examStatus, readExtras, toCandidate, toExam, toSession, toViolation } from '../lib/domain.js';
-import { evidencePath, signEvidenceUrl, verifyEvidenceSignature, verifyPhotoSignature } from '../lib/evidence.js';
+import { evidencePath, readFacePhoto, signEvidenceUrl, verifyEvidenceSignature, verifyPhotoSignature } from '../lib/evidence.js';
 import { BLOCK_MESSAGE, loadResult } from '../lib/results.js';
 import { desktopReleases } from '../lib/releases.js';
 import { systemStatus } from '../lib/status.js';
@@ -312,11 +312,12 @@ adminRouter.get('/photos/:candidateId', async (req, res, next) => {
     const id = String(req.params.candidateId);
     if (!verifyPhotoSignature(id, String(req.query.exp ?? ''), String(req.query.sig ?? ''))) return next(fail('FORBIDDEN', 'This photo link has expired.'));
     const c = await prisma.candidate.findUnique({ where: { id }, select: { photoPath: true } });
-    if (!c?.photoPath || !existsSync(evidencePath(c.photoPath))) return next(fail('NOT_FOUND', 'Photo not found.'));
+    const photo = await readFacePhoto(id, c?.photoPath ?? null);
+    if (!photo) return next(fail('NOT_FOUND', 'Photo not found.'));
     res.setHeader('Content-Type', 'image/jpeg');
     res.setHeader('Cache-Control', 'private, max-age=900');
     res.setHeader('X-Content-Type-Options', 'nosniff');
-    createReadStream(evidencePath(c.photoPath)).pipe(res);
+    res.end(photo);
   } catch (err) {
     next(err);
   }
@@ -327,13 +328,14 @@ adminRouter.get('/evidence/:id', async (req, res, next) => {
     const id = String(req.params.id);
     if (!verifyEvidenceSignature(id, String(req.query.exp ?? ''), String(req.query.sig ?? ''))) return next(fail('FORBIDDEN', 'This evidence link has expired.'));
     const e = await prisma.evidence.findUnique({ where: { id } });
-    if (!e || !existsSync(evidencePath(e.path))) return next(fail('NOT_FOUND', 'Evidence not found.'));
+    if (!e || (!e.data && !existsSync(evidencePath(e.path)))) return next(fail('NOT_FOUND', 'Evidence not found.'));
     res.setHeader('Content-Type', e.mime);
     res.setHeader('Cache-Control', 'private, max-age=900');
     res.setHeader('X-Content-Type-Options', 'nosniff');
     // Seeded frames are SVGs that embed the portrait as a data: image.
     res.setHeader('Content-Security-Policy', "default-src 'none'; img-src data:; style-src 'unsafe-inline'");
-    createReadStream(evidencePath(e.path)).pipe(res);
+    if (e.data) res.end(Buffer.from(e.data));
+    else createReadStream(evidencePath(e.path)).pipe(res);
   } catch (err) {
     next(err);
   }

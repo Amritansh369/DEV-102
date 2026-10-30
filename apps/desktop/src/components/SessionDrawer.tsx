@@ -2,13 +2,13 @@ import { useCallback, useEffect, useId, useMemo, useRef, useState, type Keyboard
 import { createPortal } from 'react-dom'
 import { AnimatePresence, motion } from 'framer-motion'
 import { z } from 'zod'
-import { AlertTriangle, Ban, Bot, Check, CornerDownRight, Globe, Loader2, MonitorPlay, RefreshCw, Search, Send, Undo2, X } from 'lucide-react'
+import { AlertTriangle, Ban, Bot, Check, CornerDownRight, Globe, Loader2, MinusCircle, MonitorPlay, RefreshCw, Search, Send, Undo2, X } from 'lucide-react'
 import type { Severity, Violation } from '../lib/types'
 import { monitorApi, type MonitorSession, type SessionDetail } from '../lib/api'
 import { STATUS_LABEL, VIOLATION_META, formatClock, groupVisits, timeAgo, useNow } from '../lib/monitorUtils'
 import { watchScreen, type ScreenState } from '../lib/live'
 import { RiskBadge, SEVERITY_STYLES, SeverityBadge } from './RiskBadge'
-import { FakeWebcam } from './StudentTile'
+import { CandidatePicture } from './StudentTile'
 
 type Notify = (kind: 'success' | 'error' | 'info', message: string) => void
 type Tab = 'overview' | 'timeline' | 'browsing'
@@ -54,7 +54,7 @@ const warnSchema = z.string().trim().min(5, 'Write at least 5 characters.').max(
 const TEMPLATES = [
   'Please keep your face centred in the camera frame.',
   'Another person is visible in your camera. Please make sure you are alone.',
-  'AI tools are not permitted in this exam. Close that tab immediately.',
+  'AI tools are not permitted in this exam. Close that tab now.',
   'Please keep the exam window in focus.',
 ]
 
@@ -133,45 +133,12 @@ function TerminateDialog({ session, onConfirm, onClose }: { session: MonitorSess
   )
 }
 
-/** Simulated screen capture (mock data): question pane, palette driven by progress, and an AI window when flagged. */
-function FakeScreen({ progress, aiOpen, live }: { progress: number; aiOpen: boolean; live: boolean }) {
-  const answered = Math.round((progress / 100) * 40)
-  return (
-    <div role="img" aria-label={`Simulated screen view. ${aiOpen ? 'An AI assistant window is open.' : 'Exam window in focus.'}`} className="relative aspect-video overflow-hidden rounded-xl border border-border bg-white text-[10px] shadow-inner">
-      <div className="flex h-6 items-center gap-2 bg-primary px-3 text-white"><span className="font-semibold">DEV102 Secure Exam</span><span className="ml-auto tabular-nums">Q {Math.min(40, answered + 1)} / 40</span></div>
-      <div className="grid h-[calc(100%-1.5rem)] grid-cols-[1fr_84px]">
-        <div className="space-y-2 p-3">
-          <div className="h-2 w-2/5 rounded bg-slate-200" />
-          <div className="h-2 w-full rounded bg-slate-200" />
-          <div className="h-2 w-3/4 rounded bg-slate-200" />
-          <div className="space-y-1.5 pt-2">
-            {[0, 1, 2, 3].map((i) => (
-              <div key={i} className={`flex items-center gap-2 rounded border px-2 py-1.5 ${i === 1 ? 'border-accent bg-soft' : 'border-border'}`}>
-                <span className={`h-2.5 w-2.5 rounded-full border ${i === 1 ? 'border-accent bg-accent' : 'border-slate-300'}`} /><span className="h-1.5 w-2/3 rounded bg-slate-200" />
-              </div>
-            ))}
-          </div>
-        </div>
-        <div className="border-l border-border p-2">
-          <div className="grid grid-cols-5 gap-1">
-            {Array.from({ length: 40 }, (_, i) => <span key={i} className={`aspect-square rounded-sm ${i < answered ? 'bg-success/70' : i === answered ? 'bg-accent' : 'bg-slate-200'}`} />)}
-          </div>
-        </div>
-      </div>
-      {aiOpen && (
-        <motion.div initial={{ opacity: 0, scale: 0.94 }} animate={{ opacity: 1, scale: 1 }} className="absolute bottom-3 right-3 w-[48%] overflow-hidden rounded-lg border-2 border-danger bg-white shadow-xl">
-          <div className="flex items-center gap-1 bg-danger px-2 py-1 font-semibold text-white"><Bot className="h-3 w-3" aria-hidden="true" />AI assistant tab (flagged)</div>
-          <div className="space-y-1 p-2"><div className="h-1.5 w-full rounded bg-slate-200" /><div className="h-1.5 w-4/5 rounded bg-slate-200" /><div className="h-1.5 w-2/3 rounded bg-slate-200" /></div>
-        </motion.div>
-      )}
-      {live && <span className="absolute left-2 top-8 inline-flex items-center gap-1 rounded bg-slate-900/70 px-1.5 py-0.5 font-semibold text-white"><span className="h-1.5 w-1.5 animate-pulse rounded-full bg-danger" />LIVE</span>}
-      {live && <motion.span aria-hidden="true" className="absolute h-3 w-3 rounded-full border-2 border-slate-700 bg-white/70" animate={{ left: ['22%', '34%', '28%', '40%', '22%'], top: ['40%', '48%', '58%', '50%', '40%'] }} transition={{ duration: 9, repeat: Infinity, ease: 'easeInOut' }} />}
-    </div>
-  )
-}
-
 interface DrawerProps {
   session: MonitorSession | null
+  /** Latest webcam frame pushed over the monitor socket. */
+  liveImage?: string
+  /** Changes when this session gets a new flag or browsing entry. */
+  detailTick: number
   onClose: () => void
   onSendWarning: (session: MonitorSession, message: string) => Promise<void>
   onTerminate: (session: MonitorSession, reason: string) => Promise<void>
@@ -229,6 +196,23 @@ function LiveScreen({ sessionId, candidateName }: { sessionId: string; candidate
   )
 }
 
+/** Confirming a flag takes marks off: the organization's amount for this severity, which the proctor can change. */
+function ReviewActions({ violation, suggested, onReview }: { violation: Violation; suggested: number; onReview: (v: Violation, verdict: 'CONFIRMED' | 'OVERRULED', marks?: number) => Promise<void> }) {
+  const [marks, setMarks] = useState(String(suggested))
+  const value = Number(marks)
+  const valid = marks.trim() !== '' && Number.isFinite(value) && value >= 0 && value <= 1000
+  return (
+    <div className="mt-3 flex flex-wrap items-center gap-2">
+      <label className="flex items-center gap-1.5 text-xs text-muted">
+        <MinusCircle className="h-3.5 w-3.5" aria-hidden="true" />Marks to deduct
+        <input type="number" min={0} max={1000} step={0.25} value={marks} onChange={(e) => setMarks(e.target.value)} aria-invalid={!valid} className="w-16 rounded-lg border border-border px-2 py-1 text-xs tabular-nums text-text focus:border-accent focus:outline-none focus:ring-2 focus:ring-accent/20" />
+      </label>
+      <button onClick={() => void onReview(violation, 'CONFIRMED', value)} disabled={!valid} className="flex items-center gap-1 rounded-lg bg-primary-600 px-3 py-1 text-xs font-semibold text-white hover:bg-primary focus:outline-none focus-visible:ring-2 focus-visible:ring-accent disabled:opacity-50"><Check className="h-3.5 w-3.5" aria-hidden="true" />Confirm and deduct</button>
+      <button onClick={() => void onReview(violation, 'OVERRULED')} className="flex items-center gap-1 rounded-lg border border-border px-3 py-1 text-xs font-semibold text-text hover:bg-soft focus:outline-none focus-visible:ring-2 focus-visible:ring-accent"><Undo2 className="h-3.5 w-3.5" aria-hidden="true" />Overrule</button>
+    </div>
+  )
+}
+
 export function SessionDrawer({ session, onClose, ...rest }: DrawerProps) {
   const ref = useRef<HTMLElement>(null)
   return (
@@ -261,7 +245,7 @@ export function SessionDrawer({ session, onClose, ...rest }: DrawerProps) {
   )
 }
 
-function DrawerBody({ session, onClose, onSendWarning, onTerminate, onSessionPatch, notify }: DrawerProps & { session: MonitorSession }) {
+function DrawerBody({ session, liveImage, detailTick, onClose, onSendWarning, onTerminate, onSessionPatch, notify }: DrawerProps & { session: MonitorSession }) {
   const [tab, setTab] = useState<Tab>('overview')
   const [detail, setDetail] = useState<SessionDetail | null>(null)
   const [failed, setFailed] = useState(false)
@@ -287,24 +271,25 @@ function DrawerBody({ session, onClose, onSendWarning, onTerminate, onSessionPat
     if (!silent) { setDetail(null); setFailed(false) }
     try { setDetail(await monitorApi.getSessionDetail(sid)); setFailed(false) } catch { if (!silent) setFailed(true) }
   }, [sid])
-  // Reload silently whenever the live session reports a new violation.
+  // Reload silently whenever the live session reports a new violation or browsing entry.
   useEffect(() => {
     void load(loadedOnce.current)
     loadedOnce.current = true
-  }, [load, lastId])
+  }, [load, lastId, detailTick])
 
-  const review = async (v: Violation, verdict: 'CONFIRMED' | 'OVERRULED') => {
+  const review = async (v: Violation, verdict: 'CONFIRMED' | 'OVERRULED', marks?: number) => {
     try {
-      const r = await monitorApi.reviewViolation(v.id, verdict)
-      setDetail((d) => (d ? { ...d, violations: d.violations.map((x) => (x.id === v.id ? r.violation : x)) } : d))
+      const r = await monitorApi.reviewViolation(v.id, verdict, marks)
+      setDetail((d) => (d ? { ...d, violations: d.violations.map((x) => (x.id === v.id ? r.violation : x)), penaltyMarks: d.penaltyMarks + (r.violation.penaltyMarks ?? 0) } : d))
       onSessionPatch(r.session)
-      notify('success', verdict === 'CONFIRMED' ? 'Penalty confirmed' : 'Penalty overruled and risk score reduced')
+      notify('success', verdict === 'CONFIRMED' ? `Flag confirmed, ${r.violation.penaltyMarks ?? 0} marks deducted` : 'Flag overruled and risk score reduced')
     } catch {
       notify('error', 'Could not save your review. Please try again.')
     }
   }
 
   const violations = useMemo(() => (detail ? detail.violations.slice().sort((a, b) => Date.parse(b.at) - Date.parse(a.at)) : []), [detail])
+  const proofs = useMemo(() => violations.filter((v) => v.evidenceUrl).slice(0, 6), [violations])
   const logs = useMemo(() => {
     const term = q.trim().toLowerCase()
     return (detail?.logs ?? []).filter((l) => (!aiOnly || l.flaggedAi) && (!term || `${l.url} ${l.title} ${l.query ?? ''}`.toLowerCase().includes(term))).slice().sort((a, b) => Date.parse(b.at) - Date.parse(a.at))
@@ -330,7 +315,7 @@ function DrawerBody({ session, onClose, onSendWarning, onTerminate, onSessionPat
   return (
     <>
       <header className="flex items-center gap-4 border-b border-border bg-white p-5">
-        <div className="h-14 w-14 shrink-0 overflow-hidden rounded-xl bg-slate-900"><FakeWebcam hue={session.hue} frame="NORMAL" photo={session.photoUrl} className="h-full w-full" /></div>
+        <div className="h-14 w-14 shrink-0 overflow-hidden rounded-xl bg-slate-900"><CandidatePicture frame="NORMAL" photo={session.photoUrl} liveImage={session.photoUrl ? undefined : liveImage} className="h-full w-full" /></div>
         <div className="min-w-0 flex-1">
           <h2 className="truncate font-heading text-xl font-semibold text-text">{session.candidateName}</h2>
           <p className="flex flex-wrap items-center gap-2 text-sm text-muted"><span className="font-mono">{session.userId}</span><span aria-hidden="true">·</span>{STATUS_LABEL[session.status]}</p>
@@ -358,20 +343,32 @@ function DrawerBody({ session, onClose, onSendWarning, onTerminate, onSessionPat
           </div>
         ) : tab === 'overview' ? (
           <div className="grid gap-5 lg:grid-cols-[1.5fr_1fr]">
-            <div className="space-y-2">
+            <div className="space-y-4">
               {live ? (
                 <LiveScreen sessionId={session.id} candidateName={session.candidateName} />
               ) : (
-                <>
-                  <FakeScreen progress={session.progress} aiOpen={session.aiOpen && live} live={live} />
-                  <p className="text-xs text-muted">Simulated screen preview (mock data). Updated at last activity.</p>
-                </>
+                <p className="grid aspect-video place-items-center rounded-xl bg-slate-900 text-sm text-slate-300">The exam has ended, so the live screen is off.</p>
+              )}
+              {proofs.length > 0 && (
+                <section aria-label="Proof of flagged events">
+                  <h3 className="mb-2 text-sm font-semibold text-text">Latest proof</h3>
+                  <ul className="grid grid-cols-3 gap-2">
+                    {proofs.map((v) => (
+                      <li key={v.id}>
+                        <button type="button" onClick={() => setTab('timeline')} title={v.message} className="block w-full overflow-hidden rounded-lg bg-white text-left ring-1 ring-border hover:ring-accent focus:outline-none focus-visible:ring-2 focus-visible:ring-accent">
+                          <img src={v.evidenceUrl} alt={`Proof: ${VIOLATION_META[v.code].label}`} loading="lazy" className="aspect-video w-full bg-slate-900 object-cover" />
+                          <span className="block truncate px-2 py-1 text-[11px] text-text">{VIOLATION_META[v.code].label}</span>
+                        </button>
+                      </li>
+                    ))}
+                  </ul>
+                </section>
               )}
             </div>
             <div className="space-y-4">
-              <div className="overflow-hidden rounded-xl bg-slate-900"><FakeWebcam hue={session.hue} frame={session.frame} photo={session.photoUrl} className="aspect-[4/3] w-full" /></div>
+              <div className="overflow-hidden rounded-xl bg-slate-900"><CandidatePicture frame={session.frame} photo={session.photoUrl} liveImage={live ? liveImage : undefined} className="aspect-[4/3] w-full" /></div>
               <dl className="grid grid-cols-2 gap-2">
-                {[['Progress', `${Math.round(session.progress)}%`], ['Warnings', String(session.warnings)], ['Violations', String(session.violationCount)], ['Time elapsed', `${elapsedMin} min`]].map(([k, v]) => (
+                {[['Progress', `${Math.round(session.progress)}%`], ['Marks deducted', String(detail?.penaltyMarks ?? 0)], ['Violations', String(session.violationCount)], ['Time elapsed', `${elapsedMin} min`]].map(([k, v]) => (
                   <div key={k} className="rounded-xl bg-white p-3 ring-1 ring-border"><dt className="text-xs text-muted">{k}</dt><dd className="font-heading text-lg font-semibold tabular-nums text-text">{v}</dd></div>
                 ))}
               </dl>
@@ -400,17 +397,12 @@ function DrawerBody({ session, onClose, onSendWarning, onTerminate, onSessionPat
                   <div className="flex flex-wrap items-center gap-2">
                     <span className="text-sm font-semibold text-text">{VIOLATION_META[v.code].label}</span>
                     <SeverityBadge severity={v.severity} />
-                    {v.reviewed && <span className={`rounded-full px-2 py-0.5 text-[11px] font-semibold ${v.reviewed === 'CONFIRMED' ? 'bg-danger/10 text-danger' : 'bg-slate-100 text-muted'}`}>{v.reviewed === 'CONFIRMED' ? 'Penalty confirmed' : 'Overruled'}</span>}
+                    {v.reviewed && <span className={`rounded-full px-2 py-0.5 text-[11px] font-semibold ${v.reviewed === 'CONFIRMED' ? 'bg-danger/10 text-danger' : 'bg-slate-100 text-muted'}`}>{v.reviewed === 'CONFIRMED' ? `${v.penaltyMarks ? `−${v.penaltyMarks} marks` : 'Confirmed'}` : 'Overruled'}</span>}
                     <time dateTime={v.at} className="ml-auto text-xs tabular-nums text-muted">{formatClock(v.at)} · {timeAgo(v.at, now)}</time>
                   </div>
                   <p className="mt-1 text-sm text-muted">{v.message}</p>
                   {v.evidenceUrl && <img src={v.evidenceUrl} alt={`Evidence: ${VIOLATION_META[v.code].label}`} loading="lazy" className="mt-3 max-h-64 w-full rounded-lg border border-border bg-soft object-contain" />}
-                  {!v.reviewed && (
-                    <div className="mt-3 flex gap-2">
-                      <button onClick={() => void review(v, 'CONFIRMED')} className="flex items-center gap-1 rounded-lg bg-primary-600 px-3 py-1 text-xs font-semibold text-white hover:bg-primary focus:outline-none focus-visible:ring-2 focus-visible:ring-accent"><Check className="h-3.5 w-3.5" aria-hidden="true" />Confirm penalty</button>
-                      <button onClick={() => void review(v, 'OVERRULED')} className="flex items-center gap-1 rounded-lg border border-border px-3 py-1 text-xs font-semibold text-text hover:bg-soft focus:outline-none focus-visible:ring-2 focus-visible:ring-accent"><Undo2 className="h-3.5 w-3.5" aria-hidden="true" />Overrule</button>
-                    </div>
-                  )}
+                  {!v.reviewed && <ReviewActions violation={v} suggested={detail.penalties[v.severity]} onReview={review} />}
                 </li>
               ))}
             </ol>
@@ -450,7 +442,10 @@ function DrawerBody({ session, onClose, onSendWarning, onTerminate, onSessionPat
                           {v.queries.map((x) => (
                             <li key={x.id} className="flex items-start gap-2 text-sm">
                               <CornerDownRight className={`mt-0.5 h-4 w-4 shrink-0 ${v.ai ? 'text-danger' : 'text-muted'}`} aria-hidden="true" />
-                              <p className="min-w-0 flex-1 text-text"><span className="text-muted">{v.ai ? 'Typed' : 'Searched'}:</span> <span className="font-medium">“{x.text}”</span></p>
+                              <div className="min-w-0 flex-1">
+                                <p className="text-text"><span className="text-muted">{v.ai ? 'Asked' : 'Searched'}:</span> <span className="font-medium">“{x.text}”</span></p>
+                                {x.reply && <p className="mt-1 max-h-40 overflow-y-auto whitespace-pre-wrap rounded-lg bg-soft p-2 text-xs text-text"><span className="font-semibold">{v.site} replied:</span> {x.reply}</p>}
+                              </div>
                               <span className="shrink-0 text-xs tabular-nums text-muted">{formatClock(x.at)}</span>
                             </li>
                           ))}
@@ -471,6 +466,7 @@ function DrawerBody({ session, onClose, onSendWarning, onTerminate, onSessionPat
                       <p className="truncate text-sm font-semibold text-text">{l.title}</p>
                       <p className="truncate font-mono text-xs text-muted">{l.url}</p>
                       {l.query && <p className="mt-1 text-xs text-text">Query: <span className="font-medium">“{l.query}”</span></p>}
+                      {l.reply && <p className="mt-1 max-h-32 overflow-y-auto whitespace-pre-wrap text-xs text-muted">Reply: {l.reply}</p>}
                     </div>
                     <div className="shrink-0 text-right text-xs tabular-nums text-muted">{formatClock(l.at)}{l.flaggedAi && <span className="mt-1 block font-semibold text-danger">Flagged: AI</span>}</div>
                   </li>
