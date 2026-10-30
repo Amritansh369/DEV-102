@@ -246,7 +246,7 @@ export default function DownloadPage() {
         </div>
       </section>
 
-      <ExtensionSection release={release} failed={releaseError} />
+      <ExtensionSection release={release} />
 
       <section aria-labelledby="faq-h" className="px-4 py-16 sm:px-6">
         <div className="mx-auto max-w-3xl">
