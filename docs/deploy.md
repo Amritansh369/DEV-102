@@ -4,7 +4,7 @@ Production runs as four pieces:
 
 | Piece | Where | Built from |
 | --- | --- | --- |
-| PostgreSQL | Render (managed) | `render.yaml` → `dev102-db` |
+| PostgreSQL | Neon (managed) | direct connection string in `DATABASE_URL` |
 | API (Express + Socket.IO) | Render web service | `apps/api/Dockerfile` |
 | AI agent (FastAPI) | Render private service | `backend-services/Dockerfile` |
 | Website (Next.js) | Vercel | `apps/web/vercel.json` |
@@ -21,8 +21,8 @@ The database schema is managed by Prisma migrations in `database/prisma/migratio
 
 ## 2. Deploy the API, agent and database on Render
 
-1. In Render, choose **New → Blueprint** and pick this repository. Render reads `render.yaml` and proposes `dev102-db`, `dev102-api` and `dev102-agent`.
-2. Leave the values marked "sync: false" empty for now and click **Apply**. Render creates the database, generates `JWT_SECRET` and `AGENT_API_KEY` (shared between the API and agent), and builds both Docker images. The agent image downloads its detection models at build time.
+1. In Render, choose **New → Blueprint** and pick this repository. Render reads `render.yaml` and proposes `dev102-api` and `dev102-agent`.
+2. Set `DATABASE_URL` to the Neon **direct** connection string (host without `-pooler`, ending in `?sslmode=require`), leave the other "sync: false" values empty for now, and click **Apply**. Render generates `JWT_SECRET` and `AGENT_API_KEY` (shared between the API and agent), and builds both Docker images. The agent image downloads its detection models at build time.
 3. When both services are live, open **dev102-api → Environment** and set:
 
    | Key | Value |
@@ -36,7 +36,7 @@ The database schema is managed by Prisma migrations in `database/prisma/migratio
 
    Save; Render redeploys the API.
 4. Check `https://<api>/health` returns `{"ok":true,...}`.
-5. Seed the first admin account once, from your machine, against the Render database (copy the **External Database URL** from `dev102-db`):
+5. Seed the first admin account once, from your machine, against the Neon database:
 
    ```bash
    DATABASE_URL="<external database url>" npm run db:seed
