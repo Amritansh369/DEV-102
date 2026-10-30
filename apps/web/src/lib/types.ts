@@ -96,6 +96,8 @@ export interface Candidate {
   emailStatus: 'PENDING' | 'SENT' | 'FAILED';
   /** Signed URL of the reference photo captured at face verification. */
   photoUrl?: string;
+  /** Gravatar photo for the email; transparent when the person has none, so the initials show. */
+  avatarUrl?: string;
   /** Newest emailed join link, when one was sent. */
   invite?: { id: string; status: InviteStatus; deviceBound: boolean };
 }

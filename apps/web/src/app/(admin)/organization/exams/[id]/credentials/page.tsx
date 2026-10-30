@@ -63,7 +63,7 @@ export default function CandidatesPage() {
         const d = new Date(exam.startsAt)
         setStartTime(new Date(d.getTime() - d.getTimezoneOffset() * 60_000).toISOString().slice(0, 16))
         setRows(page.items.map((c) => ({
-          id: c.id, name: c.name, email: c.email, userId: c.userId, password: '',
+          id: c.id, name: c.name, email: c.email, userId: c.userId, password: '', ...(c.avatarUrl ? { avatarUrl: c.avatarUrl } : {}),
           status: c.emailStatus === 'SENT' ? 'sent' : c.emailStatus === 'FAILED' ? 'failed' : 'pending',
           ...(c.invite ? { invite: c.invite } : {}),
         })))
@@ -87,7 +87,7 @@ export default function CandidatesPage() {
           const old = prev.find((row) => row.id === c.id)
           const invite = c.invite
           return {
-            id: c.id, name: c.name, email: c.email, userId: c.userId, password: '',
+            id: c.id, name: c.name, email: c.email, userId: c.userId, password: '', ...(c.avatarUrl ? { avatarUrl: c.avatarUrl } : {}),
             status: c.emailStatus === 'SENT' ? 'sent' : c.emailStatus === 'FAILED' ? 'failed' : 'pending',
             ...(invite ? { invite } : {}),
             ...(old?.invite?.id === invite?.id && old.outbox ? { outbox: true } : {}),
@@ -157,7 +157,7 @@ export default function CandidatesPage() {
     if (!valid.length) return
     try {
       const r = await importCandidates(routeId, valid)
-      const created: CredentialRow[] = r.credentials.map((c) => ({ id: c.candidateId, name: c.name, email: c.email, userId: c.userId, password: c.password, status: 'pending' }))
+      const created: CredentialRow[] = r.credentials.map((c) => ({ id: c.candidateId, name: c.name, email: c.email, userId: c.userId, password: c.password, status: 'pending', ...(c.avatarUrl ? { avatarUrl: c.avatarUrl } : {}) }))
       setRows((prev) => [...prev, ...created])
       setImportErrors([...errors, ...r.invalid.map((i) => `Row ${i.row}: ${i.message}`)])
       setNotice(created.length ? `Created ${created.length} candidate account${created.length === 1 ? '' : 's'}${r.duplicates ? ` · ${r.duplicates} duplicate${r.duplicates === 1 ? '' : 's'} skipped` : ''}. Passwords are shown once; they are stored encrypted until the first sign-in.` : r.duplicates ? `${r.duplicates} duplicate${r.duplicates === 1 ? '' : 's'} skipped.` : null)

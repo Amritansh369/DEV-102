@@ -556,17 +556,17 @@ export function Avatar({
       role="img"
       aria-label={name}
       className={cn(
-        'inline-flex shrink-0 items-center justify-center overflow-hidden rounded-full font-semibold ring-2 ring-white',
+        'relative inline-flex shrink-0 items-center justify-center overflow-hidden rounded-full font-semibold ring-2 ring-white',
         avatarSize[size],
         avatarPalette[hash % avatarPalette.length],
         className,
       )}
     >
-      {src && !failed ? (
+      {initials}
+      {/* Drawn over the initials: a transparent "no photo" image (Gravatar d=blank) leaves them visible. */}
+      {src && !failed && (
         // eslint-disable-next-line @next/next/no-img-element
-        <img src={src} alt="" className="h-full w-full object-cover" onError={() => setFailed(true)} />
-      ) : (
-        initials
+        <img src={src} alt="" className="absolute inset-0 h-full w-full object-cover" onError={() => setFailed(true)} />
       )}
     </span>
   );
