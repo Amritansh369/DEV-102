@@ -5,6 +5,7 @@ import { AnimatePresence, motion } from 'framer-motion'
 import { AlertCircle, Ban, Check, Copy, Loader2, RotateCw, ShieldCheck, UserPlus } from 'lucide-react'
 import { getInviteLink, inviteProctor, listProctors, lookupProctorEmail, resendInvite, resetProctorPassword, revealProctorPassword, revokeInvite, type ProctorInvite, type ProctorProfileLookup } from '@/lib/api'
 import PasswordCell from './PasswordCell'
+import { Avatar } from '@/components/ui/primitives'
 import type { InviteStatus } from '@/lib/types'
 
 const STATUS: Record<InviteStatus, [string, string]> = {
@@ -69,7 +70,7 @@ export default function ProctorInvites({ examId }: { examId: string }) {
 
   const onInvite = (e: FormEvent) => {
     e.preventDefault()
-    if (checkingEmail || checkedEmail !== email.trim().toLowerCase() || emailCheck?.emailUnavailable || emailCheck?.alreadyInvited) {
+    if (checkingEmail || checkedEmail !== email.trim().toLowerCase() || emailCheck?.emailUnavailable || emailCheck?.alreadyInvited || emailCheck?.mailDomainOk === false) {
       setError('Check a valid email address before sending the invitation.')
       return
     }
@@ -126,14 +127,15 @@ export default function ProctorInvites({ examId }: { examId: string }) {
         <input id="proctor-name" value={name} onChange={(e) => setName(e.target.value)} placeholder="Full name" className={input} />
         <label className="sr-only" htmlFor="proctor-email">Proctor email</label>
         <input id="proctor-email" type="email" value={email} onChange={(e) => { setEmail(e.target.value); setEmailCheck(null); setCheckedEmail('') }} onBlur={() => void checkEmail()} required maxLength={200} placeholder="proctor@organisation.com" className={input} />
-        <button type="submit" disabled={busy !== null || checkingEmail || (emailCheck?.alreadyInvited ?? false) || (emailCheck?.emailUnavailable ?? false) || checkedEmail !== email.trim().toLowerCase() || name.trim().length < 2 || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim())} className="inline-flex items-center justify-center gap-2 rounded-xl bg-primary-600 px-4 py-2 text-sm font-semibold text-white hover:brightness-110 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent disabled:opacity-50">
+        <button type="submit" disabled={busy !== null || checkingEmail || (emailCheck?.alreadyInvited ?? false) || (emailCheck?.emailUnavailable ?? false) || emailCheck?.mailDomainOk === false || checkedEmail !== email.trim().toLowerCase() || name.trim().length < 2 || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim())} className="inline-flex items-center justify-center gap-2 rounded-xl bg-primary-600 px-4 py-2 text-sm font-semibold text-white hover:brightness-110 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent disabled:opacity-50">
           {busy === 'invite' ? <Loader2 className="h-4 w-4 animate-spin" aria-hidden /> : <UserPlus className="h-4 w-4" aria-hidden />} Invite proctor
         </button>
       </form>
       {checkingEmail && <p className="mt-2 text-xs text-muted" role="status">Checking email and existing proctor profile…</p>}
       {emailCheck && checkedEmail === email.trim().toLowerCase() && (
-        <p className={`mt-2 text-xs ${emailCheck.alreadyInvited ? 'text-amber-700' : 'text-muted'}`} role="status">
-          {emailCheck.alreadyInvited ? 'This email already has an active proctor invitation for this exam.' : emailCheck.emailUnavailable ? 'This email belongs to an account that cannot proctor. Use a different email.' : emailCheck.profile ? `Existing proctor profile: ${emailCheck.profile.name} (${emailCheck.profile.email}). Name filled from the account.` : 'No existing proctor profile found. A new account will be created after the invitation email is accepted.'}
+        <p className={`mt-2 flex items-center gap-2 text-xs ${emailCheck.alreadyInvited || emailCheck.mailDomainOk === false ? 'text-amber-700' : 'text-muted'}`} role="status">
+          <Avatar name={emailCheck.profile?.name ?? (name.trim() || email.trim())} size="sm" src={emailCheck.avatarUrl} />
+          {emailCheck.mailDomainOk === false ? `${email.trim()} cannot receive email: its domain does not exist or accepts no mail. Check for a typo.` : emailCheck.alreadyInvited ? 'This email already has an active proctor invitation for this exam.' : emailCheck.emailUnavailable ? 'This email belongs to an account that cannot proctor. Use a different email.' : emailCheck.profile ? `Existing proctor profile: ${emailCheck.profile.name} (${emailCheck.profile.email}). Name filled from the account.` : 'No existing proctor profile found. A new account will be created after the invitation email is accepted.'}
         </p>
       )}
 
@@ -170,8 +172,13 @@ export default function ProctorInvites({ examId }: { examId: string }) {
             {rows.map((r) => (
               <tr key={r.inviteId}>
                 <td className="px-4 py-2.5">
-                  <p className="font-medium text-ink">{r.name}</p>
-                  <p className="text-xs text-muted">{r.email}</p>
+                  <div className="flex items-center gap-3">
+                    <Avatar name={r.name} size="sm" src={r.avatarUrl} />
+                    <div className="min-w-0">
+                      <p className="font-medium text-ink">{r.name}</p>
+                      <p className="text-xs text-muted">{r.email}</p>
+                    </div>
+                  </div>
                 </td>
                 <td className="px-4 py-2.5">
                   <span className={`rounded-full px-2 py-0.5 text-[11px] font-semibold ${STATUS[r.status][1]}`}>{STATUS[r.status][0]}</span>

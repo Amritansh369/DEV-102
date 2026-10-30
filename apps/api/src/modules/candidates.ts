@@ -7,6 +7,7 @@ import { prisma } from '../lib/db.js';
 import { adminOnly, audit, staff } from '../lib/auth.js';
 import { decrypt, encrypt, hashPassword, randomPassword } from '../lib/crypto.js';
 import { inviteStatus, toCandidate } from '../lib/domain.js';
+import { gravatarUrl, mailDomainOk } from '../lib/email-check.js';
 import { renderTemplate, sendMail, templates } from '../lib/mailer.js';
 import { issueInvite } from './invites.js';
 
@@ -117,7 +118,7 @@ async function pool<T, R>(items: T[], size: number, fn: (item: T) => Promise<R>)
   return out;
 }
 
-const credentialRow = (c: Candidate, examCode: string, password: string) => ({ candidateId: c.id, name: c.name, email: c.email, examCode, userId: c.userId, password });
+const credentialRow = (c: Candidate, examCode: string, password: string) => ({ candidateId: c.id, name: c.name, email: c.email, examCode, userId: c.userId, password, avatarUrl: gravatarUrl(c.email) });
 
 export const candidatesRouter = Router();
 
@@ -151,14 +152,25 @@ candidatesRouter.post('/exams/:id/candidates/import', ...adminOnly, handle(async
   const fresh: { name: string; email: string }[] = [];
   const existing = new Set((await prisma.candidate.findMany({ where: { examId: exam.id }, select: { email: true } })).map((c) => c.email));
   let duplicates = 0;
+  const rowOf = new Map<string, number>();
   rows.forEach((r, i) => {
     const name = r.name.trim();
     const email = r.email.trim().toLowerCase();
     if (name.length < 2) invalid.push({ row: i + 1, message: 'Name is required.' });
     else if (!emailOk.safeParse(email).success) invalid.push({ row: i + 1, message: `"${r.email}" is not a valid email.` });
     else if (existing.has(email)) duplicates++;
-    else { existing.add(email); fresh.push({ name, email }); }
+    else { existing.add(email); fresh.push({ name, email }); rowOf.set(email, i + 1); }
   });
+  // Drop addresses whose domain cannot receive mail (typos like gmial.com). An unanswered DNS lookup lets the row through.
+  const domains = [...new Set(fresh.map((f) => f.email.split('@')[1] as string))].slice(0, 200);
+  const dead = new Set((await Promise.all(domains.map(async (d) => ((await mailDomainOk(`x@${d}`)) === false ? d : null)))).filter(Boolean));
+  if (dead.size) {
+    for (const f of fresh.filter((x) => dead.has(x.email.split('@')[1] as string))) {
+      invalid.push({ row: rowOf.get(f.email) as number, message: `"${f.email}" cannot receive email: its domain does not exist or accepts no mail.` });
+    }
+    fresh.splice(0, fresh.length, ...fresh.filter((x) => !dead.has(x.email.split('@')[1] as string)));
+    invalid.sort((a, b) => a.row - b.row);
+  }
   const ids = await nextUserIds(fresh.length);
   const passwords = fresh.map(() => randomPassword());
   const hashes: string[] = [];

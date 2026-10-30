@@ -2,6 +2,7 @@ import type {
   BrowsingLog, Candidate, Exam, ExamSession, Invite, Question, Severity, Violation, ViolationCode,
 } from '@prisma/client';
 import { signPhotoUrl } from './evidence.js';
+import { gravatarUrl } from './email-check.js';
 
 /** Canonical violation catalogue. Labels and default severities match the web UI. */
 export const VIOLATION_META: Record<ViolationCode, { label: string; severity: Severity; message: string }> = {
@@ -167,6 +168,7 @@ export function toQuestion(q: Question, withAnswer = true) {
 export const toCandidate = (c: Candidate) => ({
   id: c.id, name: c.name, email: c.email, userId: c.userId, examId: c.examId, status: c.status, emailStatus: c.emailStatus,
   ...(c.photoPath ? { photoUrl: signPhotoUrl(c.id) } : {}),
+  avatarUrl: gravatarUrl(c.email),
 });
 
 export const toSession = (s: ExamSession) => ({

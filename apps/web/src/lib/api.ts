@@ -143,7 +143,7 @@ export const importQuestions = (examId: string, rows: QuestionDraft[]) =>
 /* ------------------------------------------------------------------ candidates and credentials */
 
 export interface ImportRowError { row: number; message: string }
-export interface CredentialRow { candidateId: string; name: string; email: string; examCode: string; userId: string; password: string }
+export interface CredentialRow { candidateId: string; name: string; email: string; examCode: string; userId: string; password: string; avatarUrl?: string }
 export interface EmailResult { candidateId: string; emailStatus: Candidate['emailStatus']; error?: string; inviteId?: string; devLink?: string; outbox?: boolean }
 
 export const listCandidates = (p: { examId?: string; q?: string; page?: number; pageSize?: number; sort?: string; dir?: 'asc' | 'desc' } = {}) =>
@@ -159,8 +159,9 @@ export const revealCandidatePassword = (candidateId: string) => call(post<{ pass
 
 /* ------------------------------------------------------------------ join links */
 
-export interface ProctorInvite { inviteId: string; userId: string | null; name: string; email: string; status: InviteStatus; usedAt: string | null; deviceBound: boolean; createdAt: string }
-export interface ProctorProfileLookup { profile: { name: string; email: string } | null; alreadyInvited: boolean; emailUnavailable: boolean }
+export interface ProctorInvite { inviteId: string; userId: string | null; name: string; email: string; status: InviteStatus; usedAt: string | null; deviceBound: boolean; createdAt: string; avatarUrl?: string }
+/** mailDomainOk: false when the email's domain cannot receive mail, null when DNS could not tell. */
+export interface ProctorProfileLookup { profile: { name: string; email: string } | null; alreadyInvited: boolean; emailUnavailable: boolean; mailDomainOk?: boolean | null; avatarUrl?: string }
 /** devLink is returned only in development when no SMTP server is configured. */
 export interface InviteSent { inviteId: string; devLink?: string; password?: string; outbox?: boolean }
 export const listProctors = (examId: string) => call(get<ProctorInvite[]>(`/exams/${examId}/proctors`))

@@ -265,7 +265,7 @@ function Workspace({ detail }: { detail: SessionDetail }) {
               </figcaption>
             </figure>
           ) : (
-            <Avatar name={candidate.name} size="lg" src={candidate.photoUrl} />
+            <Avatar name={candidate.name} size="lg" src={candidate.photoUrl ?? candidate.avatarUrl} />
           )}
           <div className="min-w-0 flex-1">
             <div className="flex flex-wrap items-center gap-2">
