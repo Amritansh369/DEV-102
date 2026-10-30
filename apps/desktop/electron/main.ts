@@ -1,10 +1,12 @@
 import { app, BrowserWindow, desktopCapturer, session, shell } from 'electron';
 import { join } from 'node:path';
+import { pathToFileURL } from 'node:url';
 import { CH, registerIpc } from './ipc';
 import { Kiosk } from './security/kiosk';
 import { setRelaxed } from './security/guards';
 import { SANDBOX_PARTITION, attachGuard, hardenSandbox } from './browser-sandbox/sandbox';
 import { startAutoUpdates } from './updater';
+import { isAppPage } from './trust';
 
 const PROTOCOL = 'dev102';
 const AI_HOSTS = [
@@ -17,7 +19,8 @@ const isDev = !app.isPackaged;
 // Development keeps the window debuggable unless PROCTOR_STRICT=1; packaged builds always lock down.
 const softKiosk = isDev && process.env.PROCTOR_STRICT !== '1';
 setRelaxed(softKiosk);
-const rendererOrigin = () => (devUrl ? new URL(devUrl).origin : 'file://');
+// Where the app's own pages come from: the dev server, or the renderer folder inside the installed app.
+const rendererBase = () => (devUrl ? new URL(devUrl).origin : pathToFileURL(join(__dirname, '../renderer/')).href);
 
 let win: BrowserWindow | null = null;
 let kiosk: Kiosk | null = null;
@@ -47,7 +50,7 @@ function deliverDeepLink(url: string): void {
   else pendingDeepLink = url;
 }
 
-const emit = registerIpc(() => win, () => kiosk, rendererOrigin);
+const emit = registerIpc(() => win, () => kiosk, rendererBase);
 
 function lockDownSession(): void {
   const ses = session.defaultSession;
@@ -124,7 +127,7 @@ async function createWindow(): Promise<void> {
     return { action: 'deny' };
   });
   win.webContents.on('will-navigate', (e, url) => {
-    if (!url.startsWith(rendererOrigin())) e.preventDefault();
+    if (!isAppPage(url, rendererBase())) e.preventDefault();
   });
   attachGuard(win.webContents, AI_HOSTS);
 
