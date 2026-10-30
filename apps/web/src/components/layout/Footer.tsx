@@ -2,7 +2,7 @@
 
 import Link from 'next/link';
 import { useState, type FormEvent } from 'react';
-import { ArrowRight, Instagram, Linkedin, Mail, Twitter, Youtube, type LucideIcon } from 'lucide-react';
+import { ArrowRight, Github, Instagram, Linkedin, Mail, Twitter, Youtube, type LucideIcon } from 'lucide-react';
 import { z } from 'zod';
 import { Avatar, Button, Input, useToast } from '@/components/ui/primitives';
 import { BrandMark } from '@/components/layout/BrandMark';
@@ -202,7 +202,8 @@ export function Footer() {
                   className="inline-flex items-center gap-2 rounded-full border border-border py-1 pl-1 pr-3 transition hover:border-accent hover:bg-primary-50 hover:text-primary focus-ring"
                 >
                   <Avatar name={name} size="sm" src={`https://github.com/${github}.png?size=64`} />
-                  <span className="text-xs font-medium">@{github}</span>
+                  <Github className="h-3.5 w-3.5" aria-hidden />
+                  <span className="text-xs font-medium">{github}</span>
                 </a>
               </li>
             ))}
