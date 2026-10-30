@@ -1,17 +1,17 @@
-# Render blueprint: API (public) and AI agent (private). PostgreSQL is on Neon. See docs/deploy.md.
+# Render blueprint on the free plan: API and AI agent as two free web services. PostgreSQL is on Neon. See docs/deploy.md.
+# Free services sleep after 15 minutes idle and have no persistent disk, so evidence images last until the next restart.
+# Free services cannot use the private network, so the API calls the agent on its public URL; X-Agent-Key protects it.
 services:
   - type: web
     name: dev102-api
     runtime: docker
     dockerfilePath: ./apps/api/Dockerfile
     dockerContext: .
-    plan: starter
+    plan: free
     healthCheckPath: /health
-    disk:
-      name: evidence
-      mountPath: /data
-      sizeGB: 1
     envVars:
+      - key: EVIDENCE_DIR
+        value: /tmp/evidence
       # Neon direct connection string (host without -pooler, ?sslmode=require).
       - key: DATABASE_URL
         sync: false
@@ -19,7 +19,7 @@ services:
         generateValue: true
       - key: AGENT_API_KEY
         fromService:
-          type: pserv
+          type: web
           name: dev102-agent
           envVarKey: AGENT_API_KEY
       # Set these in the dashboard after the first deploy (docs/deploy.md, step 3).
@@ -44,12 +44,13 @@ services:
       - key: ALERT_WEBHOOK_KEY
         sync: false
 
-  - type: pserv
+  - type: web
     name: dev102-agent
     runtime: docker
     dockerfilePath: ./backend-services/Dockerfile
     dockerContext: ./backend-services
-    plan: starter
+    plan: free
+    healthCheckPath: /health
     envVars:
       - key: AGENT_API_KEY
         generateValue: true

@@ -5,8 +5,8 @@ Production runs as four pieces:
 | Piece | Where | Built from |
 | --- | --- | --- |
 | PostgreSQL | Neon (managed) | direct connection string in `DATABASE_URL` |
-| API (Express + Socket.IO) | Render web service | `apps/api/Dockerfile` |
-| AI agent (FastAPI) | Render private service | `backend-services/Dockerfile` |
+| API (Express + Socket.IO) | Render free web service | `apps/api/Dockerfile` |
+| AI agent (FastAPI) | Render free web service | `backend-services/Dockerfile` |
 | Website (Next.js) | Vercel | `apps/web/vercel.json` |
 | Desktop exam app | Windows installer | `npm run build -w apps/desktop` |
 
@@ -21,13 +21,22 @@ The database schema is managed by Prisma migrations in `database/prisma/migratio
 
 ## 2. Deploy the API, agent and database on Render
 
+`render.yaml` uses Render's **free** plan for both services. The agent peaks at about 300 MB with its models loaded, inside the free 512 MB. Know the limits before a demo:
+
+- A free service sleeps after 15 minutes without requests, and the first request after that takes about a minute. Open `https://<api>/health` and `https://<agent>/health` a minute before an exam. During an exam, frames arrive every second, so both stay awake.
+- Free services have no persistent disk. Evidence images go to `/tmp/evidence` and are lost when the API restarts or redeploys. Download reports you need to keep before redeploying.
+- Free services cannot use Render's private network, so the agent has a public URL. Every agent endpoint except `/health` requires the shared `X-Agent-Key`.
+- A workspace gets 750 free instance hours a month. Two services awake around the clock would need about 1,490, so let them sleep between sessions.
+
+To remove these limits, change `plan: free` to `plan: starter` for both services, add back a disk on the API (`disk: { name: evidence, mountPath: /data, sizeGB: 1 }`), and set `EVIDENCE_DIR` to `/data/evidence`.
+
 1. In Render, choose **New → Blueprint** and pick this repository. Render reads `render.yaml` and proposes `dev102-api` and `dev102-agent`.
 2. Set `DATABASE_URL` to the Neon **direct** connection string (host without `-pooler`, ending in `?sslmode=require`), leave the other "sync: false" values empty for now, and click **Apply**. Render generates `JWT_SECRET` and `AGENT_API_KEY` (shared between the API and agent), and builds both Docker images. The agent image downloads its detection models at build time.
 3. When both services are live, open **dev102-api → Environment** and set:
 
    | Key | Value |
    | --- | --- |
-   | `AGENT_URL` | `http://` + the agent's internal address from **dev102-agent → Connect** (for example `http://dev102-agent-abcd:8000`) |
+   | `AGENT_URL` | The agent's public URL from the **dev102-agent** page, for example `https://dev102-agent.onrender.com` (no trailing slash) |
    | `PUBLIC_API_URL` | The API's public URL, for example `https://dev102-api.onrender.com` |
    | `CLIENT_URL` | The website URL from step 3, for example `https://dev102.vercel.app` (comma-separate several) |
    | `APP_DOWNLOAD_URL` | `<website URL>/download` |
@@ -47,7 +56,7 @@ The database schema is managed by Prisma migrations in `database/prisma/migratio
 
 The API refuses to start in production with the default `JWT_SECRET` or `AGENT_API_KEY`, so a missing secret shows up as a failed deploy rather than an insecure one.
 
-Evidence images are written to the persistent disk mounted at `/data` (`EVIDENCE_DIR=/data/evidence`) and deleted after `RETENTION_DAYS` (default 30).
+Evidence images are written to `EVIDENCE_DIR` (`/tmp/evidence` on the free plan, so they last until the next restart) and deleted after `RETENTION_DAYS` (default 30).
 
 ## 3. Deploy the website on Vercel
 
@@ -76,7 +85,7 @@ The installer lands in `apps/desktop/release/` (`Where U Elevate Setup <version>
 On Render the folder is not part of the image. Either:
 
 - upload the `.exe` somewhere public (for example a GitHub release) and set `APP_DOWNLOAD_URL` and `NEXT_PUBLIC_APP_DOWNLOAD_URL` to that link; or
-- copy it to the API's disk (`/data`) using the Render shell, and symlink `/app/apps/desktop/release` to that folder.
+- on a paid plan with a disk, copy it to the API's disk (`/data`) using the Render shell, and symlink `/app/apps/desktop/release` to that folder.
 
 ## 5. Check the deployment
 
