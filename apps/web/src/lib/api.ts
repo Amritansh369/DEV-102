@@ -104,7 +104,7 @@ export interface ExamExtras {
 export interface ExamDetail { exam: Exam; extras: ExamExtras; policy: ViolationPolicy }
 export interface CreateExamPayload { status: 'DRAFT' | 'SCHEDULED'; exam: NewExamInput; extras: ExamExtras; policy: ViolationPolicy }
 
-export const listExams = () => call(items(get<{ items: Exam[] }>('/exams?pageSize=200&sort=startsAt&dir=desc')))
+export const listExams = () => call(items(get<{ items: Exam[] }>('/exams?pageSize=200&sort=createdAt&dir=desc')))
 export const getUpcomingExams = () => call(items(get<{ items: Exam[] }>('/exams?status=SCHEDULED&sort=startsAt&dir=asc&pageSize=5')))
 export const getExam = (id: string) => call(get<Exam>(`/exams/${id}`))
 export const getExamDetail = (id: string) => call(get<ExamDetail>(`/exams/${id}/detail`))
