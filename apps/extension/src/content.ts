@@ -1,8 +1,8 @@
 /**
  * Runs on AI sites. While an exam is live it reports what the candidate types and what the AI answers.
- * The code is shared with the desktop app's exam tabs, and the candidate agreed to it on the consent screen.
+ * The candidate agreed to this on the consent screen.
  */
-import { trackPage } from '../../desktop/electron/browser-sandbox/page-tracker';
+import { trackPage } from './page-tracker';
 import type { ContentMessage } from './api';
 
 const send = (msg: ContentMessage) => void chrome.runtime.sendMessage(msg).catch(() => undefined);

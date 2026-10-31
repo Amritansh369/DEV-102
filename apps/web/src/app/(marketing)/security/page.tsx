@@ -21,7 +21,7 @@ const MONITORED = [
   "Your entire screen while the exam is open",
   "Microphone level, not the content of speech",
   "Running applications, display count and virtualisation signals",
-  "URLs and search or chat queries typed inside the exam browser",
+  "AI tools and searches, read from window titles and the shared screen",
 ];
 
 const NOT_MONITORED = [

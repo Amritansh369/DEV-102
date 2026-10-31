@@ -22,7 +22,6 @@ const COLUMNS: FooterColumn[] = [
       { href: '/features', label: 'Features' },
       { href: '/security', label: 'Security and privacy' },
       { href: '/download', label: 'Download the app' },
-      { href: '/download#extension', label: 'Use the extension' },
       { href: '/download#requirements', label: 'System requirements' },
     ],
   },
@@ -134,7 +133,7 @@ export function Footer() {
           <div>
             <BrandMark />
             <p className="mt-5 max-w-md text-sm leading-6 text-muted">
-              Secure, fair and transparent online assessments. Smart Proctor combines a locked-down exam browser with AI
+              Secure, fair and transparent online assessments. Smart Proctor combines a monitored exam app with AI
               monitoring and human proctors, so every result can be trusted.
             </p>
             <h2 className="mt-8 text-sm font-semibold text-ink">Get product updates</h2>

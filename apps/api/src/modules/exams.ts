@@ -206,7 +206,7 @@ examsRouter.get('/', ...staff, handle(async (req) => {
     ...(q.q ? { OR: [{ title: { contains: q.q, mode: 'insensitive' } }, { code: { contains: q.q, mode: 'insensitive' } }] } : {}),
   };
   const dir = q.dir === 'desc' ? 'desc' : 'asc';
-  const sortable = ['title', 'code', 'startsAt', 'endsAt', 'durationMin'] as const;
+  const sortable = ['title', 'code', 'startsAt', 'endsAt', 'durationMin', 'createdAt'] as const;
   const orderBy = sortable.includes(q.sort as (typeof sortable)[number]) ? { [q.sort as string]: dir } : { startsAt: 'desc' as const };
   const [total, rows] = await Promise.all([
     prisma.exam.count({ where }),

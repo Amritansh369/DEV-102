@@ -5,7 +5,7 @@ import Link from 'next/link'
 import { AnimatePresence, motion } from 'framer-motion'
 import {
   AlertTriangle, ArrowRight, Award, BookOpenCheck, Camera, CheckCircle2, Clock, Cpu, Download, Eye, FileCheck2, Globe2, Keyboard, Laptop, ListChecks,
-  Loader2, Lock, Mic, Monitor, RefreshCw, ScanFace, ShieldCheck, Timer, Wifi, XCircle, type LucideIcon, Puzzle } from 'lucide-react'
+  Loader2, Lock, Mic, Monitor, RefreshCw, ScanFace, ShieldCheck, Timer, Wifi, XCircle, type LucideIcon } from 'lucide-react'
 import { getLobby, type Lobby, type ResultRelease, type ResultSummary } from '@/lib/api'
 import { API_ORIGIN } from '@/lib/http'
 import { useRequireRole } from '@/lib/session'
@@ -183,7 +183,7 @@ const JOURNEY: { icon: LucideIcon; title: string; body: string }[] = [
 const MONITORED = [
   { icon: Camera, text: 'Webcam frames, analysed for faces, gaze and identity' },
   { icon: Monitor, text: 'Your entire screen while the exam is open' },
-  { icon: Globe2, text: 'Sites and searches in the exam browser, including what you type into AI chats' },
+  { icon: Globe2, text: 'AI tools and searches, read from window titles and your shared screen' },
   { icon: Keyboard, text: 'Typing rhythm and mouse movement summaries (never the keys themselves)' },
 ]
 
@@ -297,9 +297,6 @@ export default function LobbyPage() {
                   )}
                   <Link href="/download" className="inline-flex items-center gap-2 rounded-xl bg-white/10 px-5 py-3 text-sm font-semibold ring-1 ring-white/30 backdrop-blur transition hover:bg-white/20">
                     <Download className="h-4 w-4" aria-hidden /> Download the app
-                  </Link>
-                  <Link href="/download#extension" className="inline-flex items-center gap-2 rounded-xl bg-white/10 px-5 py-3 text-sm font-semibold ring-1 ring-white/30 backdrop-blur transition hover:bg-white/20">
-                    <Puzzle className="h-4 w-4" aria-hidden /> Use extension
                   </Link>
                 </div>
                 <dl className="mt-6 flex flex-wrap gap-x-6 gap-y-2 text-sm text-white/75">

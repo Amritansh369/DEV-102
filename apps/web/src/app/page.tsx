@@ -8,7 +8,7 @@ import FeatureGrid, { StatsStrip } from '@/components/marketing/FeatureGrid';
 export const metadata: Metadata = {
   title: 'Smart Proctoring Browser for Online Assessments | Where U Elevate',
   description:
-    'Run secure MCQ exams with a monitored exam browser, AI face and gaze checks, full browsing and AI chat logs, live proctor monitoring and marks deducted by your policy.',
+    'Run secure MCQ exams with a monitored exam app, AI face and gaze checks, AI tool and search tracking, live proctor monitoring and marks deducted by your policy.',
 };
 
 interface Audience { icon: LucideIcon; title: string; body: string; points: string[]; href: string; cta: string }
@@ -86,7 +86,6 @@ const FOOTER_LINKS = [
   { href: '#features', label: 'Features' },
   { href: '/security', label: 'Security' },
   { href: '/download', label: 'Download App' },
-  { href: '/download#extension', label: 'Use Extension' },
   { href: '/login', label: 'Log in' },
 ];
 

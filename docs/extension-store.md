@@ -1,6 +1,6 @@
 # Publishing the browser extension
 
-A website cannot install an extension, so the "Add to Chrome" button needs a store listing. Brave uses the Chrome Web Store too. Everything the store asks for is here.
+A website cannot install an extension, so candidates need a store listing. Brave uses the Chrome Web Store too. Everything the store asks for is here.
 
 ## 1. Build the upload
 
@@ -60,7 +60,7 @@ When the listing is approved:
 1. Copy the extension ID from the dashboard and add it to `EXTENSION_IDS` on the Render API, separated by a comma. The API refuses extensions it does not know.
 2. Set `EXTENSION_CHROME_URL` on the Render API to the listing page.
 
-The button on `/download` then appears as "Add to Chrome" or "Add to Brave", and installing opens the exam sign-in by itself.
+Share the listing link with candidates. Installing opens the exam sign-in by itself.
 
 For Edge, publish the same zip on [Edge Add-ons](https://partner.microsoft.com/dashboard/microsoftedge) (free) and set `EXTENSION_EDGE_URL`, or Edge uses the Chrome listing.
 

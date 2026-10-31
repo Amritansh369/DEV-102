@@ -109,7 +109,7 @@ For a local test build without publishing, `VITE_API_URL=https://<api> npm run b
 
 ### Browser extension
 
-Candidates add the extension from the store through the Add button on `/download`. `docs/extension-store.md` covers publishing it.
+The website does not offer the extension. `docs/extension-store.md` covers publishing it to the store.
 
 ## 5. Check the deployment
 
